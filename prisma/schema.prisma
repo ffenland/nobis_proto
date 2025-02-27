@@ -1,0 +1,392 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  MEMBER
+  TRAINER
+  MANAGER
+}
+
+enum WeekDay {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+}
+
+model User {
+  id             String    @id @default(uuid())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  username       String
+  email          String    @unique
+  naverId        String?   @unique
+  kakaoId        String?   @unique
+  mobile         String    @unique
+  avatar         String?
+  role           UserRole  @default(MEMBER)
+  trainerProfile Trainer?
+  managerProfile Manager?
+  memberProfile  Member?
+  userData       UserData?
+  deletedAt      DateTime?
+}
+
+model UserData {
+  id         String       @id @default(uuid())
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  user       User         @relation(fields: [userId], references: [id], onDelete: NoAction)
+  userId     String       @unique
+  logNicePay LogNicePay[]
+}
+
+model Member {
+  id               String             @id @default(uuid())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  user             User               @relation(fields: [userId], references: [id])
+  userId           String             @unique
+  pt               Pt[]
+  membership       Membership[]
+  ptCoupon         PtCoupon[]
+  membershipCoupon MembershipCoupon[]
+  machineRecord    MachineRecord[]
+  memberRecord     MemberRecord[]
+  fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId  String?
+}
+
+model Trainer {
+  id               String             @id @default(uuid())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  user             User               @relation(fields: [userId], references: [id])
+  userId           String             @unique
+  avatar           String?
+  introduce        String             @default("안녕하세요")
+  group            Group?             @relation(fields: [groupId], references: [id])
+  groupId          String?
+  pt               Pt[]
+  ptProduct        PtProduct[]
+  ptCoupon         PtCoupon[]
+  membershipCoupon MembershipCoupon[]
+  fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId  String?
+}
+
+model Manager {
+  id                 String               @id @default(uuid())
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  user               User                 @relation(fields: [userId], references: [id])
+  userId             String               @unique
+  group              Group[]
+  ptCoupon           PtCoupon[]
+  membershipCoupon   MembershipCoupon[]
+  membershipAddedDay MembershipAddedDay[]
+  fitnessCenter      FitnessCenter?       @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId    String?
+}
+
+model Group {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  manager   Manager   @relation(fields: [managerId], references: [id])
+  managerId String
+  member    Trainer[]
+}
+
+model ConfigurationValue {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  category  String
+  title     String
+  text      String
+  option    String
+  etc       String
+}
+
+model PtProduct {
+  id          String    @id @default(uuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  title       String
+  price       Int
+  description String
+  totalCount  Int
+  time        Int       @default(1)
+  onSale      Boolean   @default(true)
+  trainer     Trainer[]
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime  @default(dbgenerated("TIMESTAMP '2199-12-31 23:59:59'"))
+  pt          Pt[]
+}
+
+model Pt {
+  id          String     @id @default(uuid())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  ptProduct   PtProduct  @relation(fields: [ptProductId], references: [id])
+  ptProductId String
+  member      Member?    @relation(fields: [memberId], references: [id])
+  memberId    String?
+  trainer     Trainer?   @relation(fields: [trainerId], references: [id])
+  trainerId   String?
+  isActive    Boolean    @default(false)
+  ptRecord    PtRecord[]
+  ptCoupon    PtCoupon?
+  ptPayment   PtPayment?
+  startDate   DateTime
+  isRegular   Boolean
+  weekTimes   WeekTime[]
+}
+
+model PtRecord {
+  id            String          @id @default(uuid())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  pt            Pt              @relation(fields: [ptId], references: [id])
+  ptId          String
+  attended      Boolean         @default(false)
+  machineRecord MachineRecord[]
+  ptSchedule    PtSchedule      @relation(fields: [ptScheduleId], references: [id])
+  ptScheduleId  String
+}
+
+model PtSchedule {
+  id        String     @id @default(uuid())
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  date      DateTime
+  startTime Int
+  endTime   Int
+  ptRecord  PtRecord[]
+
+  @@unique([date, startTime, endTime])
+}
+
+model MemberRecord {
+  // 자유운동 기록
+  id            String          @id @default(uuid())
+  createdAt     DateTime        @default(now())
+  member        Member          @relation(fields: [memberId], references: [id])
+  memberId      String
+  machineRecord MachineRecord[]
+}
+
+enum ScheduleState {
+  PENDING
+  CONFIRMED
+  CANCELED
+}
+
+model WeekTime {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  weekDay   WeekDay
+  startTime Int
+  endTime   Int
+  pt        Pt?      @relation(fields: [ptId], references: [id])
+  ptId      String?
+
+  @@unique([weekDay, startTime, endTime])
+}
+
+model Machine {
+  id              String           @id @default(uuid())
+  name            String
+  machineSetting  MachineSetting[]
+  fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String?
+}
+
+model MachineSetting {
+  id        String          @id @default(uuid())
+  createdAt DateTime        @default(now())
+  name      String
+  machine   Machine         @relation(fields: [machineId], references: [id])
+  machineId String
+  record    MachineRecord[]
+}
+
+model MachineRecord {
+  id                  String         @id @default(uuid())
+  createdAt           DateTime       @default(now())
+  member              Member         @relation(fields: [memberId], references: [id])
+  memberId            String
+  machineSetting      MachineSetting @relation(fields: [machineSettingId], references: [id])
+  machineSettingId    String
+  machineSettingValue String
+  ptRecord            PtRecord?      @relation(fields: [ptRecordId], references: [id])
+  ptRecordId          String?
+  memberRecord        MemberRecord?  @relation(fields: [memberRecordId], references: [id])
+  memberRecordId      String?
+}
+
+model MembershipProduct {
+  id          String       @id @default(uuid())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  title       String       @unique
+  price       Int
+  description String
+  totalCount  Int
+  onSale      Boolean      @default(true)
+  openedAt    DateTime
+  closedAt    DateTime
+  membership  Membership[]
+}
+
+model Membership {
+  id                  String               @id @default(uuid())
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  startedAt           DateTime?
+  closedAt            DateTime?
+  member              Member               @relation(fields: [memberId], references: [id])
+  memberId            String
+  paid                Boolean              @default(false)
+  membershipPayment   MembershipPayment?
+  totalDays           Int
+  isActive            Boolean              @default(false)
+  membershipProduct   MembershipProduct    @relation(fields: [membershipProductId], references: [id])
+  membershipProductId String
+  membershipCoupon    MembershipCoupon?
+  membershipAddedDay  MembershipAddedDay[]
+}
+
+model MembershipAddedDay {
+  id           String     @id @default(uuid())
+  createdAt    DateTime   @default(now())
+  issuer       Manager    @relation(fields: [issuerId], references: [id])
+  issuerId     String
+  membership   Membership @relation(fields: [membershipId], references: [id])
+  membershipId String
+  dayCount     Int
+  description  String?
+}
+
+model MembershipPayment {
+  id           String      @id @default(uuid())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  membership   Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+  membershipId String?     @unique
+  nictTid      String?
+  paidAt       DateTime?
+  price        Int
+}
+
+model PtPayment {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  pt        Pt?       @relation(fields: [ptId], references: [id], onDelete: SetNull)
+  ptId      String?   @unique
+  nictTid   String?
+  paidAt    DateTime?
+  price     Int
+}
+
+model PtCoupon {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  issuer    Manager  @relation(fields: [issuerId], references: [id])
+  issuerId  String
+  trainer   Trainer  @relation(fields: [trainerId], references: [id])
+  trainerId String
+  member    Member   @relation(fields: [memberId], references: [id])
+  memberId  String
+  pt        Pt       @relation(fields: [ptId], references: [id])
+  ptId      String   @unique
+  discount  Int      @default(10)
+  maxPrice  Int      @default(100000)
+  onValid   Boolean  @default(true)
+  openedAt  DateTime @default(now())
+  closedAt  DateTime @default(dbgenerated("(NOW() + '30 days'::interval)"))
+}
+
+model MembershipCoupon {
+  id           String      @id @default(uuid())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  issuer       Manager     @relation(fields: [issuerId], references: [id])
+  issuerId     String
+  trainer      Trainer     @relation(fields: [trainerId], references: [id])
+  trainerId    String
+  member       Member      @relation(fields: [memberId], references: [id])
+  memberId     String
+  discount     Int         @default(10)
+  maxPrice     Int         @default(100000)
+  onValid      Boolean     @default(true)
+  openedAt     DateTime    @default(now())
+  closedAt     DateTime    @default(dbgenerated("(NOW() + '30 days'::interval)"))
+  membership   Membership? @relation(fields: [membershipId], references: [id])
+  membershipId String?     @unique
+}
+
+model LogNicePay {
+  id         String   @id @default(uuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  tid        String
+  userData   UserData @relation(fields: [userDataId], references: [id])
+  userDataId String
+}
+
+model OffDay {
+  id              String         @id @default(uuid())
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  date            DateTime
+  fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String?
+}
+
+model FitnessCenter {
+  id           String        @id @default(uuid())
+  title        String
+  address      String
+  phone        String
+  description  String
+  openingHours OpeningHour[]
+  trainers     Trainer[]
+  members      Member[]
+  managers     Manager[]
+  machines     Machine[]
+  offDays      OffDay[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model OpeningHour {
+  id              String        @id @default(uuid())
+  fitnessCenterId String
+  fitnessCenter   FitnessCenter @relation(fields: [fitnessCenterId], references: [id])
+  dayOfWeek       WeekDay
+  openTime        Int
+  closeTime       Int
+  isClosed        Boolean       @default(false)
+
+  @@unique([fitnessCenterId, dayOfWeek])
+}
