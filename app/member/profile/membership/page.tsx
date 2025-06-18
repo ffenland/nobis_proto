@@ -1,4 +1,4 @@
-"use server";
+// "use server" 제거
 
 import { getMyMemberships } from "./actions";
 

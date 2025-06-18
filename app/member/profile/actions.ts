@@ -2,7 +2,10 @@
 
 import prisma from "@/app/lib/prisma";
 import { getSessionOrRedirect } from "@/app/lib/session";
+import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
+
+export type IMemberProfile = Prisma.PromiseReturnType<typeof getProfile>;
 
 export const getProfile = async () => {
   const session = await getSessionOrRedirect();
@@ -11,6 +14,7 @@ export const getProfile = async () => {
     select: {
       username: true,
       email: true,
+      avatar: true,
       memberProfile: {
         select: {
           membership: {
@@ -33,11 +37,17 @@ export const getProfile = async () => {
           },
           pt: {
             where: {
-              isActive: true,
+              OR: [
+                { isActive: true },
+                {
+                  isActive: false,
+                  startDate: { gt: new Date() }, // startDate가 미래
+                },
+              ],
             },
             select: {
               id: true,
-              startedAt: true,
+              startDate: true,
               isActive: true,
               trainer: { select: { user: { select: { username: true } } } },
               ptProduct: {

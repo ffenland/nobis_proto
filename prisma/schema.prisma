@@ -27,94 +27,117 @@ enum WeekDay {
   THU
   FRI
   SAT
+  SUN
 }
 
 model User {
-  id             String    @id @default(uuid())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  username       String
-  email          String    @unique
-  naverId        String?   @unique
-  kakaoId        String?   @unique
-  mobile         String    @unique
-  avatar         String?
-  role           UserRole  @default(MEMBER)
-  trainerProfile Trainer?
-  managerProfile Manager?
-  memberProfile  Member?
-  userData       UserData?
-  deletedAt      DateTime?
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  username             String
+  email                String                @unique
+  naverId              String?               @unique
+  kakaoId              String?               @unique
+  mobile               String                @unique
+  avatar               String?
+  role                 UserRole              @default(MEMBER)
+  trainerProfile       Trainer?
+  managerProfile       Manager?
+  memberProfile        Member?
+  userData             UserData?
+  deletedAt            DateTime?
+  rateLimit            RateLimit[]
+  message              Message[]
+  messageReadStatus    MessageReadStatus[]
+  chatRoomParticipants ChatRoomParticipant[]
+  photos               UserPhoto[]
 }
 
 model UserData {
-  id         String       @id @default(uuid())
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   user       User         @relation(fields: [userId], references: [id], onDelete: NoAction)
-  userId     String       @unique
+  userId     String       @unique @db.Uuid
   logNicePay LogNicePay[]
 }
 
+model UserPhoto {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  url       String
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?  @db.Uuid
+}
+
+model MachinePhoto {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  url       String
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  machineId String?  @db.Uuid
+}
+
 model Member {
-  id               String             @id @default(uuid())
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   user             User               @relation(fields: [userId], references: [id])
-  userId           String             @unique
+  userId           String             @unique @db.Uuid
   pt               Pt[]
   membership       Membership[]
   ptCoupon         PtCoupon[]
   membershipCoupon MembershipCoupon[]
-  machineRecord    MachineRecord[]
-  memberRecord     MemberRecord[]
   fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId  String?
+  fitnessCenterId  String?            @db.Uuid
 }
 
 model Trainer {
-  id               String             @id @default(uuid())
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   user             User               @relation(fields: [userId], references: [id])
-  userId           String             @unique
+  userId           String             @unique @db.Uuid
   avatar           String?
   introduce        String             @default("안녕하세요")
   group            Group?             @relation(fields: [groupId], references: [id])
-  groupId          String?
+  groupId          String?            @db.Uuid
   pt               Pt[]
   ptProduct        PtProduct[]
   ptCoupon         PtCoupon[]
   membershipCoupon MembershipCoupon[]
   fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId  String?
+  fitnessCenterId  String?            @db.Uuid
+  trainerOff       TrainerOff[]
 }
 
 model Manager {
-  id                 String               @id @default(uuid())
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   user               User                 @relation(fields: [userId], references: [id])
-  userId             String               @unique
+  userId             String               @unique @db.Uuid
   group              Group[]
   ptCoupon           PtCoupon[]
   membershipCoupon   MembershipCoupon[]
   membershipAddedDay MembershipAddedDay[]
   fitnessCenter      FitnessCenter?       @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId    String?
+  fitnessCenterId    String?              @db.Uuid
 }
 
 model Group {
-  id        String    @id @default(uuid())
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   manager   Manager   @relation(fields: [managerId], references: [id])
-  managerId String
+  managerId String    @db.Uuid
   member    Trainer[]
 }
 
 model ConfigurationValue {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   category  String
@@ -125,7 +148,7 @@ model ConfigurationValue {
 }
 
 model PtProduct {
-  id          String    @id @default(uuid())
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   title       String
@@ -141,38 +164,149 @@ model PtProduct {
 }
 
 model Pt {
-  id          String     @id @default(uuid())
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  ptProduct   PtProduct  @relation(fields: [ptProductId], references: [id])
-  ptProductId String
-  member      Member?    @relation(fields: [memberId], references: [id])
-  memberId    String?
-  trainer     Trainer?   @relation(fields: [trainerId], references: [id])
-  trainerId   String?
-  isActive    Boolean    @default(false)
-  ptRecord    PtRecord[]
-  ptCoupon    PtCoupon?
-  ptPayment   PtPayment?
-  startDate   DateTime
-  isRegular   Boolean
-  weekTimes   WeekTime[]
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  ptProduct        PtProduct  @relation(fields: [ptProductId], references: [id])
+  ptProductId      String     @db.Uuid
+  member           Member?    @relation(fields: [memberId], references: [id])
+  memberId         String?    @db.Uuid
+  trainer          Trainer?   @relation(fields: [trainerId], references: [id])
+  trainerId        String?    @db.Uuid
+  isActive         Boolean    @default(false)
+  trainerConfirmed Boolean    @default(false)
+  ptRecord         PtRecord[]
+  ptCoupon         PtCoupon?
+  ptPayment        PtPayment?
+  startDate        DateTime
+  isRegular        Boolean
+  weekTimes        WeekTime[]
+}
+
+enum AttendanceState {
+  ATTENDED
+  ABSENT
+  RESERVED
 }
 
 model PtRecord {
-  id            String          @id @default(uuid())
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  pt            Pt              @relation(fields: [ptId], references: [id])
-  ptId          String
-  attended      Boolean         @default(false)
-  machineRecord MachineRecord[]
-  ptSchedule    PtSchedule      @relation(fields: [ptScheduleId], references: [id])
-  ptScheduleId  String
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  pt           Pt              @relation(fields: [ptId], references: [id])
+  ptId         String          @db.Uuid
+  attended     AttendanceState @default(RESERVED)
+  ptSchedule   PtSchedule      @relation(fields: [ptScheduleId], references: [id])
+  ptScheduleId String          @db.Uuid
+  items        PtRecordItem[]
+}
+
+enum RecordType {
+  MACHINE
+  FREE
+  STRETCHING
+}
+
+model PtRecordItem {
+  id                        String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ptRecord                  PtRecord                   @relation(fields: [ptRecordId], references: [id])
+  ptRecordId                String                     @db.Uuid
+  entry                     Int
+  description               String?
+  type                      RecordType
+  title                     String?
+  machineSetRecords         MachineSetRecord[]
+  freeSetRecords            FreeSetRecord[]
+  stretchingExerciseRecords StretchingExerciseRecord[]
+}
+
+model Machine {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  machineSetting  MachineSetting[]
+  fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String?          @db.Uuid
+  photos          MachinePhoto[]
+}
+
+model MachineSetting {
+  id        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  machine   Machine               @relation(fields: [machineId], references: [id])
+  machineId String                @db.Uuid
+  title     String
+  unit      String
+  values    MachineSettingValue[]
+}
+
+model MachineSettingValue {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  machineSetting    MachineSetting     @relation(fields: [machineSettingId], references: [id])
+  machineSettingId  String             @db.Uuid
+  value             String
+  machineSetRecords MachineSetRecord[]
+}
+
+model MachineSetRecord {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt      DateTime              @default(now())
+  settingValues  MachineSettingValue[]
+  reps           Int
+  set            Int // 몇번째 세트인지
+  ptRecordItem   PtRecordItem          @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
+  ptRecordItemId String                @db.Uuid
+}
+
+model Weights {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String // 기구 이름 (예: "덤벨", "올림픽 바벨")
+  unit            String          @default("kg")
+  weight          Float
+  description     String?
+  fitnessCenter   FitnessCenter?  @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String?         @db.Uuid
+  freeSetRecord   FreeSetRecord[]
+}
+
+model FreeSetRecord {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt      DateTime     @default(now())
+  weights        Weights[]
+  reps           Int // 횟수
+  set            Int // 몇번째 세트인지
+  ptRecordItem   PtRecordItem @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
+  ptRecordItemId String       @db.Uuid
+}
+
+model StretchingPhoto {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  url                  String
+  stretchingExercise   StretchingExercise @relation(fields: [stretchingExerciseId], references: [id])
+  stretchingExerciseId String             @db.Uuid
+}
+
+model StretchingExercise {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt                DateTime                   @default(now())
+  title                    String
+  description              String
+  photos                   StretchingPhoto[]
+  stretchingExerciseRecord StretchingExerciseRecord[]
+}
+
+model StretchingExerciseRecord {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt            DateTime           @default(now())
+  stretchingExercise   StretchingExercise @relation(fields: [stretchingExerciseId], references: [id])
+  stretchingExerciseId String             @db.Uuid
+  description          String?
+  ptRecordItem         PtRecordItem       @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
+  ptRecordItemId       String             @db.Uuid
 }
 
 model PtSchedule {
-  id        String     @id @default(uuid())
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   date      DateTime
@@ -183,15 +317,6 @@ model PtSchedule {
   @@unique([date, startTime, endTime])
 }
 
-model MemberRecord {
-  // 자유운동 기록
-  id            String          @id @default(uuid())
-  createdAt     DateTime        @default(now())
-  member        Member          @relation(fields: [memberId], references: [id])
-  memberId      String
-  machineRecord MachineRecord[]
-}
-
 enum ScheduleState {
   PENDING
   CONFIRMED
@@ -199,51 +324,20 @@ enum ScheduleState {
 }
 
 model WeekTime {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   weekDay   WeekDay
   startTime Int
   endTime   Int
   pt        Pt?      @relation(fields: [ptId], references: [id])
-  ptId      String?
+  ptId      String?  @db.Uuid
 
   @@unique([weekDay, startTime, endTime])
 }
 
-model Machine {
-  id              String           @id @default(uuid())
-  name            String
-  machineSetting  MachineSetting[]
-  fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId String?
-}
-
-model MachineSetting {
-  id        String          @id @default(uuid())
-  createdAt DateTime        @default(now())
-  name      String
-  machine   Machine         @relation(fields: [machineId], references: [id])
-  machineId String
-  record    MachineRecord[]
-}
-
-model MachineRecord {
-  id                  String         @id @default(uuid())
-  createdAt           DateTime       @default(now())
-  member              Member         @relation(fields: [memberId], references: [id])
-  memberId            String
-  machineSetting      MachineSetting @relation(fields: [machineSettingId], references: [id])
-  machineSettingId    String
-  machineSettingValue String
-  ptRecord            PtRecord?      @relation(fields: [ptRecordId], references: [id])
-  ptRecordId          String?
-  memberRecord        MemberRecord?  @relation(fields: [memberRecordId], references: [id])
-  memberRecordId      String?
-}
-
 model MembershipProduct {
-  id          String       @id @default(uuid())
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   title       String       @unique
@@ -257,68 +351,74 @@ model MembershipProduct {
 }
 
 model Membership {
-  id                  String               @id @default(uuid())
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   startedAt           DateTime?
   closedAt            DateTime?
   member              Member               @relation(fields: [memberId], references: [id])
-  memberId            String
+  memberId            String               @db.Uuid
   paid                Boolean              @default(false)
   membershipPayment   MembershipPayment?
   totalDays           Int
   isActive            Boolean              @default(false)
   membershipProduct   MembershipProduct    @relation(fields: [membershipProductId], references: [id])
-  membershipProductId String
+  membershipProductId String               @db.Uuid
   membershipCoupon    MembershipCoupon?
   membershipAddedDay  MembershipAddedDay[]
 }
 
 model MembershipAddedDay {
-  id           String     @id @default(uuid())
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt    DateTime   @default(now())
   issuer       Manager    @relation(fields: [issuerId], references: [id])
-  issuerId     String
+  issuerId     String     @db.Uuid
   membership   Membership @relation(fields: [membershipId], references: [id])
-  membershipId String
+  membershipId String     @db.Uuid
   dayCount     Int
   description  String?
 }
 
 model MembershipPayment {
-  id           String      @id @default(uuid())
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   membership   Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
-  membershipId String?     @unique
+  membershipId String?     @unique @db.Uuid
   nictTid      String?
   paidAt       DateTime?
   price        Int
 }
 
+enum PaymentType {
+  CARD
+  CASH
+  POINT
+}
+
 model PtPayment {
-  id        String    @id @default(uuid())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  pt        Pt?       @relation(fields: [ptId], references: [id], onDelete: SetNull)
-  ptId      String?   @unique
-  nictTid   String?
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  pt        Pt?         @relation(fields: [ptId], references: [id], onDelete: SetNull)
+  ptId      String?     @unique @db.Uuid
+  type      PaymentType @default(CASH)
   paidAt    DateTime?
-  price     Int
+  amount    Int
 }
 
 model PtCoupon {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   issuer    Manager  @relation(fields: [issuerId], references: [id])
-  issuerId  String
+  issuerId  String   @db.Uuid
   trainer   Trainer  @relation(fields: [trainerId], references: [id])
-  trainerId String
+  trainerId String   @db.Uuid
   member    Member   @relation(fields: [memberId], references: [id])
-  memberId  String
+  memberId  String   @db.Uuid
   pt        Pt       @relation(fields: [ptId], references: [id])
-  ptId      String   @unique
+  ptId      String   @unique @db.Uuid
   discount  Int      @default(10)
   maxPrice  Int      @default(100000)
   onValid   Boolean  @default(true)
@@ -327,44 +427,58 @@ model PtCoupon {
 }
 
 model MembershipCoupon {
-  id           String      @id @default(uuid())
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   issuer       Manager     @relation(fields: [issuerId], references: [id])
-  issuerId     String
+  issuerId     String      @db.Uuid
   trainer      Trainer     @relation(fields: [trainerId], references: [id])
-  trainerId    String
+  trainerId    String      @db.Uuid
   member       Member      @relation(fields: [memberId], references: [id])
-  memberId     String
+  memberId     String      @db.Uuid
   discount     Int         @default(10)
   maxPrice     Int         @default(100000)
   onValid      Boolean     @default(true)
   openedAt     DateTime    @default(now())
   closedAt     DateTime    @default(dbgenerated("(NOW() + '30 days'::interval)"))
   membership   Membership? @relation(fields: [membershipId], references: [id])
-  membershipId String?     @unique
+  membershipId String?     @unique @db.Uuid
 }
 
 model LogNicePay {
-  id         String   @id @default(uuid())
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   tid        String
   userData   UserData @relation(fields: [userDataId], references: [id])
-  userDataId String
+  userDataId String   @db.Uuid
 }
 
 model OffDay {
-  id              String         @id @default(uuid())
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   date            DateTime
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId String?
+  fitnessCenterId String?        @db.Uuid
+}
+
+model TrainerOff {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  // 반복 OFF (요일 지정)
+  weekDay   WeekDay? // enum: MON, TUE, ...
+  // 특정 날짜 OFF
+  date      DateTime?
+  startTime Int
+  endTime   Int
+  trainer   Trainer   @relation(fields: [trainerId], references: [id])
+  trainerId String    @db.Uuid
 }
 
 model FitnessCenter {
-  id           String        @id @default(uuid())
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title        String
   address      String
   phone        String
@@ -377,16 +491,68 @@ model FitnessCenter {
   offDays      OffDay[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  weights      Weights[]
 }
 
 model OpeningHour {
-  id              String        @id @default(uuid())
-  fitnessCenterId String
-  fitnessCenter   FitnessCenter @relation(fields: [fitnessCenterId], references: [id])
-  dayOfWeek       WeekDay
-  openTime        Int
-  closeTime       Int
-  isClosed        Boolean       @default(false)
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fitnessCenter FitnessCenter[]
+  dayOfWeek     WeekDay
+  openTime      Int
+  closeTime     Int
+  isClosed      Boolean         @default(false)
 
-  @@unique([fitnessCenterId, dayOfWeek])
+  @@unique([dayOfWeek, openTime, closeTime])
+}
+
+// Session
+model RateLimit {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  ip        String
+  userId    String?  @db.Uuid // 사용자 ID 추가
+  count     Int      @default(1)
+  resetAt   DateTime
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([ip, userId]) // IP와 userId의 조합으로 유니크 제약
+}
+
+// SUPABASE REALTIME DATABASE
+model ChatRoom {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt     DateTime              @default(now())
+  lastMessageAt DateTime              @default(now())
+  messages      Message[]
+  participants  ChatRoomParticipant[]
+}
+
+model ChatRoomParticipant {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id])
+  chatRoomId String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String   @db.Uuid
+  // 필요하다면 역할, 초대일, 상태 등 추가 가능
+}
+
+model Message {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt  DateTime            @default(now())
+  room       ChatRoom            @relation(fields: [roomId], references: [id])
+  roomId     String              @db.Uuid
+  sender     User?               @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  senderId   String?             @db.Uuid
+  content    String
+  isRead     Boolean             @default(false)
+  readStatus MessageReadStatus[]
+}
+
+model MessageReadStatus {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message   Message   @relation(fields: [messageId], references: [id])
+  messageId String    @db.Uuid
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?   @db.Uuid
+  readAt    DateTime?
 }

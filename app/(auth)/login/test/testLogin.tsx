@@ -1,35 +1,50 @@
-'use server'
-
-import { UserRole } from '@prisma/client'
-import { createRandomUser, getUserList, submitLogin } from './actions'
+import { UserRole } from "@prisma/client";
+import {
+  createDummyData,
+  createDummyFreeTool,
+  createDummyMachine,
+  createRandomUser,
+  getUserList,
+  submitLogin,
+} from "./actions";
 
 export const TestLogin = async () => {
-  const userList = await getUserList()
+  const userList = await getUserList();
 
   return (
     <div className="flex w-full flex-col">
+      <form action={createDummyData}>
+        <button className="btn" type="submit">
+          더미 데이터 생성
+        </button>
+      </form>
+      <form action={createDummyMachine}>
+        <button className="btn" type="submit">
+          더미 머신 생성
+        </button>
+      </form>
+      <form action={createDummyFreeTool}>
+        <button className="btn" type="submit">
+          더미 도구 생성
+        </button>
+      </form>
       <div>
         <span>클릭하면 해당 유저로 로그인됩니다.</span>
       </div>
       <div className="flex w-full flex-col gap-2">
         <span>TEST 회원계정 목록</span>
-        {userList.memberList.map(user => (
+        {userList.memberList.map((user) => (
           <form
             key={user.id}
             className="flex items-center justify-between gap-2 rounded-lg border"
-            action={submitLogin}>
+            action={submitLogin}
+          >
             <div className="flex flex-col">
               <div className="flex gap-1">
                 <span>이름 :</span>
                 <span>{user.user.username}</span>
               </div>
-              <input
-                type="text"
-                name="id"
-                value={user.id}
-                hidden
-                readOnly
-              />
+              <input type="text" name="id" value={user.id} hidden readOnly />
               <input
                 type="text"
                 name="userId"
@@ -45,9 +60,7 @@ export const TestLogin = async () => {
                 readOnly
               />
             </div>
-            <button
-              className="btn"
-              type="submit">
+            <button className="btn" type="submit">
               로그인
             </button>
           </form>
@@ -55,23 +68,18 @@ export const TestLogin = async () => {
       </div>
       <div className="flex w-full flex-col gap-2">
         <span>TEST 트레이너계정 목록</span>
-        {userList.trainerList.map(user => (
+        {userList.trainerList.map((user) => (
           <form
             key={user.id}
             className="flex items-center justify-between gap-2 rounded-lg border"
-            action={submitLogin}>
+            action={submitLogin}
+          >
             <div className="flex flex-col">
               <div className="flex gap-1">
                 <span>이름 :</span>
                 <span>{user.user.username}</span>
               </div>
-              <input
-                type="text"
-                name="id"
-                value={user.id}
-                hidden
-                readOnly
-              />
+              <input type="text" name="id" value={user.id} hidden readOnly />
               <input
                 type="text"
                 name="userId"
@@ -87,9 +95,7 @@ export const TestLogin = async () => {
                 readOnly
               />
             </div>
-            <button
-              className="btn"
-              type="submit">
+            <button className="btn" type="submit">
               로그인
             </button>
           </form>
@@ -97,23 +103,18 @@ export const TestLogin = async () => {
       </div>
       <div className="flex w-full flex-col gap-2">
         <span>TEST 관리자 목록</span>
-        {userList.managerList.map(user => (
+        {userList.managerList.map((user) => (
           <form
             key={user.id}
             className="flex items-center justify-between gap-2 rounded-lg border"
-            action={submitLogin}>
+            action={submitLogin}
+          >
             <div className="flex flex-col">
               <div className="flex gap-1">
                 <span>이름 :</span>
                 <span>{user.user.username}</span>
               </div>
-              <input
-                type="text"
-                name="id"
-                value={user.id}
-                hidden
-                readOnly
-              />
+              <input type="text" name="id" value={user.id} hidden readOnly />
               <input
                 type="text"
                 name="userId"
@@ -129,9 +130,7 @@ export const TestLogin = async () => {
                 readOnly
               />
             </div>
-            <button
-              className="btn"
-              type="submit">
+            <button className="btn" type="submit">
               로그인
             </button>
           </form>
@@ -177,7 +176,7 @@ export const TestLogin = async () => {
         </form>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default TestLogin
+export default TestLogin;

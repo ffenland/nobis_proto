@@ -1,44 +1,44 @@
-'use server'
+"use server";
 
-import prisma from '@/app/lib/prisma'
-import { Prisma } from '@prisma/client'
-import type { DateRange } from 'react-day-picker'
+import prisma from "@/app/lib/prisma";
+import { Prisma } from "@prisma/client";
+import type { DateRange } from "react-day-picker";
 
 export interface IPtProductForm {
-  title: string
-  price: number
-  totalCount: number
-  description: string
-  onSale: string
-  isLimitedTime: string
-  dateRange: DateRange | undefined
-  trainers: ITrainerForSelect[]
-  time?: number
+  title: string;
+  price: number;
+  totalCount: number;
+  description: string;
+  onSale: string;
+  isLimitedTime: string;
+  dateRange: DateRange | undefined;
+  trainers: ITrainerForSelect[];
+  time?: number;
 }
 
 export interface IPtProductSubmitData
-  extends Omit<IPtProductForm, 'isLimitedTime' | 'dateRange'> {
-  openedAt: Date
-  closedAt: Date
+  extends Omit<IPtProductForm, "isLimitedTime" | "dateRange"> {
+  openedAt: Date;
+  closedAt: Date;
 }
 
 export type ITrainerForSelect = Prisma.PromiseReturnType<
   typeof getTrainersForPtProductSet
->[number]
+>[number];
 
 interface INewPtProductSubmitSuccess {
-  ok: true
+  ok: true;
   data: {
-    id: string
-  }
+    id: string;
+  };
 }
 interface INewPtProductSubmitError {
-  ok: false
-  error: string
+  ok: false;
+  error: string;
 }
 export type INewPtProductSubmitResult =
   | INewPtProductSubmitSuccess
-  | INewPtProductSubmitError
+  | INewPtProductSubmitError;
 export const newPtProductSubmit = async (
   submitData: IPtProductSubmitData
 ): Promise<INewPtProductSubmitResult> => {
@@ -52,32 +52,32 @@ export const newPtProductSubmit = async (
         ...(submitData.time && { time: submitData.time }),
         openedAt: submitData.openedAt,
         closedAt: submitData.closedAt,
-        onSale: Boolean(submitData.onSale === 'true'),
+        onSale: Boolean(submitData.onSale === "true"),
         trainer: {
-          connect: submitData.trainers.map(trainer => ({
-            id: trainer.trainerId
-          }))
-        }
+          connect: submitData.trainers.map((trainer) => ({
+            id: trainer.trainerId,
+          })),
+        },
       },
       select: {
-        id: true
-      }
-    })
+        id: true,
+      },
+    });
 
     return {
       ok: true,
       data: {
-        id: newPtProduct.id
-      }
-    }
+        id: newPtProduct.id,
+      },
+    };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       // 유니크 제약 조건 위반 에러 (P2002)
-      if (error.code === 'P2002') {
+      if (error.code === "P2002") {
         return {
           ok: false,
-          error: '중복된 이름이 있습니다. 다른 이름을 사용해 주세요.'
-        }
+          error: "중복된 이름이 있습니다. 다른 이름을 사용해 주세요.",
+        };
       }
     }
 
@@ -85,10 +85,12 @@ export const newPtProductSubmit = async (
 
     return {
       ok: false,
-      error: `데이터베이스 에러가 발생했습니다. 잠시 후 다시 시도해 주세요. ${error instanceof Error ? error.message : ''}`
-    }
+      error: `데이터베이스 에러가 발생했습니다. 잠시 후 다시 시도해 주세요. ${
+        error instanceof Error ? error.message : ""
+      }`,
+    };
   }
-}
+};
 
 export const getTrainersForPtProductSet = async () => {
   const trainers = await prisma.trainer.findMany({
@@ -96,14 +98,14 @@ export const getTrainersForPtProductSet = async () => {
       id: true,
       user: {
         select: {
-          username: true
-        }
-      }
-    }
-  })
-  return trainers.map(trainer => ({
+          username: true,
+        },
+      },
+    },
+  });
+  return trainers.map((trainer) => ({
     trainerId: trainer.id,
     username: trainer.user.username,
-    chosen: true
-  }))
-}
+    chosen: true,
+  }));
+};

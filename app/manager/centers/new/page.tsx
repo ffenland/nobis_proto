@@ -1,82 +1,97 @@
+"use client";
 import {
   isValidWeekDayNumberStringMap,
   weekDayNumberStringMap,
-  weekdaysNotSun
-} from '@/app/lib/constants'
-import prisma from '@/app/lib/prisma'
-import { z } from 'zod'
+  weekdaysEnum,
+} from "@/app/lib/constants";
+import {
+  getTrainers,
+  ICenterForm,
+  ICenterFormData,
+  ITrainerForSelect,
+  IWeekOpenClose,
+  submitNewCenter,
+} from "./actions";
+import { useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-const submitNewCenter = async (formData: FormData) => {
-  'use server'
-  const timeRegex = /^([01]\d|2[0-3])([0-5]\d)$/
+const AddNewCenter = () => {
+  const router = useRouter();
+  const [trainers, setTrainers] = useState<ITrainerForSelect[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [serverError, setServerError] = useState("");
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setError,
+    formState: { errors },
+  } = useForm<ICenterForm>({
+    defaultValues: {
+      MON_open: "0900",
+      MON_close: "2200",
+      TUE_open: "0900",
+      TUE_close: "2200",
+      WED_open: "0900",
+      WED_close: "2200",
+      THU_open: "0900",
+      THU_close: "2200",
+      FRI_open: "0900",
+      FRI_close: "2200",
+      SAT_open: "0900",
+      SAT_close: "1300",
+    },
+  });
 
-  const StoreSchema = z.object({
-    title: z.string().min(1, '제목은 필수입니다'),
-    address: z.string().min(1, '주소는 필수입니다'),
-    phone: z.string().regex(/^\d{10,11}$/, '올바른 전화번호 형식이 아닙니다'),
-    description: z.string().optional(),
-    MON_open: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    MON_close: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    TUE_open: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    TUE_close: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    WED_open: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    WED_close: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    THU_open: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    THU_close: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    FRI_open: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    FRI_close: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    SAT_open: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다'),
-    SAT_close: z.string().regex(timeRegex, '올바른 시간 형식이 아닙니다')
-  })
-  const validatedFields = StoreSchema.safeParse({
-    title: formData.get('title'),
-    address: formData.get('address'),
-    phone: formData.get('phone'),
-    description: formData.get('description'),
-    MON_open: formData.get('MON_open'),
-    MON_close: formData.get('MON_close'),
-    TUE_open: formData.get('TUE_open'),
-    TUE_close: formData.get('TUE_close'),
-    WED_open: formData.get('WED_open'),
-    WED_close: formData.get('WED_close'),
-    THU_open: formData.get('THU_open'),
-    THU_close: formData.get('THU_close'),
-    FRI_open: formData.get('FRI_open'),
-    FRI_close: formData.get('FRI_close'),
-    SAT_open: formData.get('SAT_open'),
-    SAT_close: formData.get('SAT_close')
-  })
+  const onSubmit = async (data: ICenterForm) => {
+    setIsSubmitting(true);
+    setServerError("");
 
-  if (!validatedFields.success) {
-    return { ok: false, error: validatedFields.error.flatten().fieldErrors }
-  }
+    const formData: ICenterFormData = {
+      ...data,
+      trainers: Array.isArray(data.trainers) ? data.trainers : [],
+    };
 
-  // 여기서 검증된 데이터를 사용하여 데이터베이스 작업 등을 수행합니다.
-  const storeData = validatedFields.data
-  // ... 데이터베이스 저장 로직
-  const newCenter = await prisma.fitnessCenter.create({
-    data: {
-      title: storeData.title,
-      address: storeData.address,
-      phone: storeData.phone
+    try {
+      const result = await submitNewCenter(formData);
+
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+
+      router.push(`/manager/centers/${result.data.id}`);
+      router.refresh();
+    } catch (error) {
+      console.error("Error:", error);
+      setServerError("헬스장 등록에 실패했습니다.");
+    } finally {
+      setIsSubmitting(false);
     }
-  })
-}
+  };
 
-const AddNewCenter = async () => {
+  useEffect(() => {
+    // Get Trainer List and Save
+    const initTrainers = async () => {
+      const dbTrainers = await getTrainers();
+      setTrainers(dbTrainers);
+    };
+    initTrainers();
+  }, []);
   return (
     <div>
       <span className="my-2 text-lg font-bold">신규 센터 등록하기</span>
-      <form
-        action={submitNewCenter}
-        className="flex flex-col gap-3">
+      {serverError && <span className="text-red-700">{serverError}</span>}
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3">
         <label className="input input-bordered flex items-center gap-2">
           지점 이름
           <input
             type="text"
             className="grow"
-            name="title"
             placeholder="유천점"
+            required
+            {...register("title")}
           />
         </label>
         <label className="input input-bordered flex items-center gap-2">
@@ -84,8 +99,9 @@ const AddNewCenter = async () => {
           <input
             type="text"
             className="grow"
-            name="address"
+            {...register("address")}
             placeholder="선수촌로 79-19 더퍼스트 2층"
+            required
           />
         </label>
         <label className="input input-bordered flex items-center gap-2">
@@ -93,8 +109,56 @@ const AddNewCenter = async () => {
           <input
             type="text"
             className="grow"
-            name="phone"
-            placeholder="033-642-9682"
+            {...register("phone", {
+              pattern: {
+                value: /^[0-9]+$/,
+                message: "숫자만 입력해주세요.",
+              },
+            })}
+            onKeyDown={(event) => {
+              // 허용할 키 목록
+              const allowedKeys = [
+                "Backspace",
+                "Delete",
+                "Tab",
+                "Escape",
+                "Enter",
+                "Home",
+                "End",
+                "ArrowLeft",
+                "ArrowRight",
+                "ArrowUp",
+                "ArrowDown",
+              ];
+
+              // 숫자 키 확인
+              const isNumericInput = /^[0-9]$/.test(event.key);
+
+              // Ctrl+A, Command+A 확인
+              const isSelectAll =
+                (event.key === "a" || event.key === "A") &&
+                (event.ctrlKey || event.metaKey);
+
+              // 허용되지 않는 키 입력 방지
+              if (
+                !isNumericInput &&
+                !allowedKeys.includes(event.key) &&
+                !isSelectAll
+              ) {
+                event.preventDefault();
+              }
+            }}
+            onCompositionEnd={(event) => {
+              if (event.target instanceof HTMLInputElement) {
+                event.target.value = event.target.value.replace(/[^0-9]/g, "");
+              }
+            }}
+            placeholder="0336429682 숫자만 입력해주세요."
+            required
+            pattern="[0-9]+"
+            inputMode="numeric"
+            title="숫자만 입력해주세요."
+            maxLength={11}
           />
         </label>
         <label className="input input-bordered flex items-center gap-2">
@@ -102,42 +166,85 @@ const AddNewCenter = async () => {
           <input
             type="text"
             className="grow"
-            name="description"
+            {...register("description")}
             placeholder="주차공간 겸비"
           />
         </label>
+        <div>
+          <span>소속 트레이너 선택</span>
+          <div className="flex flex-wrap gap-2">
+            {trainers.length > 0 &&
+              trainers.map((trainer) => {
+                return (
+                  <label
+                    key={trainer.trainerId}
+                    className="cursor-pointer text-sm font-medium text-center"
+                  >
+                    <input
+                      type="checkbox"
+                      {...register("trainers")}
+                      value={trainer.trainerId}
+                      className="hidden peer"
+                    />
+                    <div className="flex flex-col px-4 py-2   text-gray-600 rounded-lg peer-checked:bg-blue-800 peer-checked:text-white hover:bg-blue-500 hover:text-white">
+                      <span>{trainer.username}</span>
+                      <span>
+                        {trainer.centerId
+                          ? trainer.centerName
+                          : "소속 센터 없음"}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })}
+          </div>
+        </div>
 
         <label className="mb-2 flex flex-col gap-2">
           <span>요일별 개점,폐업시간 설정</span>
-          {weekdaysNotSun.map((day, index) => {
-            const weekKey = index + 1
+          <span>운영하지 않는 요일은 개점,폐점시간에 0000을 넣어주세요.</span>
+          {weekdaysEnum.map((enumSet, index) => {
+            if (enumSet.key === 0) return null;
+            const weekKey = index;
             if (isValidWeekDayNumberStringMap(weekKey)) {
               return (
-                <div
-                  key={day}
-                  className="flex items-center">
+                <div key={enumSet.enum} className="flex items-center">
                   <span className="w-20">
                     {weekDayNumberStringMap[weekKey].kor.long}
                   </span>
                   <input
                     type="text"
-                    id={`${day}_open`}
-                    name={`${day}_open`}
+                    {...register(
+                      `${enumSet.enum}_open` as keyof IWeekOpenClose
+                    )}
                     className="w-20 rounded border px-3 py-2"
                     placeholder="0900"
+                    maxLength={4}
+                    pattern="[0-9]{4}"
+                    inputMode="numeric"
+                    title="4자리 숫자로 입력해주세요"
+                    required
                   />
                   <span className="mx-2">-</span>
                   <input
                     type="text"
-                    id={`${day}_close`}
-                    name={`${day}_close`}
+                    {...register(
+                      `${enumSet.enum}_close` as keyof IWeekOpenClose
+                    )}
+                    id={`${enumSet.enum}_close`}
+                    name={`${enumSet.enum}_close`}
                     className="w-20 rounded border px-3 py-2"
                     placeholder="2200"
+                    maxLength={4}
+                    pattern="[0-9]{4}"
+                    inputMode="numeric"
+                    title="4자리 숫자로 입력해주세요"
+                    required
                   />
                 </div>
-              )
+              );
             } else {
-              return null
+              return null;
             }
           })}
         </label>
@@ -147,7 +254,7 @@ const AddNewCenter = async () => {
         </div>
       </form>
     </div>
-  )
-}
+  );
+};
 
-export default AddNewCenter
+export default AddNewCenter;

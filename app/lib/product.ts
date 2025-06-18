@@ -15,3 +15,28 @@ export const membershipActiveState = ({
     return "사용완료";
   }
 };
+
+export const calculateEndDate = ({
+  startDate,
+  totalCount,
+  enuriDay,
+}: {
+  startDate: Date;
+  totalCount: number;
+  enuriDay: number;
+}) => {
+  let addMonth = 1;
+  if (totalCount < 11) {
+    addMonth = 2;
+  } else if (totalCount < 21) {
+    addMonth = 3;
+  } else if (totalCount < 31) {
+    addMonth = 4;
+  } else {
+    addMonth = 6;
+  }
+  const endDate = new Date(startDate);
+  endDate.setMonth(endDate.getMonth() + addMonth);
+  endDate.setDate(endDate.getDate() + enuriDay);
+  return endDate;
+};

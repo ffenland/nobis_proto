@@ -1,71 +1,88 @@
 import { calculateRemainingCount } from "@/app/lib/utils";
-import { getProfile } from "./actions";
+import { getProfile, IMemberProfile } from "./actions";
 import Link from "next/link";
+import Image from "next/image";
 
 const Profile = async () => {
-  const memberProfile = await getProfile();
+  const memberProfile: IMemberProfile = await getProfile();
+  const { username, email, avatar, memberProfile: member } = memberProfile;
+  const membership = member?.membership?.[0];
+  const ptList = member?.pt ?? [];
+
   return (
-    <div className="w-full flex flex-col p-2 gap-2">
-      <div className="TITLE p-1">
-        <span>안녕하세요. {memberProfile.username}님</span>
-      </div>
-      <div className="BASICINFO border rounded-md shadow-lg p-2">
+    <div className="w-full max-w-lg mx-auto flex flex-col gap-6 p-4">
+      {/* 프로필 카드 */}
+      <div className="flex items-center gap-4 bg-white rounded-xl shadow p-4">
+        <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-2xl font-bold text-gray-500">
+          {avatar ? (
+            <Image
+              src={avatar}
+              alt="avatar"
+              width={64}
+              height={64}
+              className="rounded-full"
+            />
+          ) : (
+            username?.[0] ?? "U"
+          )}
+        </div>
         <div className="flex flex-col">
-          <div className="flex items-center">
-            <span>Email : </span>
-            <span>{memberProfile.email}</span>
-          </div>
+          <span className="text-lg font-bold">{username} 님</span>
+          <span className="text-sm text-gray-500">{email}</span>
         </div>
       </div>
-      <div className="MEMBERSHIP  border rounded-md shadow-lg p-2 flex flex-col">
-        {memberProfile.memberProfile?.membership &&
-        memberProfile.memberProfile.membership.length > 0 &&
-        memberProfile.memberProfile.membership[0].startedAt ? (
-          <div className="flex flex-col">
-            <span>
-              {
-                memberProfile.memberProfile.membership[0].membershipProduct
-                  .title
-              }
-            </span>
-            <span>
-              {calculateRemainingCount({
-                totalCount:
-                  memberProfile.memberProfile.membership[0].membershipProduct
-                    .totalCount,
-                startedAt: memberProfile.memberProfile.membership[0].startedAt,
-              })}
-            </span>
+
+      {/* PT 카드 */}
+      <div className="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div className="font-semibold text-blue-700 mb-1">PT 프로그램</div>
+        {ptList.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {ptList.map((pt) => (
+              <div
+                key={pt.id}
+                className="border-b last:border-b-0 pb-2 last:pb-0"
+              >
+                <div className="font-medium">{pt.ptProduct.title}</div>
+                <div className="text-sm text-gray-500">
+                  {pt.isActive ? "진행중" : "승인대기"}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center w-full">
-            <span>현재 활성화된 회원권이 없습니다.</span>
-            <Link href={"/member/profile/membership"}>
-              <button className="btn btn-primary">회원권 관리</button>
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-gray-400">
+              현재 활성화된 PT 프로그램이 없습니다.
+            </span>
+            <Link href={"/member/profile/pt"}>
+              <button className="btn btn-secondary btn-sm">PT 관리</button>
             </Link>
           </div>
         )}
       </div>
-      <div className="PT border rounded-md shadow-lg p-2 flex flex-col">
-        {memberProfile.memberProfile?.pt &&
-        memberProfile.memberProfile.pt.length > 0 ? (
-          <div className="flex flex-col w-full">
-            {memberProfile.memberProfile.pt.map((pt) => {
-              return (
-                <div>
-                  <div className="flex flex-col">
-                    <span>{pt.ptProduct.title}</span>
-                    <span></span>
-                  </div>
-                </div>
-              );
-            })}
+      {/* 회원권 카드 */}
+      <div className="bg-white rounded-xl shadow p-4 flex flex-col gap-2">
+        <div className="font-semibold text-green-700 mb-1">회원권</div>
+        {membership && membership.startedAt ? (
+          <div>
+            <div className="font-medium">
+              {membership.membershipProduct.title}
+            </div>
+            <div className="text-sm text-gray-500">
+              남은 횟수:{" "}
+              {calculateRemainingCount({
+                totalCount: membership.membershipProduct.totalCount,
+                startedAt: membership.startedAt,
+              })}
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center w-full">
-            <span>현재 활성화된 PT프로그램이 없습니다.</span>
-            <Link href={"/member/profile/pt"}>
-              <button className="btn btn-secondary">PT 관리</button>
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-gray-400">
+              현재 활성화된 회원권이 없습니다.
+            </span>
+            <Link href={"/member/profile/membership"}>
+              <button className="btn btn-primary btn-sm">회원권 관리</button>
             </Link>
           </div>
         )}

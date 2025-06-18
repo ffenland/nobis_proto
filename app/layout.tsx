@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import "./globals.css";
 
 const geistSans = localFont({

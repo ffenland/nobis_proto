@@ -1,4 +1,3 @@
-"use server";
 import Image from "next/image";
 import Link from "next/link";
 import TestLogin from "./test/testLogin";
@@ -10,7 +9,7 @@ const Login = async ({ searchParams }: { searchParams: SearchParams }) => {
   // Welcome page
   const { error } = await searchParams;
   return (
-    <main className="w-full flex flex-col items-center justify-center min-h-screen">
+    <main className="w-full flex flex-col items-center justify-start min-h-screen">
       <div className="flex flex-col w-72">
         <div className="font-extrabold text-[100px] flex flex-col">
           <span>Nobis</span>

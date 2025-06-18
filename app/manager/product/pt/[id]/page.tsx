@@ -1,23 +1,31 @@
-import { redirect } from 'next/navigation'
-import { getPtProduct } from './edit/actions'
-import Link from 'next/link'
+import { redirect } from "next/navigation";
+import { getPtProduct } from "./edit/actions";
+import Link from "next/link";
 
-type Params = Promise<{ id: string }>
+function formatPrice(price: number) {
+  return price.toLocaleString("ko-KR") + "원";
+}
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleDateString("ko-KR");
+}
+
+type Params = Promise<{ id: string }>;
 
 const PtProductDetail = async (props: { params: Params }) => {
-  const params = await props.params
-  const id = params.id
+  const params = await props.params;
+  const id = params.id;
   if (!id) {
-    redirect('/manager/product/pt')
+    redirect("/manager/product/pt");
   }
-  const ptProduct = await getPtProduct(id)
+  const ptProduct = await getPtProduct(id);
   if (!ptProduct) {
-    redirect('/manager/product/pt')
+    redirect("/manager/product/pt");
   }
   return (
-    <div className="flex w-full flex-col rounded-lg bg-white p-6 shadow-md">
-      <div className="flex w-full justify-between">
-        <h1 className="mb-4 text-3xl font-bold">{ptProduct.title}</h1>
+    <div className="w-full max-w-2xl mx-auto p-4">
+      <div className="flex w-full justify-between items-center mb-4">
+        <h1 className="text-2xl md:text-3xl font-bold">{ptProduct.title}</h1>
         <div className="flex gap-2">
           <Link href="/manager/product/pt">
             <button className="btn btn-sm">목록으로</button>
@@ -27,47 +35,71 @@ const PtProductDetail = async (props: { params: Params }) => {
           </Link>
         </div>
       </div>
-      <div className="mb-2">
-        <span className="font-semibold">ID:</span> {ptProduct.id}
-      </div>
-      <div className="mb-2">
-        <span className="font-semibold">Price:</span> ₩{ptProduct.price}
-      </div>
-      <div className="mb-2">
-        <span className="font-semibold">Total Count:</span>{' '}
-        {ptProduct.totalCount}
-      </div>
-      <div className="mb-2">
-        <span className="font-semibold">Description:</span>{' '}
-        {ptProduct.description}
-      </div>
-      <div className="mb-2">
-        <span className="font-semibold">On Sale:</span>{' '}
-        {ptProduct.onSale ? 'Yes' : 'No'}
-      </div>
-      <div className="mb-2">
-        <span className="font-semibold">Time:</span> {ptProduct.time} minutes
-      </div>
-      <div className="mb-2">
-        <span className="font-semibold">Opened At:</span>{' '}
-        {new Date(ptProduct.openedAt).toLocaleDateString()}
-      </div>
-      <div className="mb-2">
-        <span className="font-semibold">Closed At:</span>{' '}
-        {new Date(ptProduct.closedAt).toLocaleDateString()}
-      </div>
-      <div className="mt-4">
-        <h2 className="mb-2 text-2xl font-semibold">Trainers</h2>
-        <ul className="list-inside list-disc">
-          {ptProduct.trainers.map(trainer => (
-            <li key={trainer.trainerId}>
-              {trainer.username} (ID: {trainer.trainerId})
-            </li>
-          ))}
-        </ul>
+      <div className="card bg-white shadow-md rounded-lg p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <div className="text-gray-500 text-sm mb-1">가격</div>
+            <div className="font-semibold text-lg">
+              {formatPrice(ptProduct.price)}
+            </div>
+          </div>
+          <div>
+            <div className="text-gray-500 text-sm mb-1">총 횟수</div>
+            <div className="font-semibold text-lg">
+              {ptProduct.totalCount}회
+            </div>
+          </div>
+          <div>
+            <div className="text-gray-500 text-sm mb-1">판매 상태</div>
+            <div
+              className={
+                ptProduct.onSale
+                  ? "text-green-600 font-semibold"
+                  : "text-red-500 font-semibold"
+              }
+            >
+              {ptProduct.onSale ? "판매중" : "비활성화"}
+            </div>
+          </div>
+          <div>
+            <div className="text-gray-500 text-sm mb-1">판매 시작일</div>
+            <div>{formatDate(String(ptProduct.openedAt))}</div>
+          </div>
+          <div>
+            <div className="text-gray-500 text-sm mb-1">판매 종료일</div>
+            <div>{formatDate(String(ptProduct.closedAt))}</div>
+          </div>
+        </div>
+        <div className="mb-4">
+          <div className="text-gray-500 text-sm mb-1">설명</div>
+          <div className="whitespace-pre-line text-base">
+            {ptProduct.description}
+          </div>
+        </div>
+        <div className="mb-2">
+          <div className="text-gray-500 text-sm mb-1">PT 1회 소요 시간</div>
+          <div>{ptProduct.time}분</div>
+        </div>
+        <div className="mt-6">
+          <h2 className="mb-2 text-xl font-semibold">담당 트레이너</h2>
+          <ul className="flex flex-wrap gap-3">
+            {ptProduct.trainers.map((trainer) => (
+              <li
+                key={trainer.trainerId}
+                className="flex w-full items-center gap-2 bg-base-200 rounded px-3 py-2"
+              >
+                {/* 아바타(이니셜) */}
+                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg">
+                  {trainer.username?.[0] || "?"}
+                </div>
+                <span className="font-medium">{trainer.username}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default PtProductDetail
+export default PtProductDetail;

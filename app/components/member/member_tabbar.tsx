@@ -24,11 +24,8 @@ const MemberTabBar = () => {
         {pathname === "/member" ? <RiHome4Fill /> : <RiHome4Line />}
         <span>홈</span>
       </Link>
-      <Link
-        href={"/member/chats"}
-        className="flex flex-col items-center gap-px"
-      >
-        {pathname === "/member/chats" ? (
+      <Link href={"/member/chat"} className="flex flex-col items-center gap-px">
+        {pathname === "/member/chat" ? (
           <RiChatSmile3Fill />
         ) : (
           <RiChatSmile3Line />
