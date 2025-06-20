@@ -1,12 +1,13 @@
-// app/lib/services/trainer.service.ts
+// app/lib/services/trainer.service.ts (완전 수정 버전)
 import prisma from "@/app/lib/prisma";
+import { PtState } from "@prisma/client";
 
 // 트레이너의 승인 대기 중인 PT 목록 조회
 export const getPendingPtApplicationsService = async (trainerId: string) => {
   const pendingPts = await prisma.pt.findMany({
     where: {
       trainerId,
-      trainerConfirmed: false, // 승인 대기 중
+      state: PtState.PENDING, // PENDING 상태만
     },
     include: {
       member: {
@@ -14,67 +15,6 @@ export const getPendingPtApplicationsService = async (trainerId: string) => {
           user: {
             select: {
               username: true,
-              phone: true,
-            },
-          },
-        },
-      },
-      ptProduct: {
-        select: {
-          title: true,
-          totalCount: true,
-          time: true,
-          price: true,
-        },
-      },
-      ptSchedule: {
-        select: {
-          date: true,
-          startTime: true,
-          endTime: true,
-        },
-        orderBy: {
-          date: "asc",
-        },
-      },
-      weekTimes: {
-        select: {
-          weekDay: true,
-          startTime: true,
-          endTime: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc", // 최신 신청 순
-    },
-  });
-
-  return pendingPts.map((pt) => ({
-    ...pt,
-    startDate: pt.startDate.toISOString(),
-    createdAt: pt.createdAt.toISOString(),
-    ptSchedule: pt.ptSchedule.map((schedule) => ({
-      ...schedule,
-      date: schedule.date.toISOString(),
-    })),
-  }));
-};
-
-// 트레이너의 모든 PT 목록 조회 (승인됨, 진행중, 완료)
-export const getTrainerPtListService = async (trainerId: string) => {
-  const allPts = await prisma.pt.findMany({
-    where: {
-      trainerId,
-      trainerConfirmed: true, // 승인된 PT만
-    },
-    include: {
-      member: {
-        include: {
-          user: {
-            select: {
-              username: true,
-              phone: true,
             },
           },
         },
@@ -88,24 +28,72 @@ export const getTrainerPtListService = async (trainerId: string) => {
         },
       },
       ptRecord: {
-        where: {
-          attended: "ATTENDED",
-        },
-        select: {
-          id: true,
-        },
-      },
-      // 다음 예정된 수업 조회
-      _ptRecord: {
-        where: {
-          attended: "RESERVED",
+        include: {
           ptSchedule: {
-            date: {
-              gte: new Date(),
+            select: {
+              date: true,
+              startTime: true,
+              endTime: true,
             },
           },
         },
+        orderBy: {
+          ptSchedule: {
+            date: "asc",
+          },
+        },
+      },
+      weekTimes: {
         select: {
+          weekDay: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return pendingPts.map((pt) => ({
+    ...pt,
+    startDate: pt.startDate.toISOString(),
+    createdAt: pt.createdAt.toISOString(),
+    ptSchedule: pt.ptRecord.map((record) => ({
+      ...record.ptSchedule,
+      date: record.ptSchedule.date.toISOString(),
+    })),
+  }));
+};
+
+// 트레이너의 승인된 PT 목록 조회
+export const getTrainerPtListService = async (trainerId: string) => {
+  const allPts = await prisma.pt.findMany({
+    where: {
+      trainerId,
+      state: PtState.CONFIRMED, // CONFIRMED 상태만
+    },
+    include: {
+      member: {
+        include: {
+          user: {
+            select: {
+              username: true,
+            },
+          },
+        },
+      },
+      ptProduct: {
+        select: {
+          title: true,
+          totalCount: true,
+          time: true,
+          price: true,
+        },
+      },
+      ptRecord: {
+        include: {
           ptSchedule: {
             select: {
               date: true,
@@ -118,7 +106,6 @@ export const getTrainerPtListService = async (trainerId: string) => {
             date: "asc",
           },
         },
-        take: 1,
       },
     },
     orderBy: {
@@ -126,18 +113,35 @@ export const getTrainerPtListService = async (trainerId: string) => {
     },
   });
 
-  return allPts.map((pt) => ({
-    ...pt,
-    startDate: pt.startDate.toISOString(),
-    createdAt: pt.createdAt.toISOString(),
-    completedCount: pt.ptRecord.length,
-    nextSession: pt._ptRecord[0]?.ptSchedule
-      ? {
-          date: pt._ptRecord[0].ptSchedule.date.toISOString(),
-          startTime: pt._ptRecord[0].ptSchedule.startTime,
-        }
-      : null,
-  }));
+  return allPts.map((pt) => {
+    // 완료된 수업 개수 계산
+    const completedCount = pt.ptRecord.filter(
+      (record) => record.attended === "ATTENDED"
+    ).length;
+
+    // 다음 예정된 수업 찾기
+    const nextSession = pt.ptRecord.find(
+      (record) =>
+        record.attended === "RESERVED" &&
+        new Date(record.ptSchedule.date) >= new Date()
+    );
+
+    return {
+      ...pt,
+      startDate: pt.startDate.toISOString(),
+      createdAt: pt.createdAt.toISOString(),
+      completedCount,
+      nextSession: nextSession
+        ? {
+            recordId: nextSession.id,
+            date: nextSession.ptSchedule.date.toISOString(),
+            startTime: nextSession.ptSchedule.startTime,
+          }
+        : null,
+      // PT 완료 여부 계산
+      isCompleted: completedCount >= pt.ptProduct.totalCount,
+    };
+  });
 };
 
 // PT 승인 처리
@@ -145,12 +149,12 @@ export const approvePtApplicationService = async (
   ptId: string,
   trainerId: string
 ) => {
-  // 1. PT가 해당 트레이너 것인지 확인
+  // 1. PT가 해당 트레이너의 PENDING 상태인지 확인
   const pt = await prisma.pt.findFirst({
     where: {
       id: ptId,
       trainerId,
-      trainerConfirmed: false,
+      state: PtState.PENDING,
     },
   });
 
@@ -162,33 +166,21 @@ export const approvePtApplicationService = async (
   const approvedPt = await prisma.pt.update({
     where: { id: ptId },
     data: {
+      state: PtState.CONFIRMED,
       trainerConfirmed: true,
-      isActive: true,
-      confirmedAt: new Date(),
+      description: "트레이너가 승인한 PT입니다.",
     },
   });
 
-  // 3. 모든 PT 스케줄에 대해 PT 기록 생성
-  const ptSchedules = await prisma.ptSchedule.findMany({
+  // 3. 기존 PT 기록들의 상태를 RESERVED로 설정 (이미 생성되어 있음)
+  const ptRecords = await prisma.ptRecord.updateMany({
     where: { ptId },
-    orderBy: { date: "asc" },
+    data: { attended: "RESERVED" },
   });
-
-  const ptRecords = await Promise.all(
-    ptSchedules.map((schedule) =>
-      prisma.ptRecord.create({
-        data: {
-          ptId,
-          ptScheduleId: schedule.id,
-          attended: "RESERVED", // 초기값: 예약됨
-        },
-      })
-    )
-  );
 
   return {
     pt: approvedPt,
-    recordsCreated: ptRecords.length,
+    recordsCreated: ptRecords.count,
   };
 };
 
@@ -198,12 +190,12 @@ export const rejectPtApplicationService = async (
   trainerId: string,
   reason?: string
 ) => {
-  // 1. PT가 해당 트레이너 것인지 확인
+  // 1. PT가 해당 트레이너의 PENDING 상태인지 확인
   const pt = await prisma.pt.findFirst({
     where: {
       id: ptId,
       trainerId,
-      trainerConfirmed: false,
+      state: PtState.PENDING,
     },
   });
 
@@ -211,35 +203,16 @@ export const rejectPtApplicationService = async (
     throw new Error("거절할 수 없는 PT 신청입니다.");
   }
 
-  // 2. PT 거절 처리 (삭제)
-  // 먼저 관련된 스케줄과 주간 시간 삭제
-  await prisma.ptWeekTime.deleteMany({
-    where: { ptId },
-  });
-
-  await prisma.ptSchedule.deleteMany({
-    where: { ptId },
-  });
-
-  // PT 삭제
-  const deletedPt = await prisma.pt.delete({
+  // 2. PT 거절 처리 (상태 변경)
+  const rejectedPt = await prisma.pt.update({
     where: { id: ptId },
+    data: {
+      state: PtState.REJECTED,
+      description: reason || "트레이너가 거절한 PT입니다.",
+    },
   });
 
-  // 거절 로그 저장 (선택적)
-  if (reason) {
-    await prisma.ptRejectionLog.create({
-      data: {
-        ptId: deletedPt.id,
-        trainerId,
-        memberId: deletedPt.memberId,
-        reason,
-        rejectedAt: new Date(),
-      },
-    });
-  }
-
-  return deletedPt;
+  return rejectedPt;
 };
 
 // 트레이너 대시보드 통계
@@ -252,24 +225,43 @@ export const getTrainerDashboardStatsService = async (trainerId: string) => {
   const pendingCount = await prisma.pt.count({
     where: {
       trainerId,
-      trainerConfirmed: false,
+      state: PtState.PENDING,
     },
   });
 
-  // 진행 중인 PT 개수
-  const activeCount = await prisma.pt.count({
+  // 진행 중인 PT 개수 (CONFIRMED 상태이면서 아직 완료되지 않은 것)
+  const confirmedPts = await prisma.pt.findMany({
     where: {
       trainerId,
-      trainerConfirmed: true,
-      isActive: true,
+      state: PtState.CONFIRMED,
+    },
+    include: {
+      ptProduct: {
+        select: {
+          totalCount: true,
+        },
+      },
+      ptRecord: {
+        where: {
+          attended: "ATTENDED",
+        },
+        select: {
+          id: true,
+        },
+      },
     },
   });
+
+  const activeCount = confirmedPts.filter(
+    (pt) => pt.ptRecord.length < pt.ptProduct.totalCount
+  ).length;
 
   // 오늘 수업 개수
   const todayClasses = await prisma.ptRecord.count({
     where: {
       pt: {
         trainerId,
+        state: PtState.CONFIRMED,
       },
       ptSchedule: {
         date: {
@@ -285,6 +277,7 @@ export const getTrainerDashboardStatsService = async (trainerId: string) => {
     where: {
       pt: {
         trainerId,
+        state: PtState.CONFIRMED,
       },
       attended: "ATTENDED",
       ptSchedule: {
@@ -300,6 +293,7 @@ export const getTrainerDashboardStatsService = async (trainerId: string) => {
     where: {
       pt: {
         trainerId,
+        state: PtState.CONFIRMED,
       },
       ptSchedule: {
         date: {
