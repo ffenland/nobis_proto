@@ -14,6 +14,16 @@ import {
   ITrainer,
 } from "@/app/lib/services/pt-application.service";
 import { DaySchedule } from "@/app/lib/schedule";
+import {
+  IDaySchedule,
+  ISchedulePattern,
+} from "@/app/lib/services/schedule.service";
+import ScheduleSelector from "@/app/components/schedule/scheduleSelector";
+import {
+  ScheduleConfirmModal,
+  ScheduleValidationResult,
+  useScheduleValidation,
+} from "@/app/components/schedule/scheduleValidation";
 
 // API fetcher
 const fetcher = (url: string) =>
@@ -333,53 +343,150 @@ const PatternSelectionStep = ({
   );
 };
 
-// 스케줄 선택 단계 (임시 구현)
+// 스케줄 선택 단계 (실제 ScheduleSelector 컴포넌트 사용)
 const ScheduleSelectionStep = ({
   trainerId,
   pattern,
   totalCount,
+  duration,
   onScheduleSelect,
 }: {
   trainerId: string;
   pattern: { regular: boolean; count: number };
   totalCount: number;
-  onScheduleSelect: (schedule: DaySchedule) => void;
+  duration: number;
+  onScheduleSelect: (schedule: IDaySchedule) => void;
 }) => {
-  const handleTempScheduleSelect = () => {
-    // 임시 스케줄 데이터 - 실제로는 ScheduleSelector에서 받아야 함
-    const tempSchedule: DaySchedule = {
-      "2024-12-25": [900, 930], // 09:00, 09:30
-      "2024-12-27": [1000, 1030], // 10:00, 10:30
-    };
-    onScheduleSelect(tempSchedule);
+  const [chosenSchedule, setChosenSchedule] = useState<IDaySchedule>({});
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showValidationResult, setShowValidationResult] = useState(false);
+
+  const {
+    isValidating,
+    validationResult,
+    error,
+    validateSchedule,
+    resetValidation,
+  } = useScheduleValidation();
+
+  // 트레이너 스케줄 조회
+  const {
+    data: trainerSchedule,
+    error: scheduleError,
+    isLoading: scheduleLoading,
+  } = useSWR<IDaySchedule>(
+    `/api/member/trainer-schedule?trainerId=${trainerId}`,
+    fetcher
+  );
+
+  // 스케줄 패턴 변환
+  const schedulePattern: ISchedulePattern = {
+    regular: pattern.regular,
+    count: pattern.count,
   };
+
+  const handleScheduleConfirm = async () => {
+    setShowConfirmModal(false);
+
+    try {
+      await validateSchedule({
+        trainerId,
+        chosenSchedule,
+        pattern: schedulePattern,
+        totalCount,
+      });
+      setShowValidationResult(true);
+    } catch (err) {
+      console.error("스케줄 검증 실패:", err);
+    }
+  };
+
+  const handleValidationConfirm = () => {
+    if (validationResult) {
+      onScheduleSelect(chosenSchedule);
+    }
+  };
+
+  const handleReset = () => {
+    setChosenSchedule({});
+    setShowValidationResult(false);
+    resetValidation();
+  };
+
+  const canProceed = () => {
+    const selectedDays = Object.keys(chosenSchedule).length;
+    if (pattern.regular) {
+      return selectedDays === pattern.count;
+    }
+    return selectedDays >= 2; // 수시 스케줄은 최소 2개
+  };
+
+  if (scheduleLoading) {
+    return (
+      <div className="text-center py-8">
+        <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto"></div>
+        <p className="text-gray-500 text-sm mt-2">
+          트레이너 스케줄을 불러오는 중...
+        </p>
+      </div>
+    );
+  }
+
+  if (scheduleError || !trainerSchedule) {
+    return <ErrorMessage message="트레이너 스케줄을 불러올 수 없습니다." />;
+  }
+
+  if (showValidationResult && validationResult) {
+    return (
+      <ScheduleValidationResult
+        validationResult={validationResult}
+        onConfirm={handleValidationConfirm}
+        onReset={handleReset}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="text-center text-gray-600 mb-6">
-        <p>
-          {pattern.regular
-            ? `주 ${pattern.count}회 정기 스케줄`
-            : "수시 스케줄"}{" "}
-          설정을 위한 상세 일정을 선택해주세요.
-        </p>
-        <p className="text-sm text-gray-500 mt-2">
-          트레이너 ID: {trainerId} | 총 {totalCount}회
-        </p>
-      </div>
+      {/* 스케줄 선택기 */}
+      <ScheduleSelector
+        trainerId={trainerId}
+        pattern={schedulePattern}
+        duration={duration}
+        chosenSchedule={chosenSchedule}
+        setChosenSchedule={setChosenSchedule}
+      />
 
-      {/* 여기에 실제 ScheduleSelector 컴포넌트가 들어가야 함 */}
-      <div className="bg-gray-50 p-8 rounded-lg text-center">
-        <p className="text-gray-600 mb-4">
-          ScheduleSelector 컴포넌트가 여기에 위치합니다.
-        </p>
-        <p className="text-sm text-gray-500 mb-4">
-          현재는 임시 구현으로 테스트용 스케줄을 생성합니다.
-        </p>
-        <Button onClick={handleTempScheduleSelect} className="w-full">
-          임시 스케줄 선택 (개발용)
-        </Button>
-      </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* 선택 완료 버튼 */}
+      {canProceed() && (
+        <div className="pt-4">
+          <Button
+            onClick={() => setShowConfirmModal(true)}
+            disabled={isValidating}
+            className="w-full"
+          >
+            선택 완료
+          </Button>
+        </div>
+      )}
+
+      {/* 확인 모달 */}
+      {showConfirmModal && (
+        <ScheduleConfirmModal
+          chosenSchedule={chosenSchedule}
+          pattern={schedulePattern}
+          duration={duration}
+          onConfirm={handleScheduleConfirm}
+          onCancel={() => setShowConfirmModal(false)}
+          isPending={isValidating}
+        />
+      )}
     </div>
   );
 };
@@ -396,7 +503,7 @@ const ConfirmationStep = ({
   pt: IPtAndTrainer[number] | null;
   trainer: ITrainer | null;
   pattern: { regular: boolean; count: number } | null;
-  selectedSchedule: DaySchedule | null;
+  selectedSchedule: IDaySchedule | null;
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -544,7 +651,7 @@ const PtNewPage = () => {
     regular: boolean;
     count: number;
   } | null>(null);
-  const [selectedSchedule, setSelectedSchedule] = useState<DaySchedule | null>(
+  const [selectedSchedule, setSelectedSchedule] = useState<IDaySchedule | null>(
     null
   );
 
@@ -585,7 +692,7 @@ const PtNewPage = () => {
   };
 
   // 스케줄 선택 완료 핸들러
-  const handleScheduleSelect = (schedule: DaySchedule) => {
+  const handleScheduleSelect = (schedule: IDaySchedule) => {
     setSelectedSchedule(schedule);
     handleNext();
   };
@@ -620,11 +727,12 @@ const PtNewPage = () => {
           />
         );
       case 3:
-        return selectedTrainer && ptPattern ? (
+        return selectedTrainer && ptPattern && selectedPt ? (
           <ScheduleSelectionStep
             trainerId={selectedTrainer.id}
             pattern={ptPattern}
-            totalCount={selectedPt?.totalCount || 0}
+            totalCount={selectedPt.totalCount}
+            duration={selectedPt.time}
             onScheduleSelect={handleScheduleSelect}
           />
         ) : null;
