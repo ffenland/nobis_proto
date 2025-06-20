@@ -1,44 +1,24 @@
-// app/lib/services/pt-detail.service.ts
+// app/lib/services/pt-detail.service.ts (PtState 적용 완전 수정 버전)
 import prisma from "@/app/lib/prisma";
-import { AttendanceState } from "@prisma/client";
+import { PtState } from "@prisma/client";
 
-// PT 상세 정보 조회 (회원용)
+// 회원용 PT 상세 조회
 export const getPtDetailForMemberService = async (
   ptId: string,
   memberId: string
 ) => {
-  // PT 정보 조회
-  const pt = await prisma.pt.findUnique({
+  const pt = await prisma.pt.findFirst({
     where: {
       id: ptId,
+      memberId,
+      // PENDING, CONFIRMED 상태만 조회 가능
+      state: {
+        in: [PtState.PENDING, PtState.CONFIRMED],
+      },
     },
-    select: {
-      id: true,
-      ptProduct: {
-        select: {
-          title: true,
-          description: true,
-          time: true,
-          price: true,
-          totalCount: true,
-        },
-      },
-      isRegular: true,
-      weekTimes: {
-        select: {
-          weekDay: true,
-          startTime: true,
-          endTime: true,
-        },
-      },
-      trainerConfirmed: true,
-      isActive: true,
-      startDate: true,
-      memberId: true,
-      trainerId: true,
+    include: {
       trainer: {
-        select: {
-          id: true,
+        include: {
           user: {
             select: {
               id: true,
@@ -47,9 +27,25 @@ export const getPtDetailForMemberService = async (
           },
         },
       },
-      ptRecord: {
+      member: {
+        include: {
+          user: {
+            select: {
+              username: true,
+            },
+          },
+        },
+      },
+      ptProduct: {
         select: {
-          id: true,
+          title: true,
+          totalCount: true,
+          time: true,
+          price: true,
+        },
+      },
+      ptRecord: {
+        include: {
           ptSchedule: {
             select: {
               date: true,
@@ -57,22 +53,12 @@ export const getPtDetailForMemberService = async (
               endTime: true,
             },
           },
-          attended: true,
           items: {
-            select: {
-              id: true,
-              entry: true,
-              description: true,
-              type: true,
-              title: true,
+            include: {
               machineSetRecords: {
-                select: {
-                  id: true,
-                  reps: true,
-                  set: true,
+                include: {
                   settingValues: {
-                    select: {
-                      value: true,
+                    include: {
                       machineSetting: {
                         select: {
                           title: true,
@@ -84,23 +70,12 @@ export const getPtDetailForMemberService = async (
                 },
               },
               freeSetRecords: {
-                select: {
-                  id: true,
-                  reps: true,
-                  set: true,
-                  weights: {
-                    select: {
-                      title: true,
-                      weight: true,
-                      unit: true,
-                    },
-                  },
+                include: {
+                  weights: true,
                 },
               },
               stretchingExerciseRecords: {
-                select: {
-                  id: true,
-                  description: true,
+                include: {
                   stretchingExercise: {
                     select: {
                       title: true,
@@ -122,7 +97,7 @@ export const getPtDetailForMemberService = async (
   });
 
   if (!pt) {
-    throw new Error("PT를 찾을 수 없습니다.");
+    throw new Error("PT 정보를 찾을 수 없습니다.");
   }
 
   // 회원 본인의 PT인지 확인
@@ -146,75 +121,46 @@ export const getPtDetailForMemberService = async (
           date: record.ptSchedule.date.toISOString(),
         },
       })),
+      // 상태 정보 추가
+      isPending: pt.state === PtState.PENDING,
+      isConfirmed: pt.state === PtState.CONFIRMED,
+      isCompleted:
+        pt.state === PtState.CONFIRMED &&
+        pt.ptRecord.filter((r) => r.attended === "ATTENDED").length >=
+          pt.ptProduct.totalCount,
     },
     userId: pt.trainer.user.id,
   };
-};
-
-// PT 운동 기록 추가/수정 (향후 확장용)
-export const updatePtRecordItemService = async (
-  recordId: string,
-  items: Array<{
-    entry: number;
-    type: "MACHINE" | "FREE" | "STRETCHING";
-    title?: string;
-    description?: string;
-  }>
-) => {
-  const updatedRecord = await prisma.ptRecord.update({
-    where: { id: recordId },
-    data: {
-      items: {
-        deleteMany: {}, // 기존 기록 삭제
-        createMany: {
-          data: items,
-        },
-      },
-    },
-    include: {
-      items: true,
-    },
-  });
-
-  return updatedRecord;
-};
-
-// PT 출석 상태 업데이트 (트레이너용 - 향후 확장)
-export const updateAttendanceService = async (
-  recordId: string,
-  attended: AttendanceState
-) => {
-  const updatedRecord = await prisma.ptRecord.update({
-    where: { id: recordId },
-    data: {
-      attended: attended,
-    },
-  });
-
-  return updatedRecord;
 };
 
 // 회원의 모든 PT 요약 통계
 export const getMemberPtStatsService = async (memberId: string) => {
   // 전체 PT 개수
   const totalPts = await prisma.pt.count({
-    where: { memberId },
+    where: {
+      memberId,
+      state: {
+        in: [PtState.PENDING, PtState.CONFIRMED],
+      },
+    },
   });
 
   // 진행중인 PT 개수
   const activePts = await prisma.pt.count({
     where: {
       memberId,
-      trainerConfirmed: true,
-      isActive: true,
+      state: PtState.CONFIRMED,
     },
   });
 
   // 총 운동 횟수
   const totalSessions = await prisma.ptRecord.count({
     where: {
-      pt: { memberId },
-      attended: AttendanceState.ATTENDED,
+      pt: {
+        memberId,
+        state: PtState.CONFIRMED,
+      },
+      attended: "ATTENDED",
     },
   });
 
@@ -225,8 +171,11 @@ export const getMemberPtStatsService = async (memberId: string) => {
 
   const thisMonthSessions = await prisma.ptRecord.count({
     where: {
-      pt: { memberId },
-      attended: AttendanceState.ATTENDED,
+      pt: {
+        memberId,
+        state: PtState.CONFIRMED,
+      },
+      attended: "ATTENDED",
       ptSchedule: {
         date: {
           gte: thisMonthStart,

@@ -1,4 +1,4 @@
-// app/trainer/pending-applications/page.tsx
+// app/trainer/pending-applications/page.tsx (완전 새 버전)
 "use client";
 
 import { useState } from "react";
@@ -225,8 +225,6 @@ const PendingApplicationsPage = () => {
                       {pt.member.user.username} 회원
                     </h3>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span>{pt.member.user.phone}</span>
-                      <span>•</span>
                       <span>{formatDate(pt.createdAt)} 신청</span>
                     </div>
                   </div>
@@ -345,7 +343,7 @@ const PendingApplicationsPage = () => {
           {selectedPt && (
             <div className="space-y-4">
               <p className="text-gray-700">
-                <strong>{selectedPt.member.user.username}</strong> 회원의 PT
+                <strong>{selectedPt.member?.user.username}</strong> 회원의 PT
                 신청을 승인하시겠습니까?
               </p>
               <div className="bg-gray-50 p-4 rounded-lg">
@@ -433,8 +431,8 @@ const PendingApplicationsPage = () => {
 
               <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
                 <p className="text-sm text-red-800">
-                  ⚠️ 거절 시 해당 PT 신청은 완전히 삭제되며, 회원이 다시
-                  신청해야 합니다.
+                  ⚠️ 거절 시 해당 PT는 REJECTED 상태로 변경되며, 회원 목록에서
+                  숨겨집니다.
                 </p>
               </div>
             </div>

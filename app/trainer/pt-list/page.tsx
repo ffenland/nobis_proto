@@ -1,4 +1,4 @@
-// app/trainer/pt-list/page.tsx
+// app/trainer/pt-list/page.tsx (완전 새 버전)
 "use client";
 
 import { useState } from "react";
@@ -62,12 +62,12 @@ const TrainerPtListPage = () => {
     }
   };
 
-  // PT 상태 결정
+  // PT 상태 결정 (PtState 기반)
   const getPtStatus = (pt: ITrainerPtList[number]) => {
-    if (pt.isActive) {
-      return { text: "진행중", variant: "success" as const };
-    } else {
+    if (pt.isCompleted) {
       return { text: "완료", variant: "default" as const };
+    } else {
+      return { text: "진행중", variant: "success" as const };
     }
   };
 
@@ -90,8 +90,8 @@ const TrainerPtListPage = () => {
       // 상태 필터
       const matchesStatus =
         statusFilter === "all" ||
-        (statusFilter === "active" && pt.isActive) ||
-        (statusFilter === "completed" && !pt.isActive);
+        (statusFilter === "active" && !pt.isCompleted) ||
+        (statusFilter === "completed" && pt.isCompleted);
 
       return matchesSearch && matchesStatus;
     }) || [];
@@ -256,17 +256,11 @@ const TrainerPtListPage = () => {
                   )}
 
                   {/* 기본 정보 */}
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
+                  <div className="grid grid-cols-1 gap-4 text-sm text-gray-600 mb-4">
                     <div>
                       <span>시작일:</span>{" "}
                       <span className="font-medium">
                         {formatDate(pt.startDate)}
-                      </span>
-                    </div>
-                    <div>
-                      <span>연락처:</span>{" "}
-                      <span className="font-medium">
-                        {pt.member.user.phone}
                       </span>
                     </div>
                   </div>
@@ -275,9 +269,7 @@ const TrainerPtListPage = () => {
                   <div className="flex gap-3">
                     {pt.nextSession && (
                       <Link
-                        href={`/trainer/pt-records/${
-                          pt.nextSession.recordId || "upcoming"
-                        }`}
+                        href={`/trainer/pt-records/${pt.nextSession.recordId}`}
                         className="flex-1"
                       >
                         <Button variant="primary" className="w-full">

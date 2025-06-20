@@ -1,43 +1,20 @@
-// app/lib/services/member.service.ts
+// app/lib/services/member.service.ts (PtState 적용 완전 수정 버전)
 import prisma from "@/app/lib/prisma";
-import { AttendanceState } from "@prisma/client";
+import { PtState } from "@prisma/client";
 
-// 회원 기본 정보 조회
-export const getMemberInfoService = async (memberId: string) => {
-  const member = await prisma.member.findUnique({
-    where: { id: memberId },
-    select: {
-      user: { select: { username: true } },
-    },
-  });
-
-  if (!member) {
-    throw new Error("회원 정보를 찾을 수 없습니다.");
-  }
-
-  return {
-    username: member.user.username,
-  };
-};
-
-// PT 요약 정보 조회
-export const getPtSummaryService = async (memberId: string) => {
+// 회원의 PT 목록 조회
+export const getMemberPtListService = async (memberId: string) => {
   const ptList = await prisma.pt.findMany({
     where: {
       memberId,
-    },
-    select: {
-      id: true,
-      ptProduct: {
-        select: {
-          title: true,
-        },
+      // PENDING, CONFIRMED 상태 모두 포함 (REJECTED는 제외)
+      state: {
+        in: [PtState.PENDING, PtState.CONFIRMED],
       },
-      isRegular: true,
-      trainerConfirmed: true,
-      isActive: true,
+    },
+    include: {
       trainer: {
-        select: {
+        include: {
           user: {
             select: {
               username: true,
@@ -45,20 +22,20 @@ export const getPtSummaryService = async (memberId: string) => {
           },
         },
       },
-      ptRecord: {
-        where: {
-          ptSchedule: {
-            date: {
-              gte: new Date(),
-            },
-          },
-        },
+      ptProduct: {
         select: {
+          title: true,
+          totalCount: true,
+          time: true,
+          price: true,
+        },
+      },
+      ptRecord: {
+        include: {
           ptSchedule: {
             select: {
               date: true,
               startTime: true,
-              endTime: true,
             },
           },
         },
@@ -67,7 +44,6 @@ export const getPtSummaryService = async (memberId: string) => {
             date: "asc",
           },
         },
-        take: 1,
       },
     },
     orderBy: {
@@ -75,129 +51,110 @@ export const getPtSummaryService = async (memberId: string) => {
     },
   });
 
-  return ptList.map((pt) => ({
-    id: pt.id,
-    ptProduct: pt.ptProduct,
-    trainer: pt.trainer,
-    trainerConfirmed: pt.trainerConfirmed,
-    isActive: pt.isActive,
-    upcomingSession:
-      pt.ptRecord.length > 0
+  return ptList.map((pt) => {
+    // 완료된 수업 개수 계산
+    const completedCount = pt.ptRecord.filter(
+      (record) => record.attended === "ATTENDED"
+    ).length;
+
+    // 다음 예정된 수업 찾기
+    const upcomingSession = pt.ptRecord.find(
+      (record) =>
+        record.attended === "RESERVED" &&
+        new Date(record.ptSchedule.date) >= new Date()
+    );
+
+    return {
+      ...pt,
+      startDate: pt.startDate.toISOString(),
+      createdAt: pt.createdAt.toISOString(),
+      completedCount,
+      upcomingSession: upcomingSession
         ? {
-            date: pt.ptRecord[0].ptSchedule.date.toISOString(), // 문자열로 변환
-            startTime: pt.ptRecord[0].ptSchedule.startTime,
-            endTime: pt.ptRecord[0].ptSchedule.endTime,
+            date: upcomingSession.ptSchedule.date.toISOString(),
+            startTime: upcomingSession.ptSchedule.startTime,
           }
-        : undefined,
-  }));
+        : null,
+      // 상태별 분류를 위한 계산된 필드들
+      isPending: pt.state === PtState.PENDING,
+      isConfirmed: pt.state === PtState.CONFIRMED,
+      isCompleted:
+        pt.state === PtState.CONFIRMED &&
+        completedCount >= pt.ptProduct.totalCount,
+    };
+  });
 };
 
-// 최근 운동 기록 조회
-export const getRecentRecordsService = async (memberId: string) => {
-  const recentRecords = await prisma.ptRecord.findMany({
+// 회원 대시보드 통계
+export const getMemberDashboardStatsService = async (memberId: string) => {
+  // 전체 PT 개수 (REJECTED 제외)
+  const totalPts = await prisma.pt.count({
+    where: {
+      memberId,
+      state: {
+        in: [PtState.PENDING, PtState.CONFIRMED],
+      },
+    },
+  });
+
+  // 승인 대기 중인 PT 개수
+  const pendingPts = await prisma.pt.count({
+    where: {
+      memberId,
+      state: PtState.PENDING,
+    },
+  });
+
+  // 진행중인 PT 개수
+  const activePts = await prisma.pt.count({
+    where: {
+      memberId,
+      state: PtState.CONFIRMED,
+    },
+  });
+
+  // 총 운동 횟수
+  const totalSessions = await prisma.ptRecord.count({
     where: {
       pt: {
         memberId,
+        state: PtState.CONFIRMED,
       },
-      attended: AttendanceState.ATTENDED,
+      attended: "ATTENDED",
+    },
+  });
+
+  // 이번 달 운동 횟수
+  const thisMonthStart = new Date();
+  thisMonthStart.setDate(1);
+  thisMonthStart.setHours(0, 0, 0, 0);
+
+  const thisMonthSessions = await prisma.ptRecord.count({
+    where: {
+      pt: {
+        memberId,
+        state: PtState.CONFIRMED,
+      },
+      attended: "ATTENDED",
       ptSchedule: {
         date: {
-          lt: new Date(),
+          gte: thisMonthStart,
         },
       },
-    },
-    select: {
-      id: true,
-      ptSchedule: {
-        select: {
-          date: true,
-        },
-      },
-      pt: {
-        select: {
-          trainer: {
-            select: {
-              user: {
-                select: {
-                  username: true,
-                },
-              },
-            },
-          },
-        },
-      },
-      items: {
-        select: {
-          id: true,
-        },
-      },
-    },
-    orderBy: {
-      ptSchedule: {
-        date: "desc",
-      },
-    },
-    take: 10,
-  });
-
-  return recentRecords.map((record) => ({
-    id: record.id,
-    date: record.ptSchedule.date.toISOString(), // 문자열로 변환
-    exerciseCount: record.items.length,
-    trainerName: record.pt.trainer?.user.username || "알 수 없음",
-  }));
-};
-
-// 회원 PT 목록 조회 (기존 getPtList 대체)
-export const getMemberPtListService = async (memberId: string) => {
-  const ptList = await prisma.pt.findMany({
-    where: {
-      memberId,
-    },
-    select: {
-      id: true,
-      ptProduct: {
-        select: {
-          title: true,
-          time: true,
-          price: true,
-        },
-      },
-      isRegular: true,
-      weekTimes: {
-        select: {
-          weekDay: true,
-          startTime: true,
-          endTime: true,
-        },
-      },
-      trainerConfirmed: true,
-      isActive: true,
-      startDate: true,
-      trainer: {
-        select: {
-          user: {
-            select: {
-              username: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
     },
   });
 
-  return ptList;
+  return {
+    totalPts,
+    pendingPts,
+    activePts,
+    totalSessions,
+    thisMonthSessions,
+  };
 };
 
-// 타입 추론을 통한 타입 정의
-export type IMemberInfo = Awaited<ReturnType<typeof getMemberInfoService>>;
-export type IPtSummary = Awaited<
-  ReturnType<typeof getPtSummaryService>
->[number];
-export type IRecentRecord = Awaited<
-  ReturnType<typeof getRecentRecordsService>
->[number];
+// 타입 정의
 export type IMemberPtList = Awaited<ReturnType<typeof getMemberPtListService>>;
+export type IMemberDashboardStats = Awaited<
+  ReturnType<typeof getMemberDashboardStatsService>
+>;

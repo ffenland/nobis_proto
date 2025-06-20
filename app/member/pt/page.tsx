@@ -1,3 +1,4 @@
+// app/member/pt/page.tsx (완전 새 버전)
 "use client";
 
 import { useState } from "react";
@@ -21,7 +22,7 @@ const fetcher = (url: string) =>
 const MemberPtListPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "pending" | "active" | "completed"
+    "all" | "pending" | "confirmed" | "completed"
   >("all");
 
   // PT 목록 조회
@@ -32,37 +33,16 @@ const MemberPtListPage = () => {
     mutate,
   } = useSWR<IMemberPtList>("/api/member/pt-list", fetcher);
 
-  // 시간 포맷 함수
-  const formatTime = (time: number) => {
-    const hour = Math.floor(time / 100);
-    const minute = time % 100;
-    return `${hour.toString().padStart(2, "0")}:${minute
-      .toString()
-      .padStart(2, "0")}`;
-  };
-
-  // 요일 한글 변환
-  const getKoreanDayName = (weekDay: string) => {
-    const dayMap: Record<string, string> = {
-      MON: "월",
-      TUE: "화",
-      WED: "수",
-      THU: "목",
-      FRI: "금",
-      SAT: "토",
-      SUN: "일",
-    };
-    return dayMap[weekDay] || weekDay;
-  };
-
-  // PT 상태 결정
+  // PT 상태 결정 (PtState 기반)
   const getPtStatus = (pt: IMemberPtList[number]) => {
-    if (!pt.trainerConfirmed) {
+    if (pt.isPending) {
       return { text: "승인대기", variant: "warning" as const };
-    } else if (pt.isActive) {
+    } else if (pt.isCompleted) {
+      return { text: "완료", variant: "default" as const };
+    } else if (pt.isConfirmed) {
       return { text: "진행중", variant: "success" as const };
     } else {
-      return { text: "완료", variant: "default" as const };
+      return { text: "알 수 없음", variant: "default" as const };
     }
   };
 
@@ -80,9 +60,9 @@ const MemberPtListPage = () => {
       // 상태 필터
       const matchesStatus =
         statusFilter === "all" ||
-        (statusFilter === "pending" && !pt.trainerConfirmed) ||
-        (statusFilter === "active" && pt.trainerConfirmed && pt.isActive) ||
-        (statusFilter === "completed" && pt.trainerConfirmed && !pt.isActive);
+        (statusFilter === "pending" && pt.isPending) ||
+        (statusFilter === "confirmed" && pt.isConfirmed && !pt.isCompleted) ||
+        (statusFilter === "completed" && pt.isCompleted);
 
       return matchesSearch && matchesStatus;
     }) || [];
@@ -154,9 +134,9 @@ const MemberPtListPage = () => {
               승인대기
             </button>
             <button
-              onClick={() => setStatusFilter("active")}
+              onClick={() => setStatusFilter("confirmed")}
               className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                statusFilter === "active"
+                statusFilter === "confirmed"
                   ? "bg-gray-900 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
@@ -206,7 +186,6 @@ const MemberPtListPage = () => {
         <div className="space-y-4">
           {filteredPtList.map((pt) => {
             const status = getPtStatus(pt);
-            const startDate = new Date(pt.startDate);
 
             return (
               <Link key={pt.id} href={`/member/pt/${pt.id}`}>
@@ -232,54 +211,62 @@ const MemberPtListPage = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-600">트레이너:</span>
                         <span className="font-medium text-gray-900">
-                          {pt.trainer
-                            ? pt.trainer.user.username
-                            : "배정 대기중"}
+                          {pt.trainer ? pt.trainer.user.username : "배정 대기"}
                         </span>
                       </div>
                     </div>
 
-                    {/* 시작일 */}
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">시작일:</span>
-                        <span className="font-medium text-gray-900">
-                          {startDate.toLocaleDateString("ko-KR")}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 스케줄 정보 */}
-                    {pt.isRegular ? (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-medium text-gray-900">
-                            정기 수업
-                          </span>
-                          <Badge variant="default">
-                            주 {pt.weekTimes.length}회
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {pt.weekTimes.map((weekTime, index) => (
-                            <div
-                              key={index}
-                              className="text-xs bg-white px-2 py-1 rounded border text-gray-700"
-                            >
-                              {getKoreanDayName(weekTime.weekDay)}{" "}
-                              {formatTime(weekTime.startTime)}-
-                              {formatTime(weekTime.endTime)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <span className="text-sm font-medium text-gray-900">
-                          비정기 수업
-                        </span>
+                    {/* 상태별 추가 정보 */}
+                    {pt.isPending && (
+                      <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg mb-4">
+                        <p className="text-sm text-orange-800">
+                          💭 트레이너 승인을 기다리고 있습니다
+                        </p>
                       </div>
                     )}
+
+                    {pt.isConfirmed && !pt.isCompleted && (
+                      <div className="bg-green-50 border border-green-200 p-3 rounded-lg mb-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm text-green-800">
+                            🎯 진행률: {pt.completedCount}/
+                            {pt.ptProduct.totalCount}회
+                          </p>
+                          {pt.upcomingSession && (
+                            <p className="text-sm text-green-700 font-medium">
+                              다음 수업:{" "}
+                              {new Date(
+                                pt.upcomingSession.date
+                              ).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {pt.isCompleted && (
+                      <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg mb-4">
+                        <p className="text-sm text-gray-600">
+                          ✅ 모든 수업이 완료되었습니다
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 기본 정보 */}
+                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                      <div>
+                        <span>시작일:</span>{" "}
+                        <span className="font-medium">
+                          {new Date(pt.startDate).toLocaleDateString("ko-KR")}
+                        </span>
+                      </div>
+                      <div>
+                        <span>총 횟수:</span>{" "}
+                        <span className="font-medium">
+                          {pt.ptProduct.totalCount}회
+                        </span>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </Link>
@@ -287,9 +274,6 @@ const MemberPtListPage = () => {
           })}
         </div>
       )}
-
-      {/* 하단 여백 (탭바 공간 확보) */}
-      <div className="h-20"></div>
     </PageLayout>
   );
 };
