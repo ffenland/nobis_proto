@@ -242,7 +242,7 @@ export const ScheduleValidationResult = ({
                     <div className="flex items-center gap-3">
                       <span className="min-w-[80px]">{formatted.dateStr}</span>
                       <Badge
-                        variant={formatted.isWeekend ? "secondary" : "outline"}
+                        variant={formatted.isWeekend ? "warning" : "default"}
                       >
                         {formatted.weekDay}요일
                       </Badge>
@@ -285,7 +285,7 @@ export const ScheduleValidationResult = ({
                         <span className="min-w-[80px]">
                           {formatted.dateStr}
                         </span>
-                        <Badge variant="outline">{formatted.weekDay}요일</Badge>
+                        <Badge variant="error">{formatted.weekDay}요일</Badge>
                       </div>
                       <span className="font-mono text-sm">
                         {formatted.timeStr}

@@ -321,7 +321,7 @@ const ScheduleSelector = ({
                 >
                   {dayIndex !== 0 && (
                     <>
-                      <div>{weekDayNames[day.weekday()]}</div>
+                      <div>{weekDayNames[day.day()]}</div>
                       <div className="font-bold">{day.date()}일</div>
                     </>
                   )}
