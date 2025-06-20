@@ -163,6 +163,12 @@ model PtProduct {
   pt          Pt[]
 }
 
+enum PtState {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
 model Pt {
   id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt        DateTime   @default(now())
@@ -173,8 +179,9 @@ model Pt {
   memberId         String?    @db.Uuid
   trainer          Trainer?   @relation(fields: [trainerId], references: [id])
   trainerId        String?    @db.Uuid
-  isActive         Boolean    @default(false)
+  state            PtState    @default(PENDING)
   trainerConfirmed Boolean    @default(false)
+  description      String     @default("")
   ptRecord         PtRecord[]
   ptCoupon         PtCoupon?
   ptPayment        PtPayment?
