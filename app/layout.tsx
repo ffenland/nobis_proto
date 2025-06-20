@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 import "./globals.css";
+import SWRProvider from "./components/swrProvider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -32,7 +33,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased max-w-screen-md mx-auto h-screen flex p-3`}
       >
-        {children}
+        <SWRProvider>{children}</SWRProvider>
       </body>
     </html>
   );

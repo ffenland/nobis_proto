@@ -1,6 +1,6 @@
 "use client";
 
-import { IMachineDetail } from "./actions";
+import { IMachineDetail } from "./page";
 
 // 변경사항 요약을 위한 타입
 export type ChangeSummary = {

@@ -1,6 +1,13 @@
 import { WeekDay } from "@prisma/client";
 import { weekDayNumberStringMap } from "./constants";
 
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 /**
  *
  * @param digit 원하는 자릿수

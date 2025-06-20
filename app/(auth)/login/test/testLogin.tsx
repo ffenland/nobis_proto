@@ -1,8 +1,9 @@
 import { UserRole } from "@prisma/client";
 import {
   createDummyData,
-  createDummyFreeTool,
   createDummyMachine,
+  createDummyStretchingExercises,
+  createDummyWeights,
   createRandomUser,
   getUserList,
   submitLogin,
@@ -23,9 +24,14 @@ export const TestLogin = async () => {
           더미 머신 생성
         </button>
       </form>
-      <form action={createDummyFreeTool}>
+      <form action={createDummyWeights}>
         <button className="btn" type="submit">
           더미 도구 생성
+        </button>
+      </form>
+      <form action={createDummyStretchingExercises}>
+        <button className="btn" type="submit">
+          스트레칭 운동 생성
         </button>
       </form>
       <div>

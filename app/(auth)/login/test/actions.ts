@@ -3,7 +3,7 @@
 import prisma from "@/app/lib/prisma";
 import { loginToSession } from "@/app/lib/socialLogin";
 import { createRandomNumber } from "@/app/lib/utils";
-import { ToolType, UserRole, WeekDay } from "@prisma/client";
+import { UserRole, WeekDay } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -233,118 +233,38 @@ export const createDummyMachine = async () => {
 };
 
 export const createDummyMachineData = async (fitnessCenterId: string) => {
+  // 이미 존재하는 머신 확인
+  const existingMachines = await prisma.machine.findMany({
+    where: { fitnessCenterId },
+    select: { title: true },
+  });
+  const existingMachineTitles = new Set(existingMachines.map((m) => m.title));
+
   const dummyMachines = [
+    // 하체 머신들
     {
       title: "레그 익스텐션",
       settings: [
         {
           title: "중량",
-          unit: "Kg",
-          values: [
-            { value: "5" },
-            { value: "10" },
-            { value: "15" },
-            { value: "20" },
-            { value: "25" },
-            { value: "30" },
-            { value: "35" },
-            { value: "40" },
-            { value: "45" },
-            { value: "50" },
-            { value: "55" },
-            { value: "60" },
-            { value: "65" },
-            { value: "70" },
-            { value: "75" },
-            { value: "80" },
-            { value: "85" },
-            { value: "90" },
-            { value: "95" },
-            { value: "100" },
-          ],
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
         },
         {
-          title: "등받이 깊이",
+          title: "등받이 각도",
           unit: "단",
-          values: [
-            { value: "1" },
-            { value: "2" },
-            { value: "3" },
-            { value: "4" },
-            { value: "5" },
-            { value: "6" },
-            { value: "7" },
-          ],
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
         },
         {
-          title: "무릎 각도",
+          title: "무릎 패드 높이",
           unit: "단",
-          values: [
-            { value: "1" },
-            { value: "2" },
-            { value: "3" },
-            { value: "4" },
-            { value: "5" },
-            { value: "6" },
-            { value: "7" },
-          ],
-        },
-        {
-          title: "발목 각도",
-          unit: "단",
-          values: [
-            { value: "1" },
-            { value: "2" },
-            { value: "3" },
-            { value: "4" },
-            { value: "5" },
-            { value: "6" },
-            { value: "7" },
-          ],
-        },
-      ],
-    },
-    {
-      title: "렛풀다운",
-      settings: [
-        {
-          title: "중량",
-          unit: "Kg",
-          values: [
-            { value: "5" },
-            { value: "10" },
-            { value: "15" },
-            { value: "20" },
-            { value: "25" },
-            { value: "30" },
-            { value: "35" },
-            { value: "40" },
-            { value: "45" },
-            { value: "50" },
-            { value: "55" },
-            { value: "60" },
-            { value: "65" },
-            { value: "70" },
-            { value: "75" },
-            { value: "80" },
-            { value: "85" },
-            { value: "90" },
-            { value: "95" },
-            { value: "100" },
-          ],
-        },
-        {
-          title: "무릎받침",
-          unit: "단",
-          values: [
-            { value: "1" },
-            { value: "2" },
-            { value: "3" },
-            { value: "4" },
-            { value: "5" },
-            { value: "6" },
-            { value: "7" },
-          ],
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
         },
       ],
     },
@@ -353,245 +273,1141 @@ export const createDummyMachineData = async (fitnessCenterId: string) => {
       settings: [
         {
           title: "중량",
-          unit: "Kg",
-          values: [
-            { value: "5" },
-            { value: "10" },
-            { value: "15" },
-            { value: "20" },
-            { value: "25" },
-            { value: "30" },
-            { value: "35" },
-            { value: "40" },
-            { value: "45" },
-            { value: "50" },
-            { value: "55" },
-            { value: "60" },
-            { value: "65" },
-            { value: "70" },
-            { value: "75" },
-            { value: "80" },
-            { value: "85" },
-            { value: "90" },
-            { value: "95" },
-            { value: "100" },
-          ],
+          unit: "kg",
+          values: Array.from({ length: 30 }, (_, i) => ({
+            value: String((i + 1) * 10),
+          })),
         },
         {
-          title: "의자 깊이",
+          title: "등받이 각도",
+          unit: "도",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(30 + i * 5),
+          })),
+        },
+        {
+          title: "발판 높이",
           unit: "단",
-          values: [
-            { value: "1" },
-            { value: "2" },
-            { value: "3" },
-            { value: "4" },
-            { value: "5" },
-            { value: "6" },
-            { value: "7" },
-          ],
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "레그 컬",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 15 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "발목 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "무릎 받침 위치",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "스미스 머신",
+      settings: [
+        {
+          title: "바벨 높이",
+          unit: "단",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "안전바 높이",
+          unit: "단",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "핵 스쿼트",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 25 }, (_, i) => ({
+            value: String((i + 1) * 10),
+          })),
+        },
+        {
+          title: "어깨 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "발판 각도",
+          unit: "도",
+          values: Array.from({ length: 5 }, (_, i) => ({
+            value: String(15 + i * 5),
+          })),
+        },
+      ],
+    },
+    {
+      title: "칼프 레이즈",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 18 }, (_, i) => ({
+            value: String((i + 1) * 10),
+          })),
+        },
+        {
+          title: "어깨 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "발판 높이",
+          unit: "단",
+          values: Array.from({ length: 5 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "애덕터 머신",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 15 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "패드 폭",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "압덕터 머신",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 15 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "패드 폭",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+
+    // 등 머신들
+    {
+      title: "렛풀다운",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 25 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "무릎 받침",
+          unit: "단",
+          values: Array.from({ length: 7 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "시티드 로우",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 22 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "가슴 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "티바 로우",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "가슴 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "가슴 패드 각도",
+          unit: "단",
+          values: Array.from({ length: 5 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "풀업 어시스트",
+      settings: [
+        {
+          title: "보조 중량",
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "무릎 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+
+    // 가슴 머신들
+    {
+      title: "체스트 프레스",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "등받이 각도",
+          unit: "단",
+          values: Array.from({ length: 5 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "인클라인 체스트 프레스",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 18 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "등받이 각도",
+          unit: "도",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(15 + i * 5),
+          })),
+        },
+      ],
+    },
+    {
+      title: "펙 덱 플라이",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 16 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "팔 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "디클라인 체스트 프레스",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 18 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "다리 고정대",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+
+    // 어깨 머신들
+    {
+      title: "숄더 프레스",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 18 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "등받이 각도",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "래터럴 레이즈",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "팔 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "리어 델트 플라이",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "가슴 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+
+    // 팔 머신들
+    {
+      title: "바이셉 컬",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 15 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "팔꿈치 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "트라이셉 익스텐션",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 15 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "등받이 각도",
+          unit: "단",
+          values: Array.from({ length: 5 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "트라이셉 딥스",
+      settings: [
+        {
+          title: "보조 중량",
+          unit: "kg",
+          values: Array.from({ length: 18 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "무릎 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+
+    // 복근/코어 머신들
+    {
+      title: "앱 크런치",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "등받이 각도",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "백 익스텐션",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "발목 고정대 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "패드 높이",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "로터리 토르소",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "시트 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "등받이 각도",
+          unit: "단",
+          values: Array.from({ length: 5 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+
+    // 케이블 머신들
+    {
+      title: "케이블 크로스오버",
+      settings: [
+        {
+          title: "좌측 중량",
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "우측 중량",
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "케이블 높이",
+          unit: "단",
+          values: Array.from({ length: 12 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "케이블 로우",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "케이블 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "시트 거리",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+    {
+      title: "고정 풀리",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 25 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "케이블 높이",
+          unit: "단",
+          values: Array.from({ length: 15 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+      ],
+    },
+
+    // 기능성 머신들
+    {
+      title: "멀티 힙",
+      settings: [
+        {
+          title: "중량",
+          unit: "kg",
+          values: Array.from({ length: 18 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "패드 높이",
+          unit: "단",
+          values: Array.from({ length: 8 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "발판 각도",
+          unit: "도",
+          values: Array.from({ length: 5 }, (_, i) => ({
+            value: String(15 + i * 10),
+          })),
+        },
+      ],
+    },
+    {
+      title: "그래비트론",
+      settings: [
+        {
+          title: "보조 중량",
+          unit: "kg",
+          values: Array.from({ length: 20 }, (_, i) => ({
+            value: String((i + 1) * 5),
+          })),
+        },
+        {
+          title: "무릎 패드 높이",
+          unit: "단",
+          values: Array.from({ length: 10 }, (_, i) => ({
+            value: String(i + 1),
+          })),
+        },
+        {
+          title: "스텝 높이",
+          unit: "단",
+          values: Array.from({ length: 6 }, (_, i) => ({
+            value: String(i + 1),
+          })),
         },
       ],
     },
   ];
+
   for (const machine of dummyMachines) {
-    const newMachine = await prisma.machine.create({
-      data: {
-        title: machine.title,
-        fitnessCenterId,
-        machineSetting: {
-          create: machine.settings.map((setting) => ({
-            title: setting.title,
-            unit: setting.unit,
-            values: {
-              create: setting.values.map((option) => ({
-                value: option.value,
-              })),
-            },
-          })),
+    // 중복 체크: 이미 존재하는 머신이면 건너뛰기
+    if (existingMachineTitles.has(machine.title)) {
+      console.log(`머신 "${machine.title}" 이미 존재함 - 건너뛰기`);
+      continue;
+    }
+
+    try {
+      const newMachine = await prisma.machine.create({
+        data: {
+          title: machine.title,
+          fitnessCenterId,
+          machineSetting: {
+            create: machine.settings.map((setting) => ({
+              title: setting.title,
+              unit: setting.unit,
+              values: {
+                create: setting.values.map((option) => ({
+                  value: option.value,
+                })),
+              },
+            })),
+          },
         },
-      },
-    });
+      });
+      console.log(`머신 "${machine.title}" 생성 완료`);
+    } catch (error) {
+      console.error(`머신 "${machine.title}" 생성 실패:`, error);
+    }
   }
 };
 
-export const createDummyFreeTool = async () => {
-  const freeTools = [
-    {
-      title: "덤벨 1Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 1,
-    },
-    {
-      title: "덤벨 2Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 2,
-    },
-    {
-      title: "덤벨 3Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 3,
-    },
-    {
-      title: "덤벨 4Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 4,
-    },
-    {
-      title: "덤벨 5Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 5,
-    },
-    {
-      title: "덤벨 6Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 6,
-    },
-    {
-      title: "덤벨 7Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 7,
-    },
-    {
-      title: "덤벨 8Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 8,
-    },
-    {
-      title: "덤벨 9Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 9,
-    },
-    {
-      title: "덤벨 10Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 10,
-    },
-    {
-      title: "덤벨 12Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 12,
-    },
-    {
-      title: "덤벨 14Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 14,
-    },
-    {
-      title: "덤벨 16Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 16,
-    },
-    {
-      title: "덤벨 18Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 18,
-    },
-    {
-      title: "덤벨 20Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 20,
-    },
-    {
-      title: "덤벨 22Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 22,
-    },
-    {
-      title: "덤벨 24Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 24,
-    },
-    {
-      title: "덤벨 26Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 26,
-    },
-    {
-      title: "덤벨 28Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 28,
-    },
-    {
-      title: "덤벨 30Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 30,
-    },
-    {
-      title: "덤벨 35Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 35,
-    },
-    {
-      title: "덤벨 40Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 40,
-    },
-    {
-      title: "덤벨 45Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 45,
-    },
-    {
-      title: "덤벨 50Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 50,
-    },
-    {
-      title: "덤벨 55Kg",
-      type: ToolType.DUMBBELL,
-      hasFixedWeight: true,
-      fixedWeight: 55,
-    },
-    { title: "바벨", type: ToolType.BARBELL, hasFixedWeight: false },
-    { title: "밴드노랑", type: ToolType.RESISTANCE, hasFixedWeight: false },
-    { title: "밴드빨강", type: ToolType.RESISTANCE, hasFixedWeight: false },
-    { title: "밴드초록", type: ToolType.RESISTANCE, hasFixedWeight: false },
-    { title: "밴드파랑", type: ToolType.RESISTANCE, hasFixedWeight: false },
-    { title: "밴드보라", type: ToolType.RESISTANCE, hasFixedWeight: false },
-    { title: "스텝박스", type: ToolType.PLATFORM, hasFixedWeight: false },
-    { title: "봉", type: ToolType.OTHER, hasFixedWeight: false },
-  ];
+export const createDummyWeights = async () => {
   const fitnessCenters = await prisma.fitnessCenter.findMany({
     select: { id: true },
   });
   await Promise.all(
     fitnessCenters.map(async (fitnessCenter) => {
-      await Promise.all(
-        freeTools.map(async (freeTool) => {
-          await prisma.freeTool.create({
-            data: {
-              ...freeTool,
-              fitnessCenterId: fitnessCenter.id,
-            },
-          });
-        })
-      );
+      await createDummyWeightsData(fitnessCenter.id);
     })
   );
+};
+
+export const createDummyWeightsData = async (fitnessCenterId: string) => {
+  // 이미 존재하는 웨이트 도구 확인
+  const existingWeights = await prisma.weights.findMany({
+    where: { fitnessCenterId },
+    select: { title: true },
+  });
+  const existingWeightTitles = new Set(existingWeights.map((w) => w.title));
+
+  const weights = [
+    // 덤벨 세트 (1kg부터 50kg까지)
+    ...Array.from({ length: 25 }, (_, i) => ({
+      title: `덤벨 ${(i + 1) * 2}kg`,
+      weight: (i + 1) * 2,
+      unit: "kg",
+      description: `${(i + 1) * 2}kg 고정식 덤벨`,
+    })),
+
+    // 바벨
+    {
+      title: "올림픽 바벨 (20kg)",
+      weight: 20,
+      unit: "kg",
+      description: "표준 올림픽 바벨",
+    },
+    {
+      title: "EZ 바벨 (10kg)",
+      weight: 10,
+      unit: "kg",
+      description: "컬용 EZ 바벨",
+    },
+    {
+      title: "스트레이트 바벨 (15kg)",
+      weight: 15,
+      unit: "kg",
+      description: "스트레이트 바벨",
+    },
+
+    // 원판들
+    {
+      title: "원판 1.25kg",
+      weight: 1.25,
+      unit: "kg",
+      description: "1.25kg 고무 원판",
+    },
+    {
+      title: "원판 2.5kg",
+      weight: 2.5,
+      unit: "kg",
+      description: "2.5kg 고무 원판",
+    },
+    { title: "원판 5kg", weight: 5, unit: "kg", description: "5kg 고무 원판" },
+    {
+      title: "원판 10kg",
+      weight: 10,
+      unit: "kg",
+      description: "10kg 고무 원판",
+    },
+    {
+      title: "원판 15kg",
+      weight: 15,
+      unit: "kg",
+      description: "15kg 고무 원판",
+    },
+    {
+      title: "원판 20kg",
+      weight: 20,
+      unit: "kg",
+      description: "20kg 고무 원판",
+    },
+    {
+      title: "원판 25kg",
+      weight: 25,
+      unit: "kg",
+      description: "25kg 고무 원판",
+    },
+
+    // 케틀벨
+    ...Array.from({ length: 10 }, (_, i) => ({
+      title: `케틀벨 ${8 + i * 4}kg`,
+      weight: 8 + i * 4,
+      unit: "kg",
+      description: `${8 + i * 4}kg 케틀벨`,
+    })),
+
+    // 기타 도구들
+    {
+      title: "메디신볼 3kg",
+      weight: 3,
+      unit: "kg",
+      description: "3kg 메디신볼",
+    },
+    {
+      title: "메디신볼 5kg",
+      weight: 5,
+      unit: "kg",
+      description: "5kg 메디신볼",
+    },
+    {
+      title: "메디신볼 8kg",
+      weight: 8,
+      unit: "kg",
+      description: "8kg 메디신볼",
+    },
+    {
+      title: "메디신볼 10kg",
+      weight: 10,
+      unit: "kg",
+      description: "10kg 메디신볼",
+    },
+
+    // 밴드류 (무게 없음)
+    {
+      title: "저항밴드 (약함)",
+      weight: 0,
+      unit: "개",
+      description: "노란색 저항밴드 - 약한 강도",
+    },
+    {
+      title: "저항밴드 (보통)",
+      weight: 0,
+      unit: "개",
+      description: "빨간색 저항밴드 - 보통 강도",
+    },
+    {
+      title: "저항밴드 (강함)",
+      weight: 0,
+      unit: "개",
+      description: "검정색 저항밴드 - 강한 강도",
+    },
+    {
+      title: "루프밴드",
+      weight: 0,
+      unit: "개",
+      description: "하체용 루프밴드",
+    },
+
+    // 기능성 도구들
+    {
+      title: "폼롤러",
+      weight: 0.5,
+      unit: "kg",
+      description: "근막 이완용 폼롤러",
+    },
+    {
+      title: "밸런스볼",
+      weight: 1.2,
+      unit: "kg",
+      description: "65cm 밸런스볼",
+    },
+    {
+      title: "보수볼",
+      weight: 2,
+      unit: "kg",
+      description: "밸런스 트레이닝용 보수볼",
+    },
+    {
+      title: "스텝박스",
+      weight: 3,
+      unit: "kg",
+      description: "높이 조절 가능한 스텝박스",
+    },
+    {
+      title: "슬라이딩 디스크",
+      weight: 0.2,
+      unit: "kg",
+      description: "코어 운동용 슬라이딩 디스크",
+    },
+
+    // 기타
+    {
+      title: "헥스바",
+      weight: 18,
+      unit: "kg",
+      description: "데드리프트용 헥스바",
+    },
+    { title: "안전바", weight: 12, unit: "kg", description: "스쿼트용 안전바" },
+    { title: "체인", weight: 15, unit: "kg", description: "웨이트 체인" },
+  ];
+
+  for (const weight of weights) {
+    // 중복 체크: 이미 존재하는 웨이트 도구면 건너뛰기
+    if (existingWeightTitles.has(weight.title)) {
+      console.log(`웨이트 도구 "${weight.title}" 이미 존재함 - 건너뛰기`);
+      continue;
+    }
+
+    try {
+      await prisma.weights.create({
+        data: {
+          title: weight.title,
+          weight: weight.weight,
+          unit: weight.unit,
+          description: weight.description,
+          fitnessCenterId,
+        },
+      });
+      console.log(`웨이트 도구 "${weight.title}" 생성 완료`);
+    } catch (error) {
+      console.error(`웨이트 도구 "${weight.title}" 생성 실패:`, error);
+    }
+  }
+};
+
+export const createDummyStretchingExercises = async () => {
+  // 이미 존재하는 스트레칭 운동 확인
+  const existingExercises = await prisma.stretchingExercise.findMany({
+    select: { title: true },
+  });
+  const existingExerciseTitles = new Set(existingExercises.map((e) => e.title));
+
+  const stretchingExercises = [
+    {
+      title: "목 좌우 스트레칭",
+      description: "목을 좌우로 천천히 기울여 목 옆쪽 근육을 늘려주는 스트레칭",
+    },
+    {
+      title: "목 전후 스트레칭",
+      description: "목을 앞뒤로 천천히 움직여 목 앞뒤 근육을 늘려주는 스트레칭",
+    },
+    {
+      title: "어깨 돌리기",
+      description:
+        "어깨를 크게 원을 그리며 돌려 어깨 관절의 가동성을 높이는 운동",
+    },
+    {
+      title: "어깨 뒤로 당기기",
+      description:
+        "양손을 뒤로 깍지 끼고 가슴을 펴며 어깨 앞쪽을 늘려주는 스트레칭",
+    },
+    {
+      title: "삼두근 스트레칭",
+      description:
+        "한 팔을 머리 뒤로 올려 반대편 손으로 팔꿈치를 당겨 삼두근을 늘리는 스트레칭",
+    },
+    {
+      title: "이두근 스트레칭",
+      description:
+        "팔을 뒤로 뻗어 벽에 대고 몸을 앞으로 밀어 이두근을 늘리는 스트레칭",
+    },
+    {
+      title: "가슴 스트레칭",
+      description:
+        "벽 모서리에 팔을 대고 몸을 앞으로 밀어 가슴 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "광배근 스트레칭",
+      description:
+        "한 팔을 머리 위로 올려 반대편으로 기울여 옆구리와 광배근을 늘리는 스트레칭",
+    },
+    {
+      title: "허리 비틀기",
+      description:
+        "앉은 자세에서 상체를 좌우로 비틀어 허리 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "무릎 가슴 당기기",
+      description:
+        "누운 자세에서 무릎을 가슴으로 당겨 허리와 엉덩이 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "대퇴사두근 스트레칭",
+      description:
+        "서서 한쪽 발목을 잡고 뒤로 당겨 허벅지 앞쪽 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "햄스트링 스트레칭",
+      description:
+        "앉아서 다리를 뻗고 상체를 앞으로 숙여 허벅지 뒤쪽 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "고관절 굴곡근 스트레칭",
+      description:
+        "런지 자세에서 골반을 앞으로 밀어 고관절 앞쪽 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "종아리 스트레칭",
+      description:
+        "벽에 손을 대고 한쪽 다리를 뒤로 뻗어 종아리 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "발목 돌리기",
+      description:
+        "앉아서 발목을 시계방향, 반시계방향으로 돌려 발목 관절의 가동성을 높이는 운동",
+    },
+    {
+      title: "비둘기 자세",
+      description:
+        "한쪽 다리를 앞으로 구부리고 뒤쪽 다리를 뻗어 엉덩이 근육을 깊게 늘리는 스트레칭",
+    },
+    {
+      title: "캣 카우 스트레칭",
+      description:
+        "네발 기기 자세에서 등을 둥글게 말았다 펴면서 척추 유연성을 높이는 스트레칭",
+    },
+    {
+      title: "차일드 포즈",
+      description:
+        "무릎을 꿇고 앉아 상체를 앞으로 숙여 등과 어깨를 이완시키는 스트레칭",
+    },
+    {
+      title: "코브라 스트레칭",
+      description:
+        "엎드린 자세에서 상체를 들어올려 복부와 허리 앞쪽을 늘리는 스트레칭",
+    },
+    {
+      title: "나비 스트레칭",
+      description:
+        "앉아서 발바닥을 맞대고 무릎을 바닥에 가까이 내려 고관절 내측을 늘리는 스트레칭",
+    },
+    {
+      title: "IT 밴드 스트레칭",
+      description:
+        "다리를 교차시켜 옆으로 기울여 허벅지 바깥쪽 IT 밴드를 늘리는 스트레칭",
+    },
+    {
+      title: "척추 비틀기",
+      description:
+        "누워서 무릎을 한쪽으로 넘겨 척추를 비틀어 허리 긴장을 풀어주는 스트레칭",
+    },
+    {
+      title: "엉덩이 스트레칭",
+      description:
+        "누운 자세에서 한쪽 다리를 가슴으로 당겨 엉덩이 근육을 늘리는 스트레칭",
+    },
+    {
+      title: "전신 스트레칭",
+      description:
+        "누워서 팔과 다리를 반대 방향으로 뻗어 전신을 늘리는 스트레칭",
+    },
+    {
+      title: "손목 스트레칭",
+      description:
+        "손목을 앞뒤, 좌우로 움직여 손목 관절과 전완근을 이완시키는 스트레칭",
+    },
+  ];
+
+  for (const exercise of stretchingExercises) {
+    // 중복 체크: 이미 존재하는 스트레칭 운동이면 건너뛰기
+    if (existingExerciseTitles.has(exercise.title)) {
+      console.log(`스트레칭 운동 "${exercise.title}" 이미 존재함 - 건너뛰기`);
+      continue;
+    }
+
+    try {
+      await prisma.stretchingExercise.create({
+        data: {
+          title: exercise.title,
+          description: exercise.description,
+        },
+      });
+      console.log(`스트레칭 운동 "${exercise.title}" 생성 완료`);
+    } catch (error) {
+      console.error(`스트레칭 운동 "${exercise.title}" 생성 실패:`, error);
+    }
+  }
 };
 
 export const submitLogin = async (data: FormData) => {
@@ -616,6 +1432,7 @@ export const submitLogin = async (data: FormData) => {
     }
   }
 };
+
 export const getUserList = async () => {
   const memberList = await prisma.member.findMany({
     select: { id: true, user: { select: { username: true, id: true } } },

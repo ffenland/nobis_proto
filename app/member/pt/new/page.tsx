@@ -1,204 +1,57 @@
 "use client";
 
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
+import { useRouter } from "next/navigation";
+import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
+import { Card, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { Badge } from "@/app/components/ui/Loading";
+import { ErrorMessage } from "@/app/components/ui/Loading";
 import {
-  createNewPt,
-  get3MonthTrainerSchedule,
-  getCenters,
-  getPtProductsOfTrainerByCenter,
   ICentersForMember,
-  ICheckedSchedule,
   IPtAndTrainer,
   ITrainer,
-  trainerScheduleCheck,
-} from "./actions";
-import { PageHeading, PageSubtitle } from "@/app/components/base/page_text";
-import {
-  displayTime,
-  formatNumberWithCommas,
-  formatPhoneNumber,
-  getStartEndTime,
-} from "@/app/lib/utils";
-import {
-  createWeekScheduleFromChosenSchedule,
-  dayOffTime,
-  DaySchedule,
-  ISchedule,
-  mergeDaySchedules,
-} from "@/app/lib/schedule";
-import ScheduleSelector from "@/app/components/pt/scheduleSelector";
-import dayjs from "dayjs";
-import { weekDayNumberStringMap } from "@/app/lib/constants";
-import { useRouter } from "next/navigation";
+} from "@/app/lib/services/pt-application.service";
 
-type IChosenTrainerAndPt =
-  | (Omit<IPtAndTrainer[number], "trainer"> & { trainer: ITrainer })
-  | null;
+// API fetcher
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Failed to fetch");
+    return res.json();
+  });
 
-// 회원 프로그램 신청 페이지
-const SubscribePt = () => {
-  const router = useRouter();
-  const [steps, setSteps] = useState(0);
-  const [chosenCenter, setChosenCenter] = useState<
-    ICentersForMember[number] | null
-  >(null);
-  const [chosenTrainerAndPt, setChosenTrainerAndPt] =
-    useState<IChosenTrainerAndPt>(null);
-  const [pattern, setPattern] = useState<{
-    regular: boolean;
-    howmany: number;
-  } | null>(null);
-  const [chosenSchedule, setChosenSchedule] = useState<DaySchedule>({});
-  const [checkedSchedule, setCheckedSchedule] = useState<ISchedule[]>();
-
-  const [isPending, setIsPending] = useState(false);
-  const onSubmit = async () => {
-    if (checkedSchedule && chosenTrainerAndPt && pattern) {
-      setIsPending(true);
-      const result = await createNewPt({
-        ptProductId: chosenTrainerAndPt?.id,
-        trainerId: chosenTrainerAndPt?.trainer.id,
-        checkedSchedule,
-        isRegular: pattern?.regular,
-        chosenSchedule,
-      });
-      if (result.ok) {
-        router.replace("/member/pt");
-      }
-    }
-  };
-
-  const stepBack = () => {
-    if (steps === 0 && chosenCenter) {
-      setChosenCenter(null);
-    } else if (steps === 1) {
-      setChosenCenter(null);
-      setChosenTrainerAndPt(null);
-      setPattern(null);
-      setChosenSchedule({});
-      setCheckedSchedule(undefined);
-      setSteps(0);
-    } else if (steps === 2) {
-      setPattern(null);
-      setChosenSchedule({});
-      setCheckedSchedule(undefined);
-      setSteps(1);
-    } else if (steps === 3 || steps === 4) {
-      setPattern(null);
-      setChosenSchedule({});
-      setCheckedSchedule(undefined);
-      setSteps(1);
-    }
-  };
-  return (
-    <div className="w-full flex flex-col">
-      <div className="flex justify-between items-center">
-        <span>새로운 PT수업 신청하기</span>
-        <div className="btn btn-sm btn-accent" onClick={stepBack}>
-          뒤로
-        </div>
-      </div>
-      <ul className="steps text-sm">
-        <li className={`step step-primary flex flex-col`}>
-          <span>센터 &</span>
-          <span>PT</span>
-        </li>
-        <li className={`step ${steps > 0 ? "step-primary" : ""}`}>
-          <span>운동주기</span>
-        </li>
-        <li className={`step ${steps > 1 ? "step-primary" : ""} flex flex-col`}>
-          <span>일정</span>
-        </li>
-        <li className={`step ${steps > 2 ? "step-primary" : ""}`}>일정확인</li>
-        <li className={`step ${steps > 3 ? "step-primary" : ""}`}>확정</li>
-      </ul>
-
-      <div className="flex-1 w-full mt-2">
-        {steps === 0 && chosenCenter === null && (
-          <SelectCenter setChosenCenter={setChosenCenter} />
-        )}
-        {steps === 0 && chosenCenter && (
-          <SelectPtAndTrainer
-            centerId={chosenCenter.id}
-            setChosenTrainerAndPt={setChosenTrainerAndPt}
-            setSteps={setSteps}
-          />
-        )}
-        {steps === 1 && chosenTrainerAndPt && (
-          <SelectType setPattern={setPattern} setSteps={setSteps} />
-        )}
-        {steps === 2 && pattern && chosenTrainerAndPt && (
-          <SelectSchedule
-            pattern={pattern}
-            trainerId={chosenTrainerAndPt.trainer.id}
-            chosenSchedule={chosenSchedule}
-            setChosenSchedule={setChosenSchedule}
-            setSteps={setSteps}
-          />
-        )}
-        {steps === 3 && chosenTrainerAndPt && chosenSchedule && pattern && (
-          <ShowTrainerScheduleCheck
-            chosenSchedule={chosenSchedule}
-            trainerId={chosenTrainerAndPt.trainer.id}
-            pattern={pattern}
-            totalCount={chosenTrainerAndPt.totalCount}
-            setSteps={setSteps}
-            setCheckedSchedule={setCheckedSchedule}
-          />
-        )}
-        {steps === 4 &&
-          chosenCenter &&
-          chosenTrainerAndPt &&
-          checkedSchedule &&
-          pattern && (
-            <ShowSummary
-              chosenCenter={chosenCenter}
-              chosenSchedule={chosenSchedule}
-              checkedSchedule={checkedSchedule}
-              chosenTrainerAndPt={chosenTrainerAndPt}
-              pattern={pattern}
-              isPending={isPending}
-              onSubmit={onSubmit}
-            />
-          )}
-      </div>
-    </div>
-  );
-};
-
-const SelectCenter = ({
-  setChosenCenter,
+// 단계별 컴포넌트들
+const StepIndicator = ({
+  currentStep,
+  totalSteps,
 }: {
-  setChosenCenter: Dispatch<SetStateAction<ICentersForMember[number] | null>>;
+  currentStep: number;
+  totalSteps: number;
 }) => {
-  const [centers, setCenters] = useState<ICentersForMember>([]);
-  useEffect(() => {
-    const initCenters = async () => {
-      const dbCenters = await getCenters();
-      setCenters(dbCenters);
-    };
-    initCenters();
-  }, []);
   return (
-    <div className="w-full flex flex-col">
-      <div className="INFO flex flex-col">
-        <span>운동을 하실 센터를 선택해주세요.</span>
-        <span>어느 곳에서 등록하셔도 모든 센터를 이용하실 수 있습니다.</span>
-      </div>
-      <div className="CENTERS grid grid-cols-3 gap-2">
-        {centers.map((center) => (
-          <div
-            key={center.id}
-            className="flex-1 w-full flex flex-col center p-2 border rounded-md shadow-md"
-            onClick={() => {
-              setChosenCenter(center);
-            }}
-          >
-            <div className="flex justify-center items-center">
-              <PageHeading text={center.title} />
+    <div className="flex items-center justify-center mb-6">
+      <div className="flex items-center space-x-2">
+        {Array.from({ length: totalSteps }, (_, i) => (
+          <div key={i} className="flex items-center">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                i < currentStep
+                  ? "bg-gray-900 text-white"
+                  : i === currentStep
+                  ? "bg-gray-200 text-gray-900 border-2 border-gray-900"
+                  : "bg-gray-100 text-gray-400"
+              }`}
+            >
+              {i + 1}
             </div>
-            <span>{center.address}</span>
-            <span className="text-sm">{formatPhoneNumber(center.phone)}</span>
+            {i < totalSteps - 1 && (
+              <div
+                className={`w-8 h-0.5 mx-1 ${
+                  i < currentStep ? "bg-gray-900" : "bg-gray-200"
+                }`}
+              />
+            )}
           </div>
         ))}
       </div>
@@ -206,669 +59,526 @@ const SelectCenter = ({
   );
 };
 
-const SelectPtAndTrainer = ({
-  centerId,
-  setChosenTrainerAndPt,
-  setSteps,
-}: {
-  centerId: string;
-  setChosenTrainerAndPt: Dispatch<SetStateAction<IChosenTrainerAndPt>>;
-  setSteps: Dispatch<SetStateAction<number>>;
-}) => {
-  const [ptAndTrainer, setPtAndTrainer] = useState<IPtAndTrainer>([]);
-  const [chosenPt, setChosenPt] = useState<IPtAndTrainer[number] | null>(null);
-
-  useEffect(() => {
-    const initTrainerAndPt = async () => {
-      const dbTrainerAndPt = await getPtProductsOfTrainerByCenter(centerId);
-      setPtAndTrainer(dbTrainerAndPt);
-    };
-    initTrainerAndPt();
-  }, [centerId]);
-  return (
-    <div className="w-full">
-      <div className="INFO flex flex-col">
-        <span>PT 프로그램을 선택해주세요.</span>
-        <span>트레이너 스케줄에 따라 수업가능한 시간이 다를 수 있습니다.</span>
-      </div>
-      <div className="PTPRODUCT flex flex-col gap-2">
-        {chosenPt ? (
-          // PT를 선택했을 때
-          <div className="border-2 border-gray-400 rounded-md p-2 shadow-md">
-            <div className="flex justify-between">
-              <div className="flex items-center gap-3">
-                <span>선택한 수업 : </span>
-                <PageSubtitle text={chosenPt.title} />
-              </div>
-              <div
-                className="btn btn-sm btn-secondary"
-                onClick={() => {
-                  setChosenPt(null);
-                }}
-              >
-                다시 선택하기
-              </div>
-            </div>
-            <div>{chosenPt.description}</div>
-            <div>{chosenPt.totalCount}회</div>
-            <div>{formatNumberWithCommas(chosenPt.price)}원</div>
-            <div className="flex flex-col">
-              <span>이제 같이 운동하실 트레이너를 선택해주세요.</span>
-              <div className="flex flex-wrap gap-3">
-                {chosenPt.trainer.map((trn) => (
-                  <div
-                    key={trn.id}
-                    className="cursor-pointer border p-2 rounded-md shadow-md"
-                    onClick={() => {
-                      setSteps(1);
-                      setChosenTrainerAndPt({
-                        ...chosenPt,
-                        trainer: trn,
-                      });
-                    }}
-                  >
-                    <span>{trn.user.username}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          ptAndTrainer.map((pt) => {
-            return (
-              <div
-                key={pt.id}
-                className="cursor-pointer border p-2 rounded-md shadow-md flex flex-col"
-                onClick={() => {
-                  setChosenPt(pt);
-                }}
-              >
-                <PageSubtitle text={pt.title} />
-
-                <div>{pt.description}</div>
-                <div>{formatNumberWithCommas(pt.price)}원</div>
-                <div>수업 가능한 트레이너</div>
-                <div className="flex gap-3 flex-wrap">
-                  {pt.trainer.map((trn) => (
-                    <div
-                      key={trn.id}
-                      className="min-w-24 p-1 border bg-gray-100 rounded-md"
-                    >
-                      <span>{trn.user.username}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
+const PtNewPage = () => {
+  const router = useRouter();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedCenter, setSelectedCenter] = useState<
+    ICentersForMember[number] | null
+  >(null);
+  const [selectedPt, setSelectedPt] = useState<IPtAndTrainer[number] | null>(
+    null
   );
-};
-
-const SelectType = ({
-  setPattern,
-  setSteps,
-}: {
-  setPattern: Dispatch<
-    SetStateAction<{
-      regular: boolean;
-      howmany: number;
-    } | null>
-  >;
-  setSteps: Dispatch<SetStateAction<number>>;
-}) => {
-  const [regularChosen, setRegularChosen] = useState(false);
-  return (
-    <div className="flex flex-col">
-      {!regularChosen ? (
-        <>
-          <span>운동 주기를 선택해주세요.</span>
-          <div className="flex justify-between gap-2">
-            <div
-              className="flex-1 flex flex-col border rounded-lg p-2 cursor-pointer"
-              onClick={() => {
-                setRegularChosen(true);
-              }}
-            >
-              <span className="text-bold text-center">정규 스케줄</span>
-              <div className="text-sm">
-                <p>
-                  요일과 시간을 정해서 매주 같은 요일, 정해진 시간에 수업합니다.
-                </p>
-                <p>
-                  운동이 최적의 효과를 갖기 위해서는 주기적으로 하시는게 제일
-                  좋습니다.
-                </p>
-              </div>
-            </div>
-            <div
-              className="flex-1 flex flex-col border rounded-lg p-2 cursor-pointer"
-              onClick={() => {
-                setPattern({
-                  regular: false,
-                  howmany: 2,
-                });
-                setSteps(2);
-              }}
-            >
-              <span className="text-bold text-center">수시 스케줄</span>
-              <div className="text-sm">
-                <p>운동일정을 미리 정하지 않고</p>
-                <p> 가능한 시간대에 예약해서 잡습니다.</p>
-                <p>PT기간 내에 운동횟수를 다 사용하셔야합니다.</p>
-                <p>기간이 지난 후에는 사용하실 수 없습니다.</p>
-              </div>
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="flex flex-col justify-center items-center">
-            <span>일주일에 몇번 운동을 하시나요?</span>
-            <span>요일은 다음 단계에서 선택합니다.</span>
-          </div>
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((n) => {
-              return (
-                <div
-                  key={n}
-                  className="flex-1 rounded-md border border-sky-900 p-1 flex justify-center items-center"
-                  onClick={() => {
-                    setPattern({
-                      regular: true,
-                      howmany: n,
-                    });
-                    setSteps(2);
-                  }}
-                >
-                  <span className="text-center">주 {n}회</span>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-const SelectSchedule = ({
-  pattern,
-  trainerId,
-  chosenSchedule,
-  setChosenSchedule,
-  setSteps,
-}: {
-  pattern: {
+  const [selectedTrainer, setSelectedTrainer] = useState<ITrainer | null>(null);
+  const [ptPattern, setPtPattern] = useState<{
     regular: boolean;
-    howmany: number;
-  };
-  trainerId: string;
-  chosenSchedule: DaySchedule;
-  setChosenSchedule: Dispatch<SetStateAction<DaySchedule>>;
-  setSteps: Dispatch<SetStateAction<number>>;
-}) => {
-  const duration = 1;
-  const openTime = 900;
-  const closeTime = 2300;
-  const [trainerSchedule, setTrainerSchedule] = useState<DaySchedule>({});
+    count: number;
+  } | null>(null);
 
-  const firstDay =
-    Object.keys(chosenSchedule).length > 0
-      ? `${Object.keys(chosenSchedule).sort()[0].split("-")[0]}년 ${
-          Object.keys(chosenSchedule).sort()[0].split("-")[1]
-        }월 ${Object.keys(chosenSchedule).sort()[0].split("-")[2]}일 ${
-          weekDayNumberStringMap[
-            new Date(
-              Object.keys(chosenSchedule).sort()[0]
-            ).getDay() as keyof typeof weekDayNumberStringMap
-          ].kor.long
-        }`
-      : "";
+  const steps = [
+    { title: "센터 선택", subtitle: "운동할 헬스장을 선택하세요" },
+    {
+      title: "PT 프로그램",
+      subtitle: "원하는 PT 프로그램과 트레이너를 선택하세요",
+    },
+    { title: "운동 주기", subtitle: "정기 또는 비정기 수업을 선택하세요" },
+    { title: "일정 선택", subtitle: "운동 일정을 설정하세요" },
+    { title: "신청 완료", subtitle: "신청 내용을 확인하고 완료하세요" },
+  ];
 
-  const weekSchedule = createWeekScheduleFromChosenSchedule({
-    chosenSchedule,
-  });
-
-  useEffect(() => {
-    const today = new Date();
-    const initSchedule = async () => {
-      const trainer3MonthSchedule = await get3MonthTrainerSchedule({
-        trainerId,
-        targetDate: today,
-      });
-      setTrainerSchedule(trainer3MonthSchedule);
-    };
-    initSchedule();
-  }, [trainerId]);
-  return pattern.howmany !== Object.keys(chosenSchedule).length ? (
-    <div>
-      <ScheduleSelector
-        trainerSchedule={trainerSchedule}
-        pattern={pattern}
-        duration={duration}
-        openTime={openTime}
-        closeTime={closeTime}
-        chosenSchedule={chosenSchedule}
-        setChosenSchedule={setChosenSchedule}
-      />
-    </div>
-  ) : (
-    <div className="w-full flex flex-col">
-      <div className="SCHEDULE flex flex-col gap-2">
-        {pattern.regular ? (
-          <div>
-            <div>
-              <PageSubtitle text={`주 ${pattern.howmany}회 정규 스케줄`} />
-            </div>
-            <div className="flex flex-col gap-2">
-              {weekSchedule.map((daySchedule) => {
-                const { endTime, startTime } = daySchedule;
-                const weekDayName =
-                  weekDayNumberStringMap[daySchedule.day].kor.long;
-                return (
-                  <div
-                    key={daySchedule.day}
-                    className="flex items-center rounded-md border p-2 text-sm border-gray-100 shadow-md"
-                  >
-                    <span className="  font-semibold">
-                      매주 {weekDayName} :
-                    </span>
-                    <span>{`${displayTime(startTime)}`}</span>
-                    <span>{`~ ${displayTime(endTime)}`}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div>
-              <PageSubtitle text={`수시 스케줄`} />
-              <div className="text-center">
-                <span>예약한 일정 {Object.keys(chosenSchedule).length}건</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              {Object.keys(chosenSchedule)
-                .sort()
-                .map((day) => {
-                  const { startAt, endAt } = getStartEndTime(
-                    chosenSchedule[day]
-                  );
-                  const dayObj = dayjs(day);
-                  const weekDayName =
-                    weekDayNumberStringMap[dayObj.day()].kor.long;
-
-                  return (
-                    <div
-                      key={day}
-                      className="flex items-center rounded-md border p-2 text-sm border-gray-100 shadow-md"
-                    >
-                      <div className="">
-                        {`${dayObj.format("YYYY년 MM월 DD일")} ${weekDayName}`}
-                      </div>
-                      <div className="ml-2">
-                        <span>{`${displayTime(startAt)}`}</span>
-                        <span>{`~ ${displayTime(endAt)}`}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-        <div className="flex justify-center my-2">
-          <div className="flex pt-3 mb-2 px-4 text-lg border-b-2 border-red-800">
-            <span>첫 수업일 : </span>
-            <span className="font-bold">{firstDay} </span>
-          </div>
-        </div>
-      </div>
-      <div
-        className="btn btn-sm btn-accent"
-        onClick={() => {
-          setSteps(3);
-        }}
-      >
-        다음
-      </div>
-    </div>
-  );
-};
-
-const ShowTrainerScheduleCheck = ({
-  chosenSchedule,
-  trainerId,
-  pattern,
-  totalCount,
-  setSteps,
-  setCheckedSchedule,
-}: {
-  chosenSchedule: DaySchedule;
-  trainerId: string;
-  pattern: {
-    regular: boolean;
-    howmany: number;
-  };
-  totalCount: number;
-  setSteps: Dispatch<SetStateAction<number>>;
-  setCheckedSchedule: Dispatch<SetStateAction<ISchedule[] | undefined>>;
-}) => {
-  const [summary, setSummary] = useState<ICheckedSchedule | null>(null);
-  const [summaryError, setSummaryError] = useState<boolean>(false);
-
-  const onConfirm = () => {
-    if (summary && summary.success.length > 0) {
-      setCheckedSchedule(summary.success);
-      setSteps(4);
+  const handleBack = () => {
+    if (currentStep === 0) {
+      router.back();
+    } else {
+      setCurrentStep(currentStep - 1);
+      // 이전 단계로 돌아갈 때 선택 상태 초기화
+      if (currentStep === 1) {
+        setSelectedCenter(null);
+      } else if (currentStep === 2) {
+        setSelectedPt(null);
+        setSelectedTrainer(null);
+      } else if (currentStep === 3) {
+        setPtPattern(null);
+      }
     }
   };
 
-  useEffect(() => {
-    const calculate = async () => {
-      const result = await trainerScheduleCheck({
-        trainerId,
-        chosenSchedule,
-        pattern,
-        totalCount,
-      });
-      if (result.ok) {
-        setSummary(result.data);
-      } else {
-        setSummaryError(true);
-      }
-    };
-    calculate();
-  }, [chosenSchedule, trainerId, pattern, totalCount]);
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
 
-  if (summaryError) {
-    return (
-      <div className="w-full flex flex-col">
-        <span>스케줄을 확인하는 중 오류가 발생했습니다.</span>
-        <span>잠시 후 다시 시도해주세요.</span>
-        <div className="btn btn-lg">이전 단계로 돌아가기</div>
+  return (
+    <PageLayout maxWidth="md">
+      {/* 헤더 */}
+      <PageHeader
+        title="PT 신청"
+        subtitle={steps[currentStep].subtitle}
+        action={
+          <Button variant="outline" onClick={handleBack}>
+            {currentStep === 0 ? "뒤로가기" : "이전"}
+          </Button>
+        }
+      />
+
+      {/* 단계 표시 */}
+      <StepIndicator currentStep={currentStep} totalSteps={steps.length} />
+
+      {/* 단계별 제목 */}
+      <div className="text-center mb-6">
+        <h2 className="text-xl font-bold text-gray-900">
+          {steps[currentStep].title}
+        </h2>
       </div>
-    );
-  } else if (summary === null) {
-    return (
-      <div className="w-full flex flex-col">
-        <span>스케줄을 확인하는 중입니다.</span>
-        <span>잠시만 기다려주세요.</span>
-      </div>
-    );
-  } else {
-    return (
-      <div className="w-full flex flex-col">
-        <div className="flex flex-col gap-2">
-          <span>
-            {summary.fail.length === 0
-              ? "선택하신 모든 일정에 대해 수업이 가능합니다."
-              : summary.success.length !== 0
-              ? "선택하신 일정 중 아래의 날짜에는 수업이 가능합니다."
-              : "예약 가능한 스케줄이 없습니다."}
-          </span>
-          <div className="flex flex-col gap-2">
-            {summary.success
-              .sort((a, b) => a.date.getTime() - b.date.getTime())
-              .map((schedule) => {
-                return (
-                  <div
-                    key={schedule.date.toString()}
-                    className="flex items-center rounded-md border p-2 text-sm border-green-600 shadow-md"
-                  >
-                    <div className="">
-                      {`${schedule.date.getFullYear()}년 ${
-                        schedule.date.getMonth() + 1
-                      }월 ${schedule.date.getDate()}일 ${
-                        weekDayNumberStringMap[
-                          schedule.date.getDay() as keyof typeof weekDayNumberStringMap
-                        ].kor.long
-                      }`}
-                    </div>
 
-                    <div className="ml-2">
-                      <span>{`${displayTime(schedule.startTime)}`}</span>
-                      <span>{`~ ${displayTime(schedule.endTime)}`}</span>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-        {summary.fail.length > 0 && (
-          <div className="flex flex-col mt-3">
-            <span>트레이너 사정에 의해 아래 일정엔 수업이 불가능합니다.</span>
-            <div className="flex flex-col">
-              {summary.fail
-                .sort((a, b) => a.date.getTime() - b.date.getTime())
-                .map((schedule) => {
-                  return (
-                    <div
-                      key={schedule.date.toString()}
-                      className="flex items-center rounded-md border border-red-500 p-2 text-sm  shadow-md"
-                    >
-                      <div className="">
-                        {`${schedule.date.getFullYear()}년 ${
-                          schedule.date.getMonth() + 1
-                        }월 ${schedule.date.getDate()}일 ${
-                          weekDayNumberStringMap[
-                            schedule.date.getDay() as keyof typeof weekDayNumberStringMap
-                          ].kor.long
-                        }`}
-                      </div>
+      {/* 단계별 컨텐츠 */}
+      <Card>
+        <CardContent className="p-6">
+          {currentStep === 0 && (
+            <CenterSelectionStep
+              selectedCenter={selectedCenter}
+              onSelectCenter={setSelectedCenter}
+              onNext={handleNext}
+            />
+          )}
 
-                      <div className="ml-2">
-                        <span>{`${displayTime(schedule.startTime)}`}</span>
-                        <span>{`~ ${displayTime(schedule.endTime)}`}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-        <div className="w-full p-2 border shadow-lg mt-3 rounded-lg flex flex-col">
-          <span className="text-center">안내</span>
-          <p className="whitespace-pre-line px-10">
-            여기서 생성한 스케줄은 수업 1일전까지는 언제든 변경이 가능합니다.
-            트레이너 일정으로 인해 스케줄을 생성하지 못한 경우는 추후
-            마이페이지에서 개별로 등록이 가능합니다.
-          </p>
-        </div>
-        {summary.success.length > 0 && (
-          <div className="w-full flex flex-col justify-center items-center mt-3">
-            <div className={`btn btn-lg btn-secondary`} onClick={onConfirm}>
-              이 일정으로 수업 등록하기
-            </div>
-          </div>
-        )}
+          {currentStep === 1 && selectedCenter && (
+            <PtSelectionStep
+              centerId={selectedCenter.id}
+              selectedPt={selectedPt}
+              selectedTrainer={selectedTrainer}
+              onSelectPt={setSelectedPt}
+              onSelectTrainer={setSelectedTrainer}
+              onNext={handleNext}
+            />
+          )}
+
+          {currentStep === 2 && (
+            <PatternSelectionStep
+              ptPattern={ptPattern}
+              onSelectPattern={setPtPattern}
+              onNext={handleNext}
+            />
+          )}
+
+          {currentStep === 3 && selectedTrainer && ptPattern && (
+            <ScheduleSelectionStep
+              trainerId={selectedTrainer.id}
+              pattern={ptPattern}
+              onNext={handleNext}
+            />
+          )}
+
+          {currentStep === 4 && (
+            <ConfirmationStep
+              center={selectedCenter}
+              pt={selectedPt}
+              trainer={selectedTrainer}
+              pattern={ptPattern}
+            />
+          )}
+        </CardContent>
+      </Card>
+    </PageLayout>
+  );
+};
+
+// 센터 선택 단계
+const CenterSelectionStep = ({
+  selectedCenter,
+  onSelectCenter,
+  onNext,
+}: {
+  selectedCenter: ICentersForMember[number] | null;
+  onSelectCenter: (center: ICentersForMember[number]) => void;
+  onNext: () => void;
+}) => {
+  const {
+    data: centers,
+    error,
+    isLoading,
+  } = useSWR<ICentersForMember>("/api/member/centers", fetcher);
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto"></div>
+        <p className="text-gray-500 text-sm mt-2">센터 목록을 불러오는 중...</p>
       </div>
     );
   }
-};
 
-const ShowSummary = ({
-  chosenCenter,
-  chosenSchedule,
-  checkedSchedule,
-  chosenTrainerAndPt,
-  pattern,
-  isPending,
-  onSubmit,
-}: {
-  chosenCenter: ICentersForMember[number];
-  chosenSchedule: DaySchedule;
-  checkedSchedule: ISchedule[];
-  chosenTrainerAndPt: IChosenTrainerAndPt;
-  pattern: {
-    regular: boolean;
-    howmany: number;
-  };
-  isPending: boolean;
-  onSubmit: () => void;
-}) => {
-  const [isPop, setIsPop] = useState(false);
-  const weekSchedule = createWeekScheduleFromChosenSchedule({
-    chosenSchedule: chosenSchedule,
-  });
-  console.log(isPop);
+  if (error) {
+    return <ErrorMessage message="센터 목록을 불러올 수 없습니다." />;
+  }
+
   return (
-    <div className="w-full flex flex-col">
-      {isPop && (
-        <div className="fixed z-10  top-0 left-0 w-full h-full bg-gray-900 bg-opacity-50 flex justify-center items-center">
-          <div className="bg-white p-5 flex flex-col rounded-md shadow-md w-2/3 mx-auto top-1/4 h-1/2">
-            <div className="flex flex-col">
-              <span>서버에 수업을 등록중입니다.</span>
-              <span className="mt-2">신청하신 PT는 마이페이지에서 </span>
-              <span>확인하실 수 있습니다.</span>
-              <span className="mt-2">담당 트레이너가 확인 후 </span>
-              <span>승인하면 수업이 확정됩니다.</span>
-              <span className="mt-2">수업이 확정되면 </span>
-              <span>알림을 통해 알려드립니다.</span>
-              <span className="mt-2">수업료는 첫 수업일에 </span>
-              <span>현장에서 결제하시면 됩니다.</span>
-            </div>
-            <div></div>
-          </div>
+    <div className="space-y-4">
+      <div className="text-center text-gray-600 mb-6">
+        <p>운동을 하실 헬스장을 선택해주세요.</p>
+        <p className="text-sm">
+          어느 센터에서 등록하셔도 모든 센터를 이용하실 수 있습니다.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {centers?.map((center) => (
+          <button
+            key={center.id}
+            onClick={() => onSelectCenter(center)}
+            className={`p-4 border-2 rounded-lg text-left transition-all hover:shadow-md ${
+              selectedCenter?.id === center.id
+                ? "border-gray-900 bg-gray-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <h3 className="font-semibold text-gray-900 mb-2">{center.title}</h3>
+            <p className="text-sm text-gray-600 mb-1">{center.address}</p>
+            <p className="text-sm text-gray-500">{center.phone}</p>
+          </button>
+        ))}
+      </div>
+
+      {selectedCenter && (
+        <div className="pt-4">
+          <Button onClick={onNext} className="w-full">
+            다음 단계
+          </Button>
         </div>
       )}
-      <div className="flex flex-col gap-2">
-        <span>감사합니다.</span>
-        <span>신청하신 PT는 아래와 같습니다.</span>
-      </div>
-      <div className="flex flex-col gap-2">
-        <div className="CTPCard p-5 pt-1 border rounded-md shadow-lg">
-          <div className="flex ">
-            <div className="w-1/3 font-bold border-b-4 border-slate-700 py-2 text-center">
-              <span>센터</span>
-            </div>
-            <div className="w-2/3 ml-4 border-b-4 pl-2 border-gray-400 py-2 ">
-              <span>{chosenCenter.title}</span>
-            </div>
-          </div>
-          <div className="flex ">
-            <div className="w-1/3 font-bold border-b-4 border-slate-700 py-2 text-center">
-              <span>PT 프로그램</span>
-            </div>
-            <div className="w-2/3 ml-4 border-b-4 pl-2 border-gray-400 py-2">
-              <span>{chosenTrainerAndPt?.title}</span>
-              <span className="text-sm ml-4">
-                (총 {chosenTrainerAndPt?.totalCount}회)
-              </span>
-            </div>
-          </div>
-          <div className="flex ">
-            <div className="w-1/3 font-bold border-b-4 border-slate-700 py-2 text-center">
-              <span>트레이너</span>
-            </div>
-            <div className="w-2/3 ml-4 border-b-4 pl-2 border-gray-400 py-2 ">
-              <span>{chosenTrainerAndPt?.trainer.user.username}</span>
-            </div>
-          </div>
-        </div>
-        {pattern.regular && (
-          <div className="flex flex-col gap-2 mt-5">
-            <div>
-              <span>정규 스케줄</span>
-              <span className="font-bold rounded-md  py-1 px-3 text-gray-700">{`주 ${pattern.howmany}회`}</span>
-            </div>
-            <div className="WEEKSCHEDULE flex flex-wrap items-center gap-2">
-              {weekSchedule.map((daySchedule) => {
-                const { endTime, startTime } = daySchedule;
-                const weekDayName =
-                  weekDayNumberStringMap[daySchedule.day].kor.long;
-                return (
-                  <div
-                    key={daySchedule.day}
-                    className="flex items-center rounded-md border p-2 text-sm border-gray-100 shadow-md"
-                  >
-                    <span className="  font-semibold">{weekDayName} :</span>
-                    <span>{`${displayTime(startTime)}`}</span>
-                    <span>{`~ ${displayTime(endTime)}`}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="CHECKEDSCHEDULE flex flex-col">
-              {checkedSchedule.map((schedule) => {
-                return (
-                  <div key={schedule.date.toString()}>
-                    <div className="flex max-w-fit  items-center  border-b-2 p-2 px-4 text-sm border-gray-100">
-                      <div className="">
-                        {`${schedule.date.getFullYear()}년 ${
-                          schedule.date.getMonth() + 1
-                        }월 ${schedule.date.getDate()}일 ${
-                          weekDayNumberStringMap[
-                            schedule.date.getDay() as keyof typeof weekDayNumberStringMap
-                          ].kor.long
-                        }`}
-                      </div>
-
-                      <div className="ml-2">
-                        <span>{`${displayTime(schedule.startTime)}`}</span>
-                        <span>{`~ ${displayTime(schedule.endTime)}`}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {!pattern.regular && (
-          <div className="flex flex-col">
-            <div className="flex flex-col gap-2">
-              <span className="">수시 스케줄</span>
-              <span className="text-sm">2개의 일정이 예약되었습니다.</span>
-              <span className="text-sm">
-                남은 일정은 PT기간 내에 스케줄을 등록해주세요
-              </span>
-            </div>
-            <div>
-              {checkedSchedule.map((schedule) => {
-                return (
-                  <div key={schedule.date.toString()}>
-                    <div className="flex max-w-fit  items-center  border-b-2 p-2 px-4 text-sm border-gray-100">
-                      <div className="">
-                        {`${schedule.date.getFullYear()}년 ${
-                          schedule.date.getMonth() + 1
-                        }월 ${schedule.date.getDate()}일 ${
-                          weekDayNumberStringMap[
-                            schedule.date.getDay() as keyof typeof weekDayNumberStringMap
-                          ].kor.long
-                        }`}
-                      </div>
-
-                      <div className="ml-2">
-                        <span>{`${displayTime(schedule.startTime)}`}</span>
-                        <span>{`~ ${displayTime(schedule.endTime)}`}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="flex justify-center items-center">
-        <button
-          className="btn btn-lg btn-primary mt-4"
-          type="submit"
-          disabled={isPending}
-          onClick={() => {
-            setIsPop(true);
-            onSubmit();
-          }}
-        >
-          {isPending ? "잠시만 기다려주세요" : "PT 신청하기"}
-        </button>
-      </div>
     </div>
   );
 };
 
-export default SubscribePt;
+// PT 프로그램 선택 단계
+const PtSelectionStep = ({
+  centerId,
+  selectedPt,
+  selectedTrainer,
+  onSelectPt,
+  onSelectTrainer,
+  onNext,
+}: {
+  centerId: string;
+  selectedPt: IPtAndTrainer[number] | null;
+  selectedTrainer: ITrainer | null;
+  onSelectPt: (pt: IPtAndTrainer[number] | null) => void;
+  onSelectTrainer: (trainer: ITrainer) => void;
+  onNext: () => void;
+}) => {
+  const {
+    data: ptPrograms,
+    error,
+    isLoading,
+  } = useSWR<IPtAndTrainer>(
+    `/api/member/pt-programs?centerId=${centerId}`,
+    fetcher
+  );
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto"></div>
+        <p className="text-gray-500 text-sm mt-2">
+          PT 프로그램을 불러오는 중...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorMessage message="PT 프로그램 목록을 불러올 수 없습니다." />;
+  }
+
+  if (!selectedPt) {
+    return (
+      <div className="space-y-4">
+        <div className="text-center text-gray-600 mb-6">
+          <p>원하는 PT 프로그램을 선택해주세요.</p>
+        </div>
+
+        <div className="space-y-4">
+          {ptPrograms?.map((pt) => (
+            <button
+              key={pt.id}
+              onClick={() => onSelectPt(pt)}
+              className="w-full p-4 border-2 border-gray-200 rounded-lg text-left hover:border-gray-300 hover:shadow-md transition-all"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="font-semibold text-gray-900">{pt.title}</h3>
+                <Badge variant="default">{pt.totalCount}회</Badge>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">{pt.description}</p>
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-gray-900">
+                  {pt.price.toLocaleString()}원
+                </span>
+                <div className="flex gap-2">
+                  {pt.trainer.slice(0, 3).map((trainer) => (
+                    <span
+                      key={trainer.id}
+                      className="text-xs bg-gray-100 px-2 py-1 rounded"
+                    >
+                      {trainer.user.username}
+                    </span>
+                  ))}
+                  {pt.trainer.length > 3 && (
+                    <span className="text-xs text-gray-500">
+                      +{pt.trainer.length - 3}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="font-semibold text-gray-900">{selectedPt.title}</h3>
+          <Button variant="ghost" size="sm" onClick={() => onSelectPt(null)}>
+            변경
+          </Button>
+        </div>
+        <p className="text-sm text-gray-600 mb-2">{selectedPt.description}</p>
+        <div className="flex gap-4 text-sm">
+          <span>{selectedPt.totalCount}회</span>
+          <span>{selectedPt.price.toLocaleString()}원</span>
+        </div>
+      </div>
+
+      <div className="text-center text-gray-600 mb-4">
+        <p>함께 운동하실 트레이너를 선택해주세요.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
+        {selectedPt.trainer.map((trainer) => (
+          <button
+            key={trainer.id}
+            onClick={() => onSelectTrainer(trainer)}
+            className={`p-4 border-2 rounded-lg text-left transition-all ${
+              selectedTrainer?.id === trainer.id
+                ? "border-gray-900 bg-gray-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                <span className="text-lg">{trainer.user.username[0]}</span>
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900">
+                  {trainer.user.username}
+                </h4>
+                <p className="text-sm text-gray-600">{trainer.introduce}</p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {selectedTrainer && (
+        <div className="pt-4">
+          <Button onClick={onNext} className="w-full">
+            다음 단계
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 운동 주기 선택 단계
+const PatternSelectionStep = ({
+  ptPattern,
+  onSelectPattern,
+  onNext,
+}: {
+  ptPattern: { regular: boolean; count: number } | null;
+  onSelectPattern: (pattern: { regular: boolean; count: number }) => void;
+  onNext: () => void;
+}) => {
+  const [showRegularOptions, setShowRegularOptions] = useState(false);
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center text-gray-600 mb-6">
+        <p>운동 주기를 선택해주세요.</p>
+      </div>
+
+      {!showRegularOptions ? (
+        <div className="grid grid-cols-1 gap-4">
+          <button
+            onClick={() => setShowRegularOptions(true)}
+            className="p-6 border-2 border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-md transition-all"
+          >
+            <div className="text-center">
+              <div className="text-2xl mb-2">📅</div>
+              <h3 className="font-semibold text-gray-900 mb-2">정기 스케줄</h3>
+              <p className="text-sm text-gray-600">
+                매주 같은 요일, 정해진 시간에 수업합니다. 꾸준한 운동을 위해
+                권장드립니다.
+              </p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onSelectPattern({ regular: false, count: 0 })}
+            className="p-6 border-2 border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-md transition-all"
+          >
+            <div className="text-center">
+              <div className="text-2xl mb-2">🗓️</div>
+              <h3 className="font-semibold text-gray-900 mb-2">수시 스케줄</h3>
+              <p className="text-sm text-gray-600">
+                원하는 시간대에 예약해서 운동합니다. 유연한 일정 관리가
+                가능합니다.
+              </p>
+            </div>
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="text-center">
+            <h3 className="font-medium text-gray-900 mb-2">
+              일주일에 몇 번 운동하시나요?
+            </h3>
+            <p className="text-sm text-gray-600">
+              요일은 다음 단계에서 선택합니다.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5].map((count) => (
+              <button
+                key={count}
+                onClick={() => onSelectPattern({ regular: true, count })}
+                className="p-4 border-2 border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-md transition-all text-center"
+              >
+                <div className="font-medium text-gray-900">주 {count}회</div>
+              </button>
+            ))}
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => setShowRegularOptions(false)}
+            className="w-full"
+          >
+            다시 선택
+          </Button>
+        </div>
+      )}
+
+      {ptPattern && (
+        <div className="pt-4">
+          <Button onClick={onNext} className="w-full">
+            다음 단계
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 일정 선택 단계 (간소화)
+const ScheduleSelectionStep = ({
+  trainerId,
+  pattern,
+  onNext,
+}: {
+  trainerId: string;
+  pattern: { regular: boolean; count: number };
+  onNext: () => void;
+}) => {
+  return (
+    <div className="space-y-6 text-center">
+      <div className="text-2xl mb-4">📋</div>
+      <h3 className="font-medium text-gray-900 mb-2">일정 선택</h3>
+      <p className="text-gray-600 mb-6">
+        {pattern.regular ? `주 ${pattern.count}회 정기 스케줄` : "수시 스케줄"}{" "}
+        설정을 위한 상세 일정 선택 기능을 구현 예정입니다.
+      </p>
+      <Button onClick={onNext} className="w-full">
+        다음 단계 (임시)
+      </Button>
+    </div>
+  );
+};
+
+// 신청 완료 단계
+const ConfirmationStep = ({
+  center,
+  pt,
+  trainer,
+  pattern,
+}: {
+  center: ICentersForMember[number] | null;
+  pt: IPtAndTrainer[number] | null;
+  trainer: ITrainer | null;
+  pattern: { regular: boolean; count: number } | null;
+}) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    // 실제 신청 로직 구현
+    setTimeout(() => {
+      router.push("/member/pt");
+    }, 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="text-2xl mb-2">✅</div>
+        <h3 className="font-medium text-gray-900">신청 내용을 확인해주세요</h3>
+      </div>
+
+      <div className="space-y-4">
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-medium text-gray-900 mb-2">센터</h4>
+          <p className="text-gray-700">{center?.title}</p>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-medium text-gray-900 mb-2">PT 프로그램</h4>
+          <p className="text-gray-700">{pt?.title}</p>
+          <p className="text-sm text-gray-600">
+            {pt?.totalCount}회 · {pt?.price.toLocaleString()}원
+          </p>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-medium text-gray-900 mb-2">트레이너</h4>
+          <p className="text-gray-700">{trainer?.user.username}</p>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-medium text-gray-900 mb-2">운동 주기</h4>
+          <p className="text-gray-700">
+            {pattern?.regular
+              ? `주 ${pattern.count}회 정기 수업`
+              : "수시 스케줄"}
+          </p>
+        </div>
+      </div>
+
+      <Button
+        onClick={handleSubmit}
+        disabled={isSubmitting}
+        className="w-full"
+        loading={isSubmitting}
+      >
+        PT 신청하기
+      </Button>
+    </div>
+  );
+};
+
+export default PtNewPage;

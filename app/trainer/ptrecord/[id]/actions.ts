@@ -316,3 +316,161 @@ export const writeMachineRecord = async (
     };
   }
 };
+
+// actions.ts에 추가할 함수들
+
+// 프리웨이트 기록 작성
+export const writeFreeRecord = async (
+  ptRecordId: string,
+  data: {
+    title: string;
+    description?: string;
+    sets: Array<{
+      reps: number;
+      set: number;
+      weightIds: string[];
+    }>;
+  }
+) => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // PtRecordItem 생성
+      const ptRecordItem = await tx.ptRecordItem.create({
+        data: {
+          ptRecordId,
+          type: "FREE",
+          title: data.title,
+          description: data.description,
+          entry: 0,
+        },
+      });
+
+      // 각 세트별로 FreeSetRecord 생성
+      const freeSetRecords = await Promise.all(
+        data.sets.map(async (setRecord) => {
+          return tx.freeSetRecord.create({
+            data: {
+              reps: setRecord.reps,
+              set: setRecord.set,
+              weights: {
+                connect: setRecord.weightIds.map((weightId) => ({
+                  id: weightId,
+                })),
+              },
+              ptRecordItemId: ptRecordItem.id, // 수정: relation 방식 변경
+            },
+          });
+        })
+      );
+
+      return {
+        ptRecordItem,
+        freeSetRecords,
+      };
+    });
+
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error("Error writing free record:", error);
+    return {
+      ok: false,
+      error: {
+        message: "프리웨이트 운동 기록 작성 중 오류가 발생했습니다.",
+      },
+    };
+  }
+};
+
+// 스트레칭 기록 작성
+export const writeStretchingRecord = async (
+  ptRecordId: string,
+  data: {
+    title: string;
+    description?: string;
+    duration: number; // 초 단위
+    stretchingExerciseId?: string;
+  }
+) => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      let stretchingExerciseId = data.stretchingExerciseId;
+
+      // 스트레칭 운동이 없는 경우 새로 생성
+      if (!stretchingExerciseId) {
+        const stretchingExercise = await tx.stretchingExercise.create({
+          data: {
+            title: data.title,
+            description: data.description || data.title,
+          },
+        });
+        stretchingExerciseId = stretchingExercise.id;
+      }
+
+      // PtRecordItem 생성
+      const ptRecordItem = await tx.ptRecordItem.create({
+        data: {
+          ptRecordId,
+          type: "STRETCHING",
+          title: data.title,
+          description: data.description,
+          entry: data.duration, // 스트레칭 시간을 entry에 저장
+        },
+      });
+
+      // StretchingExerciseRecord 생성
+      const stretchingExerciseRecord = await tx.stretchingExerciseRecord.create(
+        {
+          data: {
+            ptRecordItemId: ptRecordItem.id,
+            stretchingExerciseId: stretchingExerciseId!,
+            description: data.description,
+          },
+        }
+      );
+
+      return {
+        ptRecordItem,
+        stretchingExerciseRecord,
+      };
+    });
+
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error("Error writing stretching record:", error);
+    return {
+      ok: false,
+      error: {
+        message: "스트레칭 기록 작성 중 오류가 발생했습니다.",
+      },
+    };
+  }
+};
+
+// 스트레칭 운동 목록 조회
+export const getStretchingExercises = async () => {
+  const exercises = await prisma.stretchingExercise.findMany({
+    select: {
+      id: true,
+      title: true,
+      description: true,
+    },
+    orderBy: {
+      title: "asc",
+    },
+  });
+  return exercises;
+};
+
+// 스트레칭 운동 생성
+export const createStretchingExercise = async (data: {
+  title: string;
+  description: string;
+}) => {
+  const exercise = await prisma.stretchingExercise.create({
+    data: {
+      title: data.title,
+      description: data.description,
+    },
+  });
+  return exercise;
+};
