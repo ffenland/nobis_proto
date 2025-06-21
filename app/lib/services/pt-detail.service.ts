@@ -42,6 +42,7 @@ export const getPtDetailForMemberService = async (
           totalCount: true,
           time: true,
           price: true,
+          description: true,
         },
       },
       ptRecord: {
@@ -91,6 +92,14 @@ export const getPtDetailForMemberService = async (
           ptSchedule: {
             date: "asc",
           },
+        },
+      },
+      weekTimes: {
+        select: {
+          endTime: true,
+          startTime: true,
+          id: true,
+          weekDay: true,
         },
       },
     },
