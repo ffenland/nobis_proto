@@ -1,4 +1,4 @@
-// app/member/page.tsx (완전 새 버전 - 처음부터 다시)
+// app/member/page.tsx (새 API 구조 적용)
 "use client";
 
 import useSWR from "swr";
@@ -10,7 +10,7 @@ import { Badge } from "@/app/components/ui/Loading";
 import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
 import {
   IMemberDashboardStats,
-  IMemberPtList,
+  IMemberPtSummary,
 } from "@/app/lib/services/member.service";
 
 // API fetcher
@@ -28,12 +28,12 @@ const MemberDashboardPage = () => {
     isLoading: dashboardLoading,
   } = useSWR<IMemberDashboardStats>("/api/member/dashboard", fetcher);
 
-  // PT 요약 정보 조회
+  // PT 요약 정보 조회 (새 API 엔드포인트)
   const {
     data: ptSummary,
     error: ptError,
     isLoading: ptLoading,
-  } = useSWR<IMemberPtList>("/api/member/pt-summary", fetcher);
+  } = useSWR<IMemberPtSummary>("/api/member/pt-summary", fetcher);
 
   // 시간 포맷 함수
   const formatTime = (time: number) => {
@@ -64,7 +64,7 @@ const MemberDashboardPage = () => {
   };
 
   // PT 상태 결정
-  const getPtStatus = (pt: IMemberPtList[number]) => {
+  const getPtStatus = (pt: IMemberPtSummary[number]) => {
     if (pt.isPending) {
       return { text: "승인대기", variant: "warning" as const };
     } else if (pt.isCompleted) {
@@ -84,89 +84,94 @@ const MemberDashboardPage = () => {
   // 에러 상태
   if (dashboardError) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout maxWidth="md">
         <ErrorMessage message="대시보드를 불러올 수 없습니다." />
       </PageLayout>
     );
   }
 
   return (
-    <PageLayout maxWidth="lg">
-      <PageHeader
-        title="내 PT 대시보드"
-        subtitle="PT 현황과 운동 기록을 확인하세요"
-      />
+    <PageLayout maxWidth="md">
+      <PageHeader title={`안녕하세요! 👋`} subtitle="오늘도 화이팅하세요!" />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600 mb-1">
-              {dashboardData?.totalPts || 0}
-            </div>
-            <div className="text-sm text-gray-600">총 PT</div>
-          </CardContent>
-        </Card>
+      {/* 통계 카드들 */}
+      {dashboardData && (
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-gray-900">
+                {dashboardData.activePts}
+              </div>
+              <div className="text-sm text-gray-600">진행중인 PT</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600 mb-1">
-              {dashboardData?.pendingPts || 0}
-            </div>
-            <div className="text-sm text-gray-600">승인 대기</div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-gray-900">
+                {dashboardData.totalSessions}
+              </div>
+              <div className="text-sm text-gray-600">총 운동 횟수</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600 mb-1">
-              {dashboardData?.activePts || 0}
-            </div>
-            <div className="text-sm text-gray-600">진행 중</div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-gray-900">
+                {dashboardData.pendingPts}
+              </div>
+              <div className="text-sm text-gray-600">승인 대기</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600 mb-1">
-              {dashboardData?.thisMonthSessions || 0}
-            </div>
-            <div className="text-sm text-gray-600">이번 달 운동</div>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-gray-900">
+                {dashboardData.thisMonthSessions}
+              </div>
+              <div className="text-sm text-gray-600">이번 달 운동</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {dashboardData && dashboardData.pendingPts > 0 && (
-        <Card className="mb-6 border-orange-200 bg-orange-50">
+      {/* 다음 수업 일정 */}
+      {dashboardData?.nextSession && (
+        <Card className="mb-6">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="text-orange-600 text-xl">⏳</div>
+            <h3 className="font-semibold text-gray-900 mb-3">다음 수업</h3>
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium text-orange-900">
-                    승인 대기 중인 PT가 있습니다
-                  </h3>
-                  <p className="text-sm text-orange-700">
-                    {dashboardData.pendingPts}건의 PT가 트레이너 승인을 기다리고
-                    있습니다.
-                  </p>
+                  <div className="font-medium text-blue-900">
+                    {dashboardData.nextSession.ptTitle}
+                  </div>
+                  <div className="text-sm text-blue-700">
+                    {dashboardData.nextSession.trainerName} 트레이너
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium text-blue-900">
+                    {formatDate(dashboardData.nextSession.date)}
+                  </div>
+                  <div className="text-sm text-blue-700">
+                    {formatTime(dashboardData.nextSession.startTime)} -
+                    {formatTime(dashboardData.nextSession.endTime)}
+                  </div>
                 </div>
               </div>
-              <Link href="/member/pt">
-                <Button variant="outline" size="sm">
-                  확인하기
-                </Button>
-              </Link>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* PT 요약 */}
       <Card className="mb-6">
-        <CardContent className="p-4">
+        <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">내 PT</h2>
+            <h3 className="text-lg font-semibold text-gray-900">내 PT</h3>
             <Link href="/member/pt">
-              <Button variant="ghost" size="sm">
+              <Button variant="outline" size="sm">
                 전체 보기
               </Button>
             </Link>
@@ -194,7 +199,7 @@ const MemberDashboardPage = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {ptSummary.slice(0, 3).map((pt) => {
+              {ptSummary.map((pt) => {
                 const status = getPtStatus(pt);
                 return (
                   <Link key={pt.id} href={`/member/pt/${pt.id}`}>
@@ -217,9 +222,7 @@ const MemberDashboardPage = () => {
                         </div>
                         <div className="text-right">
                           <div className="text-sm text-gray-600">
-                            {pt.trainer
-                              ? pt.trainer.user.username
-                              : "트레이너 배정 대기"}
+                            {pt.trainer?.user.username || "트레이너 배정 대기"}
                           </div>
                           {pt.upcomingSession && (
                             <div className="text-sm text-gray-900 font-medium">
@@ -233,20 +236,12 @@ const MemberDashboardPage = () => {
                   </Link>
                 );
               })}
-              {ptSummary.length > 3 && (
-                <Link href="/member/pt">
-                  <div className="text-center py-2">
-                    <Button variant="ghost" size="sm">
-                      전체 보기 ({ptSummary.length - 3}개 더)
-                    </Button>
-                  </div>
-                </Link>
-              )}
             </div>
           )}
         </CardContent>
       </Card>
 
+      {/* 액션 카드들 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-6">

@@ -285,7 +285,26 @@ const ScheduleSelector = ({
         )}
 
         {/* 주간 달력 그리드 */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-8 gap-1">
+          {/* 시간 헤더 컬럼 */}
+          <div className="border rounded-lg overflow-hidden">
+            <div className="p-2 text-center text-xs font-medium bg-gray-50 text-gray-600 h-[48px] flex items-center justify-center">
+              시간
+            </div>
+            {/* 시간 표시 */}
+            <div className="space-y-px">
+              {timeSlots.map((time, timeIndex) => (
+                <div
+                  key={time}
+                  className="h-6 flex items-center justify-center text-xs text-gray-500 bg-gray-50 border-r"
+                >
+                  {timeIndex % 2 === 0 && formatTime(time)}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 요일별 컬럼들 */}
           {getDaysOfWeek(currentWeek).map((day, dayIndex) => {
             const isToday = day.isSame(today.current, "day");
             const isPast = day.isBefore(today.current, "day");
@@ -309,9 +328,7 @@ const ScheduleSelector = ({
               <div key={dateKey} className="border rounded-lg overflow-hidden">
                 {/* 날짜 헤더 */}
                 <div
-                  className={`p-2 text-center text-xs font-medium ${
-                    dayIndex === 0 ? "invisible" : ""
-                  } ${
+                  className={`p-2 text-center text-xs font-medium h-[48px] flex flex-col items-center justify-center ${
                     isToday
                       ? "bg-blue-100 text-blue-700"
                       : dayIndex === 6
@@ -319,12 +336,8 @@ const ScheduleSelector = ({
                       : "bg-gray-50 text-gray-600"
                   }`}
                 >
-                  {dayIndex !== 0 && (
-                    <>
-                      <div>{weekDayNames[day.day()]}</div>
-                      <div className="font-bold">{day.date()}일</div>
-                    </>
-                  )}
+                  <div>{weekDayNames[day.day()]}</div>
+                  <div className="font-bold">{day.date()}일</div>
                 </div>
 
                 {/* 시간 슬롯들 */}
@@ -332,19 +345,6 @@ const ScheduleSelector = ({
                   {timeSlots.map((time, timeIndex) => {
                     const isOccupied = occupiedTimes.includes(time);
                     const isChosen = chosenTimes.includes(time);
-
-                    // 일요일 컬럼은 시간 표시용
-                    if (dayIndex === 0) {
-                      return (
-                        <div
-                          key={time}
-                          className="h-6 flex items-center justify-center text-xs text-gray-500 bg-gray-50 border-r"
-                        >
-                          {timeIndex % 2 === 0 && formatTime(time)}
-                        </div>
-                      );
-                    }
-
                     const isLastSlot = timeIndex === timeSlots.length - 1;
 
                     return (
@@ -374,9 +374,16 @@ const ScheduleSelector = ({
                             handleTimeClick(day, time);
                           }
                         }}
+                        title={`${formatTime(time)} ${
+                          isOccupied
+                            ? "- 예약됨"
+                            : isChosen
+                            ? "- 선택됨"
+                            : "- 선택 가능"
+                        }`}
                       >
-                        {isOccupied && "예약됨"}
-                        {isChosen && "선택됨"}
+                        {isOccupied && "×"}
+                        {isChosen && "✓"}
                       </div>
                     );
                   })}
@@ -390,11 +397,11 @@ const ScheduleSelector = ({
         <div className="mt-4 flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-green-200 rounded"></div>
-            <span>선택된 시간</span>
+            <span>선택된 시간 (✓)</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-red-200 rounded"></div>
-            <span>예약 불가</span>
+            <span>예약 불가 (×)</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-gray-200 rounded"></div>
