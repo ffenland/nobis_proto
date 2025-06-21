@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         },
         isRegular: true,
         trainerConfirmed: true,
-        isActive: true,
+        state: true,
         trainer: {
           select: {
             user: {
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       ptProduct: pt.ptProduct,
       trainer: pt.trainer,
       trainerConfirmed: pt.trainerConfirmed,
-      isActive: pt.isActive,
+      state: pt.state,
       upcomingSession:
         pt.ptRecord.length > 0
           ? {
