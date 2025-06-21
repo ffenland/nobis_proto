@@ -206,6 +206,7 @@ model PtRecord {
   ptSchedule   PtSchedule      @relation(fields: [ptScheduleId], references: [id])
   ptScheduleId String          @db.Uuid
   items        PtRecordItem[]
+  memo         String          @default("")
 }
 
 enum RecordType {

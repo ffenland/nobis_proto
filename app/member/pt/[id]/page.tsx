@@ -124,21 +124,32 @@ const PtDetailPage = () => {
     }
   };
 
-  // PT 상태 결정
+  // PT 상태 결정 (수정된 버전)
   const getPtStatus = (pt: IPtDetailForMember["pt"]) => {
-    if (!pt.trainerConfirmed) {
-      return { text: "승인대기", variant: "warning" as const };
-    } else if (pt.isActive) {
+    // 트레이너 승인과 state가 모두 CONFIRMED일 때만 승인됨으로 처리
+    if (pt.trainerConfirmed && pt.state === "CONFIRMED") {
+      // 완료된 세션 수 확인
+      const completedSessions = pt.ptRecord.filter(
+        (record) => record.attended === "ATTENDED"
+      ).length;
+
+      if (completedSessions >= pt.ptProduct.totalCount) {
+        return { text: "완료", variant: "default" as const };
+      }
       return { text: "진행중", variant: "success" as const };
+    } else if (pt.state === "REJECTED") {
+      return { text: "거절됨", variant: "error" as const };
+    } else if (pt.state === "PENDING") {
+      return { text: "승인대기", variant: "warning" as const };
     } else {
-      return { text: "완료", variant: "default" as const };
+      return { text: "알 수 없음", variant: "default" as const };
     }
   };
 
   // 만료일 계산
   const getExpiryDate = (startDate: string, totalCount: number) => {
     const start = new Date(startDate);
-    const months = totalCount < 11 ? 2 : totalCount < 21 ? 3 : 4;
+    const months = totalCount < 11 ? 1 : totalCount < 21 ? 3 : 4;
     const expiry = new Date(start);
     expiry.setMonth(expiry.getMonth() + months);
     return expiry;
@@ -169,6 +180,9 @@ const PtDetailPage = () => {
   const status = getPtStatus(pt);
   const expiryDate = getExpiryDate(pt.startDate, pt.ptProduct.totalCount);
   const remainingSessions = pt.ptProduct.totalCount - pt.ptRecord.length;
+  const completedSessions = pt.ptRecord.filter(
+    (record) => record.attended === "ATTENDED"
+  ).length;
 
   return (
     <PageLayout maxWidth="lg">
@@ -202,7 +216,26 @@ const PtDetailPage = () => {
             <Badge variant={status.variant}>{status.text}</Badge>
           </div>
 
-          <p className="text-gray-600 mb-4">{pt.ptProduct.description}</p>
+          {/* 진행 상태 */}
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-600">진행 상태</span>
+              <span className="text-sm font-medium text-gray-900">
+                {completedSessions}/{pt.ptProduct.totalCount}회 완료
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-gray-900 h-2 rounded-full transition-all"
+                style={{
+                  width: `${Math.min(
+                    (completedSessions / pt.ptProduct.totalCount) * 100,
+                    100
+                  )}%`,
+                }}
+              ></div>
+            </div>
+          </div>
 
           {/* 트레이너 정보 */}
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
@@ -215,203 +248,159 @@ const PtDetailPage = () => {
                   </span>
                 </div>
                 <span className="font-medium text-gray-900">
-                  {pt.trainer ? pt.trainer.user.username : "배정 대기중"}
+                  {pt.trainer?.user.username || "트레이너 배정 대기"}
                 </span>
               </div>
-              {pt.trainer && !pt.isActive && (
-                <Button variant="outline" size="sm">
-                  채팅하기
-                </Button>
+              {pt.trainer && (
+                <Link href={`/member/chat/${pt.trainer.user.id}`}>
+                  <Button variant="outline" size="sm">
+                    메시지
+                  </Button>
+                </Link>
               )}
             </div>
           </div>
 
-          {/* 진행 상황 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">
-                {pt.ptRecord.length}
+          {/* 기간 정보 */}
+          {status.text === "진행중" && (
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">시작일</span>
+                <div className="font-medium text-gray-900">
+                  {new Date(pt.startDate).toLocaleDateString("ko-KR")}
+                </div>
               </div>
-              <div className="text-sm text-gray-600">완료된 수업</div>
-            </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {remainingSessions}
-              </div>
-              <div className="text-sm text-gray-600">남은 수업</div>
-            </div>
-          </div>
-
-          {/* 만료 경고 */}
-          {remainingSessions > 0 && (
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-amber-800">
-                  ⚠️ 수업 마감일
-                </span>
-                <span className="text-sm text-amber-700">
+              <div>
+                <span className="text-gray-600">만료 예정일</span>
+                <div className="font-medium text-gray-900">
                   {expiryDate.toLocaleDateString("ko-KR")}
-                </span>
+                </div>
               </div>
-              <p className="text-xs text-amber-600 mt-1">
-                마감일까지 남은 수업을 모두 이용해주세요.
-              </p>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* 스케줄 정보 (정기 수업인 경우) */}
-      {pt.isRegular && pt.weekTimes.length > 0 && (
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <h3 className="font-medium text-gray-900 mb-4">정기 스케줄</h3>
-            <div className="flex flex-wrap gap-2">
-              {pt.weekTimes.map((weekTime, index) => {
-                const dayMap: Record<string, string> = {
-                  MON: "월",
-                  TUE: "화",
-                  WED: "수",
-                  THU: "목",
-                  FRI: "금",
-                  SAT: "토",
-                  SUN: "일",
-                };
-
-                return (
-                  <div
-                    key={index}
-                    className="px-3 py-2 bg-gray-100 rounded-lg text-sm"
-                  >
-                    {dayMap[weekTime.weekDay]} {formatTime(weekTime.startTime)}-
-                    {formatTime(weekTime.endTime)}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* 수업 기록 */}
       <Card>
         <CardContent className="p-6">
-          <h3 className="font-medium text-gray-900 mb-4">수업 기록</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">수업 기록</h3>
+            <span className="text-sm text-gray-600">
+              총 {pt.ptRecord.length}개 세션
+            </span>
+          </div>
 
           {pt.ptRecord.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-4xl mb-3">📅</div>
-              <p className="text-gray-500">아직 수업 기록이 없습니다</p>
+            <div className="text-center py-8 text-gray-500">
+              아직 수업 기록이 없습니다.
             </div>
           ) : (
-            <div className="space-y-3">
-              {pt.ptRecord
-                .sort(
-                  (a, b) =>
-                    new Date(a.ptSchedule.date).getTime() -
-                    new Date(b.ptSchedule.date).getTime()
-                )
-                .map((record) => {
-                  const dateInfo = formatDate(record.ptSchedule.date);
-                  const attendance = getAttendanceText(record.attended);
-                  const isExpanded = expandedRecord === record.id;
+            <div className="space-y-4">
+              {pt.ptRecord.map((record) => {
+                const dateInfo = formatDate(record.ptSchedule.date);
+                const attendanceInfo = getAttendanceText(record.attended);
+                const isExpanded = expandedRecord === record.id;
 
-                  return (
+                return (
+                  <div
+                    key={record.id}
+                    className="border border-gray-200 rounded-lg overflow-hidden"
+                  >
                     <div
-                      key={record.id}
-                      className={`border rounded-lg transition-all ${
-                        dateInfo.isPast
-                          ? "bg-gray-50 border-gray-200"
-                          : dateInfo.isToday
-                          ? "bg-blue-50 border-blue-200"
-                          : "bg-white border-gray-200"
-                      }`}
+                      className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() =>
+                        setExpandedRecord(isExpanded ? null : record.id)
+                      }
                     >
-                      <button
-                        onClick={() =>
-                          setExpandedRecord(isExpanded ? null : record.id)
-                        }
-                        className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="flex flex-col">
-                              <span className="font-medium text-gray-900">
-                                {dateInfo.text}
-                              </span>
-                              <span className="text-sm text-gray-600">
-                                {formatTime(record.ptSchedule.startTime)} -{" "}
-                                {formatTime(record.ptSchedule.endTime)}
-                              </span>
-                            </div>
-                            {dateInfo.isToday && (
-                              <Badge variant="default">Today</Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant={attendance.variant}>
-                              {attendance.text}
-                            </Badge>
-                            <span className="text-gray-400">
-                              {isExpanded ? "▼" : "▶"}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`font-medium ${
+                                dateInfo.isToday
+                                  ? "text-blue-600"
+                                  : dateInfo.isPast
+                                  ? "text-gray-900"
+                                  : "text-gray-600"
+                              }`}
+                            >
+                              {dateInfo.text}
                             </span>
+                            <span className="text-gray-600">
+                              {formatTime(record.ptSchedule.startTime)} -{" "}
+                              {formatTime(record.ptSchedule.endTime)}
+                            </span>
+                            <Badge variant={attendanceInfo.variant}>
+                              {attendanceInfo.text}
+                            </Badge>
                           </div>
-                        </div>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="px-4 pb-4 border-t border-gray-200">
-                          {record.attended === "ATTENDED" &&
-                          record.items.length > 0 ? (
-                            <div className="pt-3">
-                              <h4 className="font-medium text-gray-900 mb-3">
-                                운동 기록
-                              </h4>
-                              <div className="space-y-2">
-                                {record.items.map((item) => {
-                                  const exercises = formatExerciseRecord(item);
-                                  return exercises.map(
-                                    (exercise, exerciseIndex) => (
-                                      <div
-                                        key={`${item.id}-${exerciseIndex}`}
-                                        className="p-2 bg-gray-50 rounded"
-                                      >
-                                        <div className="flex justify-between items-start">
-                                          <span className="text-sm font-medium">
-                                            {exercise.name}
-                                          </span>
-                                          <span className="text-sm text-gray-600">
-                                            {exercise.details}
-                                          </span>
-                                        </div>
-                                        {exercise.settings && (
-                                          <div className="text-xs text-gray-500 mt-1">
-                                            {exercise.settings}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="pt-3 text-center text-gray-500">
-                              <p className="text-sm">운동 기록이 없습니다</p>
-                            </div>
+                          {record.memo && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              {record.memo}
+                            </p>
                           )}
                         </div>
-                      )}
+                        <div className="text-gray-400">
+                          {isExpanded ? "△" : "▽"}
+                        </div>
+                      </div>
                     </div>
-                  );
-                })}
+
+                    {/* 운동 기록 상세 */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-200 bg-gray-50 p-4">
+                        {record.items.length === 0 ? (
+                          <p className="text-gray-500 text-sm">
+                            운동 기록이 없습니다.
+                          </p>
+                        ) : (
+                          <div className="space-y-3">
+                            {record.items.map((item, index) => {
+                              const exercises = formatExerciseRecord(item);
+                              return (
+                                <div
+                                  key={index}
+                                  className="bg-white rounded p-3"
+                                >
+                                  <h4 className="font-medium text-gray-900 mb-2">
+                                    {item.title || "운동"}
+                                  </h4>
+                                  {exercises.map((exercise, exerciseIndex) => (
+                                    <div
+                                      key={exerciseIndex}
+                                      className="text-sm text-gray-600 mb-1"
+                                    >
+                                      <div className="flex justify-between">
+                                        <span>{exercise.name}</span>
+                                        <span>{exercise.details}</span>
+                                      </div>
+                                      {exercise.settings && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          {exercise.settings}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {item.description && (
+                                    <p className="text-sm text-gray-600 mt-2 border-t pt-2">
+                                      {item.description}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* 하단 여백 (탭바 공간 확보) */}
-      <div className="h-20"></div>
     </PageLayout>
   );
 };

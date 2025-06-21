@@ -46,7 +46,9 @@ export const getPtDetailForMemberService = async (
         },
       },
       ptRecord: {
-        include: {
+        select: {
+          id: true,
+          attended: true,
           ptSchedule: {
             select: {
               date: true,
@@ -54,6 +56,7 @@ export const getPtDetailForMemberService = async (
               endTime: true,
             },
           },
+          memo: true,
           items: {
             include: {
               machineSetRecords: {
