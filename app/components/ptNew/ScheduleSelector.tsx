@@ -228,7 +228,39 @@ const ScheduleSelector = ({
             <p className="text-red-600 text-sm">{timeError}</p>
           </div>
         )}
-
+        {/* 상단 정보 */}
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-600">
+            {pattern.regular ? (
+              <div>
+                <p>
+                  <span className="font-medium">정기 일정:</span> 주{" "}
+                  {pattern.count}회
+                </p>
+                <p>
+                  <span className="font-medium">수업 시간:</span> {duration}시간
+                </p>
+                <p className="text-xs mt-1 text-gray-500">
+                  첫 수업일을 기준으로 매주 같은 요일, 같은 시간에 진행됩니다.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p>
+                  <span className="font-medium">수시 일정:</span> 원하는 날짜
+                  선택
+                </p>
+                <p>
+                  <span className="font-medium">수업 시간:</span> {duration}시간
+                </p>
+                <p className="text-xs mt-1 text-gray-500">
+                  최소 2개 날짜 선택 후, 나머지는 결제 완료 후 추가 예약
+                  가능합니다.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
         {/* 안내 메시지 */}
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
           {Object.keys(chosenSchedule).length > 0 ? (
@@ -249,6 +281,25 @@ const ScheduleSelector = ({
               <p>그 이후의 일정은 나중에 선택할 수 있습니다.</p>
             </div>
           )}
+        </div>
+        {/* 범례 */}
+        <div className="mt-4 flex flex-wrap gap-4 text-xs">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-200 rounded"></div>
+            <span>선택된 시간 (✓)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-red-200 rounded"></div>
+            <span>예약 불가 (×)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-gray-200 rounded"></div>
+            <span>선택 불가</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-white border rounded"></div>
+            <span>선택 가능</span>
+          </div>
         </div>
 
         {/* 선택된 스케줄 요약 */}
@@ -391,60 +442,6 @@ const ScheduleSelector = ({
               </div>
             );
           })}
-        </div>
-
-        {/* 범례 */}
-        <div className="mt-4 flex flex-wrap gap-4 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-200 rounded"></div>
-            <span>선택된 시간 (✓)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-200 rounded"></div>
-            <span>예약 불가 (×)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-gray-200 rounded"></div>
-            <span>선택 불가</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-white border rounded"></div>
-            <span>선택 가능</span>
-          </div>
-        </div>
-
-        {/* 하단 정보 */}
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <div className="text-sm text-gray-600">
-            {pattern.regular ? (
-              <div>
-                <p>
-                  <span className="font-medium">정기 일정:</span> 주{" "}
-                  {pattern.count}회
-                </p>
-                <p>
-                  <span className="font-medium">수업 시간:</span> {duration}시간
-                </p>
-                <p className="text-xs mt-1 text-gray-500">
-                  첫 수업일을 기준으로 매주 같은 요일, 같은 시간에 진행됩니다.
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p>
-                  <span className="font-medium">수시 일정:</span> 원하는 날짜
-                  선택
-                </p>
-                <p>
-                  <span className="font-medium">수업 시간:</span> {duration}시간
-                </p>
-                <p className="text-xs mt-1 text-gray-500">
-                  최소 2개 날짜 선택 후, 나머지는 결제 완료 후 추가 예약
-                  가능합니다.
-                </p>
-              </div>
-            )}
-          </div>
         </div>
       </CardContent>
     </Card>
