@@ -39,7 +39,8 @@ model User {
   naverId              String?               @unique
   kakaoId              String?               @unique
   mobile               String                @unique
-  avatar               String?
+  avatarMediaId        String?               @unique @db.Uuid
+  avatarMedia          Media?                @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   role                 UserRole              @default(MEMBER)
   trainerProfile       Trainer?
   managerProfile       Manager?
@@ -50,7 +51,16 @@ model User {
   message              Message[]
   messageReadStatus    MessageReadStatus[]
   chatRoomParticipants ChatRoomParticipant[]
-  photos               UserPhoto[]
+
+  // 업로드한 모든 미디어 (다대일 관계)
+  uploadedMedia Media[] @relation("UploadedMedia")
+
+  // 미디어 사용량
+  mediaUsage MediaUsage?
+
+  // 구독 정보
+  isPremiumUser      Boolean   @default(false)
+  subscriptionExpiry DateTime?
 }
 
 model UserData {
@@ -60,24 +70,6 @@ model UserData {
   user       User         @relation(fields: [userId], references: [id], onDelete: NoAction)
   userId     String       @unique @db.Uuid
   logNicePay LogNicePay[]
-}
-
-model UserPhoto {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  url       String
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId    String?  @db.Uuid
-}
-
-model MachinePhoto {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  url       String
-  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
-  machineId String?  @db.Uuid
 }
 
 model Member {
@@ -133,7 +125,7 @@ model Group {
   updatedAt DateTime  @updatedAt
   manager   Manager   @relation(fields: [managerId], references: [id])
   managerId String    @db.Uuid
-  member    Trainer[]
+  trainers  Trainer[]
 }
 
 model ConfigurationValue {
@@ -226,6 +218,7 @@ model PtRecordItem {
   machineSetRecords         MachineSetRecord[]
   freeSetRecords            FreeSetRecord[]
   stretchingExerciseRecords StretchingExerciseRecord[]
+  photos                    Media[]
 }
 
 model Machine {
@@ -234,7 +227,7 @@ model Machine {
   machineSetting  MachineSetting[]
   fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId String?          @db.Uuid
-  photos          MachinePhoto[]
+  photos          Media[]
 }
 
 model MachineSetting {
@@ -285,21 +278,12 @@ model FreeSetRecord {
   ptRecordItemId String       @db.Uuid
 }
 
-model StretchingPhoto {
-  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  url                  String
-  stretchingExercise   StretchingExercise @relation(fields: [stretchingExerciseId], references: [id])
-  stretchingExerciseId String             @db.Uuid
-}
-
 model StretchingExercise {
   id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt                DateTime                   @default(now())
   title                    String
   description              String
-  photos                   StretchingPhoto[]
+  photos                   Media[]
   stretchingExerciseRecord StretchingExerciseRecord[]
 }
 
@@ -500,6 +484,7 @@ model FitnessCenter {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   weights      Weights[]
+  Media        Media[]
 }
 
 model OpeningHour {
@@ -563,4 +548,126 @@ model MessageReadStatus {
   user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId    String?   @db.Uuid
   readAt    DateTime?
+}
+
+// 기존 모델을 확장하여 통합된 미디어 관리 시스템 구축
+
+enum PhotoType {
+  PROFILE // 프로필 사진
+  MACHINE // 장비 사진  
+  CENTER // 센터 사진
+  EXERCISE // 운동 기록 사진
+  STRETCHING // 스트레칭 사진
+  PT_RECORD // PT 기록 사진
+  BEFORE_AFTER // 전후 비교 사진
+  ACHIEVEMENT // 성과 사진
+}
+
+enum VideoType {
+  EXERCISE_DEMO // 운동 시연
+  PT_RECORD // PT 기록
+  FORM_CHECK // 폼 체크
+  PROGRESS // 진행 과정
+  INSTRUCTION // 운동 설명
+}
+
+enum MediaStatus {
+  UPLOADING
+  PROCESSING
+  ACTIVE
+  SCHEDULED_DELETE
+  DELETED
+}
+
+// 통합 미디어 모델
+model Media {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 파일 정보
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+
+  // 타입 및 상태
+  type      PhotoType? // 이미지인 경우
+  videoType VideoType? // 비디오인 경우
+  status    MediaStatus @default(UPLOADING)
+
+  // 저장소 정보
+  r2Key        String? // R2 저장소 키
+  streamId     String? // Cloudflare Stream ID
+  publicUrl    String
+  thumbnailUrl String?
+
+  // 비디오 전용 필드
+  duration   Int? // 초 단위
+  resolution String? // "1920x1080"
+  embedUrl   String?
+
+  // 자동 삭제 관련
+  scheduledDeleteAt DateTime?
+  autoDeleteEnabled Boolean   @default(false)
+
+  // 관계
+  uploadedBy   User   @relation("UploadedMedia", fields: [uploadedById], references: [id])
+  uploadedById String @db.Uuid
+
+  // 연관 엔티티 (옵셔널)
+  avatar User? @relation("UserAvatar")
+
+  machineId String?  @db.Uuid
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  fitnessCenterId String?        @db.Uuid
+  fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
+
+  ptRecordItemId String?       @db.Uuid
+  ptRecordItem   PtRecordItem? @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
+
+  stretchingExerciseId String?             @db.Uuid
+  stretchingExercise   StretchingExercise? @relation(fields: [stretchingExerciseId], references: [id], onDelete: SetNull)
+
+  // 메타데이터 (JSON)
+  metadata Json? // 추가 정보를 위한 유연한 필드
+  userId   String @db.Uuid
+
+  @@index([uploadedById])
+  @@index([type])
+  @@index([videoType])
+  @@index([status])
+  @@index([scheduledDeleteAt])
+  @@index([machineId])
+  @@index([fitnessCenterId])
+  @@index([stretchingExerciseId])
+}
+
+// 사용자별 미디어 사용량 추적
+model MediaUsage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique @db.Uuid
+
+  // 월별 사용량
+  month String // "2025-01" 형식
+
+  // 이미지 사용량
+  imageCount        Int @default(0)
+  imageStorageBytes Int @default(0)
+
+  // 비디오 사용량
+  videoCount        Int @default(0)
+  videoMinutes      Int @default(0)
+  videoStorageBytes Int @default(0)
+
+  // 비용 관련
+  estimatedCost Float @default(0)
+
+  @@unique([userId, month])
+  @@index([month])
 }
