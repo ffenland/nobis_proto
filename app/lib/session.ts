@@ -5,7 +5,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-interface SessionContent {
+export interface SessionContent {
   id?: string;
   role?: "MEMBER" | "TRAINER" | "MANAGER";
   roleId?: string;
