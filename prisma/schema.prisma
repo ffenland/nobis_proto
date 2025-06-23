@@ -56,7 +56,7 @@ model User {
   uploadedMedia Media[] @relation("UploadedMedia")
 
   // 미디어 사용량
-  mediaUsage MediaUsage?
+  mediaUsage MediaUsage[]
 
   // 구독 정보
   isPremiumUser      Boolean   @default(false)
@@ -92,7 +92,6 @@ model Trainer {
   updatedAt        DateTime           @updatedAt
   user             User               @relation(fields: [userId], references: [id])
   userId           String             @unique @db.Uuid
-  avatar           String?
   introduce        String             @default("안녕하세요")
   group            Group?             @relation(fields: [groupId], references: [id])
   groupId          String?            @db.Uuid
@@ -632,7 +631,6 @@ model Media {
 
   // 메타데이터 (JSON)
   metadata Json? // 추가 정보를 위한 유연한 필드
-  userId   String @db.Uuid
 
   @@index([uploadedById])
   @@index([type])
@@ -651,7 +649,7 @@ model MediaUsage {
   updatedAt DateTime @updatedAt
 
   user   User   @relation(fields: [userId], references: [id])
-  userId String @unique @db.Uuid
+  userId String @db.Uuid
 
   // 월별 사용량
   month String // "2025-01" 형식
@@ -670,4 +668,5 @@ model MediaUsage {
 
   @@unique([userId, month])
   @@index([month])
+  @@index([userId])
 }
