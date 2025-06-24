@@ -41,6 +41,8 @@ model User {
   mobile               String                @unique
   avatarMediaId        String?               @unique @db.Uuid
   avatarMedia          Media?                @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  usernameChangeCount  Int                   @default(0) // 변경 횟수
+  lastUsernameChangeAt DateTime? // 마지막 변경 시간
   role                 UserRole              @default(MEMBER)
   trainerProfile       Trainer?
   managerProfile       Manager?
