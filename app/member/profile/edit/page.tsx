@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import Image from "next/image";
 import Link from "next/link";
-import { MemberProfileData } from "@/app/lib/services/user.service";
+import { IMemberProfileData } from "@/app/lib/services/user.service";
 
 const fetcher = async (
   url: string
-): Promise<{ profile: MemberProfileData }> => {
+): Promise<{ profile: IMemberProfileData }> => {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error("Failed to fetch profile");

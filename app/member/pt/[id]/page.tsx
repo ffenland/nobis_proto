@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import useSWR from "swr";
+import { useState, use } from "react";
+import useSWR, { mutate } from "swr";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
-import { Card, CardContent } from "@/app/components/ui/Card";
+import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
 import {
+  Modal,
+  ModalHeader,
+  ModalContent,
+  ModalFooter,
+} from "@/app/components/ui/Modal";
+import {
   IPtDetailForMember,
   IPtRecordItemFromPtDetail,
 } from "@/app/lib/services/pt-detail.service";
+
+// NextJS 15 dynamic route params 타입 정의
+type Params = Promise<{ id: string }>;
 
 // API fetcher
 const fetcher = (url: string) =>
@@ -21,21 +30,55 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-const PtDetailPage = () => {
-  const params = useParams();
-  const ptId = params.id as string;
+const PtDetailPage = (props: { params: Params }) => {
+  // NextJS 15 방식으로 params 처리
+  const params = use(props.params);
+  const ptId = params.id;
+  const router = useRouter();
+
   const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // PT 상세 정보 조회
   const {
     data: ptDetail,
     error,
     isLoading,
-    mutate,
+    mutate: mutatePtDetail,
   } = useSWR<IPtDetailForMember>(
     ptId ? `/api/member/pt/${ptId}` : null,
     fetcher
   );
+
+  // PT 삭제 처리
+  const handleDeletePt = async () => {
+    if (!ptDetail) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/member/pt/${ptId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "삭제에 실패했습니다.");
+      }
+
+      // 성공 시 PT 목록 페이지로 이동
+      router.push("/member/pt");
+
+      // PT 목록 캐시 갱신
+      mutate("/api/member/pt-list");
+    } catch (error) {
+      console.error("PT 삭제 실패:", error);
+      alert(error instanceof Error ? error.message : "삭제에 실패했습니다.");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
 
   // 시간 포맷 함수
   const formatTime = (time: number) => {
@@ -167,7 +210,7 @@ const PtDetailPage = () => {
         <ErrorMessage
           message="PT 정보를 불러올 수 없습니다."
           action={
-            <Button variant="outline" onClick={() => mutate()}>
+            <Button variant="outline" onClick={() => mutatePtDetail()}>
               다시 시도
             </Button>
           }
@@ -184,6 +227,9 @@ const PtDetailPage = () => {
     (record) => record.attended === "ATTENDED"
   ).length;
 
+  // PENDING 상태이고 트레이너 승인 전인 경우만 삭제 가능
+  const canDelete = pt.state === "PENDING" && !pt.trainerConfirmed;
+
   return (
     <PageLayout maxWidth="lg">
       {/* 헤더 */}
@@ -191,9 +237,20 @@ const PtDetailPage = () => {
         title="PT 상세"
         subtitle={pt.ptProduct.title}
         action={
-          <Link href="/member/pt">
-            <Button variant="outline">목록으로</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {canDelete && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setShowDeleteModal(true)}
+              >
+                삭제
+              </Button>
+            )}
+            <Link href="/member/pt">
+              <Button variant="outline">목록으로</Button>
+            </Link>
+          </div>
         }
       />
 
@@ -401,6 +458,54 @@ const PtDetailPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* 삭제 확인 모달 */}
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
+        <ModalHeader>
+          <h3 className="text-lg font-semibold text-gray-900">PT 삭제 확인</h3>
+        </ModalHeader>
+        <ModalContent>
+          <div className="space-y-4">
+            <p className="text-gray-700">정말로 이 PT를 삭제하시겠습니까?</p>
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                <strong>주의:</strong> 삭제된 PT는 복구할 수 없으며, 예약된
+                일정도 함께 삭제됩니다.
+              </p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
+                <strong>트레이너:</strong>{" "}
+                {pt.trainer?.user.username || "미배정"}
+              </p>
+              <p className="text-sm text-gray-600">
+                <strong>상품:</strong> {pt.ptProduct.title}
+              </p>
+              <p className="text-sm text-gray-600">
+                <strong>가격:</strong> {pt.ptProduct.price.toLocaleString()}원
+              </p>
+            </div>
+          </div>
+        </ModalContent>
+        <ModalFooter>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+            >
+              취소
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeletePt}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "삭제 중..." : "삭제"}
+            </Button>
+          </div>
+        </ModalFooter>
+      </Modal>
     </PageLayout>
   );
 };
