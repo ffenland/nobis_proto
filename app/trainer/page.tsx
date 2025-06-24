@@ -10,6 +10,7 @@ import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
 import { ITrainerDashboardStats } from "@/app/lib/services/trainer.service";
+import { UnreadMessageAlert } from "../components/chat/UnreadMessageAlert";
 
 // API fetcher
 const fetcher = (url: string) =>
@@ -79,7 +80,8 @@ const TrainerDashboardPage = () => {
         title="트레이너 대시보드"
         subtitle="PT 관리 및 수업 현황을 확인하세요"
       />
-
+      {/* 안읽은 메시지 알림 */}
+      <UnreadMessageAlert userRole="TRAINER" />
       {/* 통계 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card>

@@ -1,5 +1,5 @@
 import { supabase } from "@/app/lib/supabase";
-import type { ChatMessage } from "@/app/components/chat/chatMessage";
+import type { ChatMessage } from "@/app/components/old_chat/chatMessage";
 
 // 메시지 불러오기
 export async function fetchMessages(roomId: string): Promise<ChatMessage[]> {

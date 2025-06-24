@@ -1,4 +1,5 @@
 import LogoutButton from "../components/base/s_logout_button";
+import { UnreadMessageAlert } from "../components/chat/UnreadMessageAlert";
 
 const Manager = async () => {
   return (
@@ -9,6 +10,8 @@ const Manager = async () => {
       <div className="m-5 flex items-center justify-center">
         <span className="text-xl font-bold">관리자페이지</span>
       </div>
+      {/* 안읽은 메시지 알림 */}
+      <UnreadMessageAlert userRole="MANAGER" />
 
       <div className="flex w-full flex-col gap-3 *:mx-auto *:flex *:w-2/3 *:items-center *:justify-center *:rounded-md *:bg-slate-300 *:py-4 *:shadow-md">
         <div>

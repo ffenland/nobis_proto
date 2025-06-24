@@ -12,6 +12,7 @@ import {
   IMemberDashboardStats,
   IMemberPtSummary,
 } from "@/app/lib/services/member.service";
+import { UnreadMessageAlert } from "../components/chat/UnreadMessageAlert";
 
 // API fetcher
 const fetcher = (url: string) =>
@@ -97,6 +98,8 @@ const MemberDashboardPage = () => {
       {/* 통계 카드들 */}
       {dashboardData && (
         <div className="grid grid-cols-2 gap-4 mb-6">
+          {/* 안읽은 메시지 알림 - 메시지가 있을 때만 표시됨 */}
+          <UnreadMessageAlert userRole="MEMBER" />
           <Card>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-gray-900">

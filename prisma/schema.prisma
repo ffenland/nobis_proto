@@ -50,9 +50,8 @@ model User {
   userData             UserData?
   deletedAt            DateTime?
   rateLimit            RateLimit[]
-  message              Message[]
-  messageReadStatus    MessageReadStatus[]
   chatRoomParticipants ChatRoomParticipant[]
+  sentMessages         Message[]
 
   // 업로드한 모든 미디어 (다대일 관계)
   uploadedMedia Media[] @relation("UploadedMedia")
@@ -61,8 +60,9 @@ model User {
   mediaUsage MediaUsage[]
 
   // 구독 정보
-  isPremiumUser      Boolean   @default(false)
+  isPremiumUser      Boolean       @default(false)
   subscriptionExpiry DateTime?
+  MessageRead        MessageRead[]
 }
 
 model UserData {
@@ -520,28 +520,39 @@ model ChatRoomParticipant {
   chatRoomId String   @db.Uuid
   user       User     @relation(fields: [userId], references: [id])
   userId     String   @db.Uuid
-  // 필요하다면 역할, 초대일, 상태 등 추가 가능
+  joinedAt   DateTime @default(now())
+
+  @@unique([chatRoomId, userId])
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM
 }
 
 model Message {
-  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt  DateTime            @default(now())
-  room       ChatRoom            @relation(fields: [roomId], references: [id])
-  roomId     String              @db.Uuid
-  sender     User?               @relation(fields: [senderId], references: [id], onDelete: SetNull)
-  senderId   String?             @db.Uuid
-  content    String
-  isRead     Boolean             @default(false)
-  readStatus MessageReadStatus[]
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt   DateTime      @default(now())
+  room        ChatRoom      @relation(fields: [roomId], references: [id])
+  roomId      String        @db.Uuid
+  sender      User?         @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  senderId    String?       @db.Uuid
+  content     String
+  messageType MessageType   @default(TEXT)
+  isRead      Boolean       @default(false) // 추가된 필드
+  MessageRead MessageRead[]
 }
 
-model MessageReadStatus {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  message   Message   @relation(fields: [messageId], references: [id])
-  messageId String    @db.Uuid
-  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId    String?   @db.Uuid
-  readAt    DateTime?
+model MessageRead {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
+  readAt    DateTime @default(now())
+
+  @@unique([messageId, userId])
 }
 
 // 기존 모델을 확장하여 통합된 미디어 관리 시스템 구축
