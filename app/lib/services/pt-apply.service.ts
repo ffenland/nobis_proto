@@ -94,12 +94,14 @@ export const getPtProgramsByCenterService = cache(async (centerId: string) => {
         },
         select: {
           id: true,
-          avatar: true,
           introduce: true,
           user: {
             select: {
               id: true,
               username: true,
+              avatarMedia: {
+                select: {},
+              },
             },
           },
         },
@@ -210,6 +212,40 @@ export const generateWeekTimeFromSchedule = (
 };
 
 // ===== 스케줄 충돌 검사 =====
+
+// member의 pending PT 상세 정보 조회
+export const getPendingPtDetails = async (memberId: string) => {
+  const existingPendingPt = await prisma.pt.findFirst({
+    where: {
+      memberId,
+      state: PtState.PENDING,
+    },
+    select: {
+      id: true,
+      createdAt: true,
+      ptProduct: {
+        select: {
+          title: true,
+          price: true,
+          totalCount: true,
+        },
+      },
+      trainer: {
+        select: {
+          user: { select: { username: true } },
+        },
+      },
+    },
+  });
+
+  return existingPendingPt; // null이면 pending PT 없음, 객체면 있음
+};
+
+// member의 pending PT 존재 여부 확인 (간단한 체크용)
+export const isPendingPtExists = async (memberId: string): Promise<boolean> => {
+  const pendingPt = await getPendingPtDetails(memberId);
+  return !!pendingPt;
+};
 
 // 트레이너 스케줄 충돌 검사
 export const checkTrainerScheduleConflict = async (
@@ -629,3 +665,4 @@ export type ITrainerSchedule = Awaited<
   ReturnType<typeof getTrainerScheduleService>
 >;
 export type IPtApplication = Awaited<ReturnType<typeof applyPtService>>;
+export type IPendingPtDetails = Awaited<ReturnType<typeof getPendingPtDetails>>;

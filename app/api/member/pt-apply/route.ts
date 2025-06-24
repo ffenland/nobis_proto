@@ -4,6 +4,7 @@ import { getSessionOrRedirect } from "@/app/lib/session";
 import {
   applyPtService,
   IPtApplicationData,
+  getPendingPtDetails,
 } from "@/app/lib/services/pt-apply.service";
 
 export async function POST(request: NextRequest) {
@@ -11,6 +12,25 @@ export async function POST(request: NextRequest) {
     const session = await getSessionOrRedirect();
     if (session.role !== "MEMBER") {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+
+    // 🚨 개선된 PENDING PT 체크
+    const pendingPtDetails = await getPendingPtDetails(session.roleId);
+    if (pendingPtDetails) {
+      return NextResponse.json(
+        {
+          error: "이미 승인 대기 중인 PT 신청이 있습니다.",
+          details: {
+            pendingPtId: pendingPtDetails.id,
+            ptTitle: pendingPtDetails.ptProduct.title,
+            trainerName:
+              pendingPtDetails.trainer?.user.username || "트레이너 미배정",
+            appliedDate: pendingPtDetails.createdAt.toISOString(),
+            message: "기존 신청을 취소한 후 새로 신청해주세요.",
+          },
+        },
+        { status: 409 } // Conflict
+      );
     }
 
     const body = await request.json();
@@ -167,6 +187,17 @@ export async function POST(request: NextRequest) {
           {
             error: error.message,
             type: "SCHEDULE_CONFLICT",
+          },
+          { status: 409 }
+        ); // Conflict
+      }
+
+      // PENDING PT 에러 (이중 체크)
+      if (error.message.includes("승인 대기 중인 PT")) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            type: "PENDING_PT_EXISTS",
           },
           { status: 409 }
         ); // Conflict
