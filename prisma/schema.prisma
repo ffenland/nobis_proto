@@ -183,23 +183,16 @@ model Pt {
   weekTimes        WeekTime[]
 }
 
-enum AttendanceState {
-  ATTENDED
-  ABSENT
-  RESERVED
-}
-
 model PtRecord {
-  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  pt           Pt              @relation(fields: [ptId], references: [id])
-  ptId         String          @db.Uuid
-  attended     AttendanceState @default(RESERVED)
-  ptSchedule   PtSchedule      @relation(fields: [ptScheduleId], references: [id])
-  ptScheduleId String          @db.Uuid
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  pt           Pt             @relation(fields: [ptId], references: [id])
+  ptId         String         @db.Uuid
+  ptSchedule   PtSchedule     @relation(fields: [ptScheduleId], references: [id])
+  ptScheduleId String         @db.Uuid
   items        PtRecordItem[]
-  memo         String          @default("")
+  memo         String         @default("")
 }
 
 enum RecordType {

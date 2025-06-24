@@ -19,6 +19,11 @@ import {
   IPtDetailForMember,
   IPtRecordItemFromPtDetail,
 } from "@/app/lib/services/pt-detail.service";
+import {
+  calculateAttendanceStatus,
+  getAttendanceDisplayInfo,
+  calculateAttendanceStats,
+} from "@/app/lib/utils/pt.utils";
 
 // NextJS 15 dynamic route params 타입 정의
 type Params = Promise<{ id: string }>;
@@ -111,20 +116,6 @@ const PtDetailPage = (props: { params: Params }) => {
     }
   };
 
-  // 출석 상태별 텍스트
-  const getAttendanceText = (attended: string) => {
-    switch (attended) {
-      case "ATTENDED":
-        return { text: "완료", variant: "success" as const };
-      case "ABSENT":
-        return { text: "결석", variant: "error" as const };
-      case "RESERVED":
-        return { text: "예정", variant: "default" as const };
-      default:
-        return { text: "미정", variant: "default" as const };
-    }
-  };
-
   // 운동 기록 포맷팅 함수
   const formatExerciseRecord = (item: IPtRecordItemFromPtDetail) => {
     switch (item.type) {
@@ -167,16 +158,19 @@ const PtDetailPage = (props: { params: Params }) => {
     }
   };
 
-  // PT 상태 결정 (수정된 버전)
+  // PT 상태 결정 (계산된 출석 상태 사용)
   const getPtStatus = (pt: IPtDetailForMember["pt"]) => {
     // 트레이너 승인과 state가 모두 CONFIRMED일 때만 승인됨으로 처리
     if (pt.trainerConfirmed && pt.state === "CONFIRMED") {
-      // 완료된 세션 수 확인
-      const completedSessions = pt.ptRecord.filter(
-        (record) => record.attended === "ATTENDED"
-      ).length;
+      // 계산된 출석 상태로 완료된 세션 수 확인
+      const attendanceStats = calculateAttendanceStats(
+        pt.ptRecord.map((record) => ({
+          ptSchedule: record.ptSchedule,
+          items: record.items,
+        }))
+      );
 
-      if (completedSessions >= pt.ptProduct.totalCount) {
+      if (attendanceStats.attended >= pt.ptProduct.totalCount) {
         return { text: "완료", variant: "default" as const };
       }
       return { text: "진행중", variant: "success" as const };
@@ -222,10 +216,14 @@ const PtDetailPage = (props: { params: Params }) => {
   const { pt, userId } = ptDetail;
   const status = getPtStatus(pt);
   const expiryDate = getExpiryDate(pt.startDate, pt.ptProduct.totalCount);
-  const remainingSessions = pt.ptProduct.totalCount - pt.ptRecord.length;
-  const completedSessions = pt.ptRecord.filter(
-    (record) => record.attended === "ATTENDED"
-  ).length;
+
+  // 계산된 출석 통계
+  const attendanceStats = calculateAttendanceStats(
+    pt.ptRecord.map((record) => ({
+      ptSchedule: record.ptSchedule,
+      items: record.items,
+    }))
+  );
 
   // PENDING 상태이고 트레이너 승인 전인 경우만 삭제 가능
   const canDelete = pt.state === "PENDING" && !pt.trainerConfirmed;
@@ -273,12 +271,12 @@ const PtDetailPage = (props: { params: Params }) => {
             <Badge variant={status.variant}>{status.text}</Badge>
           </div>
 
-          {/* 진행 상태 */}
+          {/* 진행 상태 - 계산된 출석 통계 사용 */}
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-600">진행 상태</span>
               <span className="text-sm font-medium text-gray-900">
-                {completedSessions}/{pt.ptProduct.totalCount}회 완료
+                {attendanceStats.attended}/{pt.ptProduct.totalCount}회 완료
               </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -286,12 +284,20 @@ const PtDetailPage = (props: { params: Params }) => {
                 className="bg-gray-900 h-2 rounded-full transition-all"
                 style={{
                   width: `${Math.min(
-                    (completedSessions / pt.ptProduct.totalCount) * 100,
+                    (attendanceStats.attended / pt.ptProduct.totalCount) * 100,
                     100
                   )}%`,
                 }}
               ></div>
             </div>
+            {/* 출석률 표시 */}
+            {attendanceStats.completedSessions > 0 && (
+              <div className="mt-2 text-xs text-gray-500">
+                출석률: {attendanceStats.attendanceRate}% (
+                {attendanceStats.attended}회 참석 /{" "}
+                {attendanceStats.completedSessions}회 진행)
+              </div>
+            )}
           </div>
 
           {/* 트레이너 정보 */}
@@ -356,7 +362,15 @@ const PtDetailPage = (props: { params: Params }) => {
             <div className="space-y-4">
               {pt.ptRecord.map((record) => {
                 const dateInfo = formatDate(record.ptSchedule.date);
-                const attendanceInfo = getAttendanceText(record.attended);
+
+                // 계산된 출석 상태 사용
+                const attendanceStatus = calculateAttendanceStatus({
+                  ptSchedule: record.ptSchedule,
+                  items: record.items,
+                });
+                const attendanceInfo =
+                  getAttendanceDisplayInfo(attendanceStatus);
+
                 const isExpanded = expandedRecord === record.id;
 
                 return (

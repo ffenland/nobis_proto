@@ -2,6 +2,11 @@
 import prisma from "@/app/lib/prisma";
 import { PtState } from "@prisma/client";
 import { cache } from "react";
+import {
+  calculateCompletedSessions,
+  findUpcomingSession,
+  calculateAttendanceStatus,
+} from "@/app/lib/utils/pt.utils";
 
 // 회원 PT 목록 조회 (페이지용)
 export const getMemberPtListService = async (memberId: string) => {
@@ -41,11 +46,15 @@ export const getMemberPtListService = async (memberId: string) => {
       ptRecord: {
         select: {
           id: true,
-          attended: true,
           ptSchedule: {
             select: {
               date: true,
               startTime: true,
+            },
+          },
+          items: {
+            select: {
+              id: true,
             },
           },
         },
@@ -61,16 +70,26 @@ export const getMemberPtListService = async (memberId: string) => {
     },
   });
 
+  const currentTime = new Date();
+
   return ptList.map((pt) => {
-    const completedCount = pt.ptRecord.filter(
-      (record) => record.attended === "ATTENDED"
-    ).length;
+    // 계산된 출석 상태로 완료 세션 수 계산
+    const completedCount = calculateCompletedSessions(
+      pt.ptRecord.map((record) => ({
+        ptSchedule: record.ptSchedule,
+        items: record.items,
+      })),
+      currentTime
+    );
 
     // 다음 예정된 세션 찾기
-    const upcomingSession = pt.ptRecord.find(
-      (record) =>
-        record.attended === "RESERVED" &&
-        new Date(record.ptSchedule.date) >= new Date()
+    const upcomingRecord = findUpcomingSession(
+      pt.ptRecord.map((record) => ({
+        ...record,
+        ptSchedule: record.ptSchedule,
+        items: record.items,
+      })),
+      currentTime
     );
 
     return {
@@ -83,11 +102,11 @@ export const getMemberPtListService = async (memberId: string) => {
       trainer: pt.trainer,
       completedCount,
       totalCount: pt.ptProduct.totalCount,
-      upcomingSession: upcomingSession
+      upcomingSession: upcomingRecord
         ? {
-            recordId: upcomingSession.id,
-            date: upcomingSession.ptSchedule.date.toISOString(),
-            startTime: upcomingSession.ptSchedule.startTime,
+            recordId: upcomingRecord.id,
+            date: upcomingRecord.ptSchedule.date.toISOString(),
+            startTime: upcomingRecord.ptSchedule.startTime,
           }
         : null,
       // 상태별 분류를 위한 계산된 필드들
@@ -139,7 +158,7 @@ export const getMemberDashboardStatsService = async (memberId: string) => {
     },
   });
 
-  // 진행중인 PT 개수 (승인되었고 아직 완료되지 않은)
+  // 진행중인 PT 개수 계산을 위한 데이터 조회
   const confirmedPts = await prisma.pt.findMany({
     where: {
       memberId,
@@ -154,9 +173,56 @@ export const getMemberDashboardStatsService = async (memberId: string) => {
         },
       },
       ptRecord: {
-        where: {
-          attended: "ATTENDED",
+        select: {
+          id: true,
+          ptSchedule: {
+            select: {
+              date: true,
+              startTime: true,
+            },
+          },
+          items: {
+            select: {
+              id: true,
+            },
+          },
         },
+      },
+    },
+  });
+
+  const currentTime = new Date();
+
+  // 진행중인 PT 개수 계산 (완료되지 않은 것들)
+  const activePts = confirmedPts.filter((pt) => {
+    const completedSessions = calculateCompletedSessions(
+      pt.ptRecord.map((record) => ({
+        ptSchedule: record.ptSchedule,
+        items: record.items,
+      })),
+      currentTime
+    );
+    return completedSessions < pt.ptProduct.totalCount;
+  }).length;
+
+  // 총 운동 횟수 계산을 위한 모든 PT 기록 조회
+  const allPtRecords = await prisma.ptRecord.findMany({
+    where: {
+      pt: {
+        memberId,
+        state: PtState.CONFIRMED,
+        trainerConfirmed: true,
+      },
+    },
+    select: {
+      id: true,
+      ptSchedule: {
+        select: {
+          date: true,
+          startTime: true,
+        },
+      },
+      items: {
         select: {
           id: true,
         },
@@ -164,53 +230,40 @@ export const getMemberDashboardStatsService = async (memberId: string) => {
     },
   });
 
-  // 진행중인 PT 개수 계산 (완료되지 않은 것들)
-  const activePts = confirmedPts.filter(
-    (pt) => pt.ptRecord.length < pt.ptProduct.totalCount
-  ).length;
-
   // 총 운동 횟수
-  const totalSessions = await prisma.ptRecord.count({
-    where: {
-      pt: {
-        memberId,
-        state: PtState.CONFIRMED,
-        trainerConfirmed: true,
-      },
-      attended: "ATTENDED",
-    },
-  });
+  const totalSessions = calculateCompletedSessions(
+    allPtRecords.map((record) => ({
+      ptSchedule: record.ptSchedule,
+      items: record.items,
+    })),
+    currentTime
+  );
 
   // 이번 달 운동 횟수
   const thisMonthStart = new Date();
   thisMonthStart.setDate(1);
   thisMonthStart.setHours(0, 0, 0, 0);
 
-  const thisMonthSessions = await prisma.ptRecord.count({
-    where: {
-      pt: {
-        memberId,
-        state: PtState.CONFIRMED,
-        trainerConfirmed: true,
-      },
-      attended: "ATTENDED",
-      ptSchedule: {
-        date: {
-          gte: thisMonthStart,
-        },
-      },
-    },
-  });
+  const thisMonthRecords = allPtRecords.filter(
+    (record) => new Date(record.ptSchedule.date) >= thisMonthStart
+  );
+
+  const thisMonthSessions = calculateCompletedSessions(
+    thisMonthRecords.map((record) => ({
+      ptSchedule: record.ptSchedule,
+      items: record.items,
+    })),
+    currentTime
+  );
 
   // 다음 예정된 수업
-  const nextSession = await prisma.ptRecord.findFirst({
+  const nextSessionRecord = await prisma.ptRecord.findFirst({
     where: {
       pt: {
         memberId,
         state: PtState.CONFIRMED,
         trainerConfirmed: true,
       },
-      attended: "RESERVED",
       ptSchedule: {
         date: {
           gte: new Date(),
@@ -224,6 +277,11 @@ export const getMemberDashboardStatsService = async (memberId: string) => {
           date: true,
           startTime: true,
           endTime: true,
+        },
+      },
+      items: {
+        select: {
+          id: true,
         },
       },
       pt: {
@@ -252,23 +310,37 @@ export const getMemberDashboardStatsService = async (memberId: string) => {
     },
   });
 
+  // 다음 세션이 RESERVED 상태인지 확인
+  let nextSession = null;
+  if (nextSessionRecord) {
+    const status = calculateAttendanceStatus(
+      {
+        ptSchedule: nextSessionRecord.ptSchedule,
+        items: nextSessionRecord.items,
+      },
+      currentTime
+    );
+
+    if (status === "RESERVED") {
+      nextSession = {
+        id: nextSessionRecord.id,
+        date: nextSessionRecord.ptSchedule.date.toISOString(),
+        startTime: nextSessionRecord.ptSchedule.startTime,
+        endTime: nextSessionRecord.ptSchedule.endTime,
+        ptTitle: nextSessionRecord.pt.ptProduct.title,
+        trainerName:
+          nextSessionRecord.pt.trainer?.user.username || "트레이너 미배정",
+      };
+    }
+  }
+
   return {
     totalPts,
     pendingPts,
     activePts,
     totalSessions,
     thisMonthSessions,
-    nextSession: nextSession
-      ? {
-          id: nextSession.id,
-          date: nextSession.ptSchedule.date.toISOString(),
-          startTime: nextSession.ptSchedule.startTime,
-          endTime: nextSession.ptSchedule.endTime,
-          ptTitle: nextSession.pt.ptProduct.title,
-          trainerName:
-            nextSession.pt.trainer?.user.username || "트레이너 미배정",
-        }
-      : null,
+    nextSession,
   };
 };
 
@@ -338,7 +410,7 @@ export const getPtTrainersService = cache(async (ptProductId: string) => {
             },
           },
           introduce: true,
-          avatar: true,
+          // avatar: true, // 주석: avatar 필드가 없어서 제거
         },
       },
     },

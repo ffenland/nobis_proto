@@ -1,6 +1,7 @@
-// app/lib/services/pt-detail.service.ts (PtState 적용 완전 수정 버전)
+// app/lib/services/pt-detail.service.ts
 import prisma from "@/app/lib/prisma";
 import { PtState } from "@prisma/client";
+import { calculateCompletedSessions } from "@/app/lib/utils/pt.utils";
 
 // 회원용 PT 상세 조회
 export const getPtDetailForMemberService = async (
@@ -48,7 +49,6 @@ export const getPtDetailForMemberService = async (
       ptRecord: {
         select: {
           id: true,
-          attended: true,
           ptSchedule: {
             select: {
               date: true,
@@ -122,6 +122,16 @@ export const getPtDetailForMemberService = async (
     throw new Error("트레이너가 배정되지 않았습니다.");
   }
 
+  // 계산된 출석 상태로 완료된 세션 수 계산
+  const currentTime = new Date();
+  const completedSessions = calculateCompletedSessions(
+    pt.ptRecord.map((record) => ({
+      ptSchedule: record.ptSchedule,
+      items: record.items,
+    })),
+    currentTime
+  );
+
   return {
     pt: {
       ...pt,
@@ -133,13 +143,12 @@ export const getPtDetailForMemberService = async (
           date: record.ptSchedule.date.toISOString(),
         },
       })),
-      // 상태 정보 추가
+      // 상태 정보 추가 (계산된 출석 상태 사용)
       isPending: pt.state === PtState.PENDING,
       isConfirmed: pt.state === PtState.CONFIRMED,
       isCompleted:
         pt.state === PtState.CONFIRMED &&
-        pt.ptRecord.filter((r) => r.attended === "ATTENDED").length >=
-          pt.ptProduct.totalCount,
+        completedSessions >= pt.ptProduct.totalCount,
     },
     userId: pt.trainer.user.id,
   };
@@ -165,36 +174,57 @@ export const getMemberPtStatsService = async (memberId: string) => {
     },
   });
 
-  // 총 운동 횟수
-  const totalSessions = await prisma.ptRecord.count({
+  // 총 운동 횟수 계산을 위한 모든 PT 기록 조회
+  const allPtRecords = await prisma.ptRecord.findMany({
     where: {
       pt: {
         memberId,
         state: PtState.CONFIRMED,
       },
-      attended: "ATTENDED",
+    },
+    select: {
+      id: true,
+      ptSchedule: {
+        select: {
+          date: true,
+          startTime: true,
+        },
+      },
+      items: {
+        select: {
+          id: true,
+        },
+      },
     },
   });
+
+  const currentTime = new Date();
+
+  // 총 운동 횟수 (계산된 출석 상태 사용)
+  const totalSessions = calculateCompletedSessions(
+    allPtRecords.map((record) => ({
+      ptSchedule: record.ptSchedule,
+      items: record.items,
+    })),
+    currentTime
+  );
 
   // 이번 달 운동 횟수
   const thisMonthStart = new Date();
   thisMonthStart.setDate(1);
   thisMonthStart.setHours(0, 0, 0, 0);
 
-  const thisMonthSessions = await prisma.ptRecord.count({
-    where: {
-      pt: {
-        memberId,
-        state: PtState.CONFIRMED,
-      },
-      attended: "ATTENDED",
-      ptSchedule: {
-        date: {
-          gte: thisMonthStart,
-        },
-      },
-    },
-  });
+  const thisMonthRecords = allPtRecords.filter(
+    (record) => new Date(record.ptSchedule.date) >= thisMonthStart
+  );
+
+  const thisMonthSessions = calculateCompletedSessions(
+    thisMonthRecords.map((record) => ({
+      ptSchedule: record.ptSchedule,
+      items: record.items,
+    })),
+    currentTime
+  );
 
   return {
     totalPts,
