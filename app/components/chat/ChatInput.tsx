@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, KeyboardEvent } from "react";
+import React, { useState, useRef, KeyboardEvent, useEffect } from "react";
 import { Send, Paperclip } from "lucide-react";
 
 interface IChatInputProps {
@@ -18,6 +18,13 @@ export function ChatInput({
   const [isLoading, setIsLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 컴포넌트 마운트 시 포커스
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, []);
+
   const handleSend = async () => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage || isLoading || disabled) return;
@@ -26,17 +33,34 @@ export function ChatInput({
     try {
       await onSendMessage(trimmedMessage);
       setMessage("");
+
+      // 텍스트 영역 높이 초기화
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
+
+      // 메시지 전송 후 포커스 복원
+      // setTimeout을 사용하여 DOM 업데이트 후 포커스 설정
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 0);
     } catch (error) {
       console.error("Failed to send message:", error);
+      // 에러 발생 시에도 포커스 복원
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 0);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter 키 처리 (Shift+Enter는 줄바꿈, Enter만 누르면 전송)
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -50,6 +74,13 @@ export function ChatInput({
     const textarea = e.target;
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+  };
+
+  // 텍스트 영역 클릭 시에도 포커스 확실히 설정
+  const handleTextareaClick = () => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
   };
 
   return (
@@ -71,6 +102,7 @@ export function ChatInput({
             value={message}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
+            onClick={handleTextareaClick}
             placeholder={placeholder}
             disabled={disabled || isLoading}
             className="
@@ -81,6 +113,11 @@ export function ChatInput({
               disabled:bg-gray-50 disabled:text-gray-500
             "
             rows={1}
+            // 모바일에서 키보드 타입 최적화
+            inputMode="text"
+            autoCapitalize="sentences"
+            autoCorrect="on"
+            spellCheck="true"
           />
         </div>
 

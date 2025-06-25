@@ -23,9 +23,9 @@ export function ChatPageTemplate({
   const chatListPath = `/${userRole.toLowerCase()}/chat`;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className=" h-full bg-gray-50 flex flex-col">
       {/* 헤더 */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-200 flex-shrink-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -56,7 +56,9 @@ export function ChatPageTemplate({
       </header>
 
       {/* 메인 컨텐츠 */}
-      <main className="max-w-2xl mx-auto">{children}</main>
+      <main className="max-w-2xl mx-auto flex-1 flex flex-col min-h-0 w-full">
+        {children}
+      </main>
     </div>
   );
 }

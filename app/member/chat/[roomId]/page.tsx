@@ -14,11 +14,7 @@ export default async function MemberChatRoomPage({ params }: IPageProps) {
 
   return (
     <ChatPageTemplate title="채팅" userRole="MEMBER" showBackButton={true}>
-      <div className="h-[calc(100vh-64px)]">
-        {" "}
-        {/* 헤더 높이 제외 */}
-        <ChatRoom roomId={roomId} userId={session.id} />
-      </div>
+      <ChatRoom roomId={roomId} userId={session.id} />
     </ChatPageTemplate>
   );
 }

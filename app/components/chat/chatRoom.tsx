@@ -167,96 +167,102 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* 채팅방 헤더 */}
-      <div className="border-b border-gray-200 p-4 bg-white">
-        <div className="flex items-center gap-3">
-          {/* 상대방 아바타 */}
-          <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
-            {roomInfo.otherUser?.avatar ? (
-              <img
-                src={roomInfo.otherUser.avatar}
-                alt={roomInfo.otherUser.username}
-                className="w-full h-full object-cover"
+      {/* 상단 스크롤 영역 (헤더 + 메시지) */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* 채팅방 헤더 */}
+        <div className="border-b border-gray-200 p-4 bg-white flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {/* 상대방 아바타 */}
+            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
+              {roomInfo.otherUser?.avatar ? (
+                <img
+                  src={roomInfo.otherUser.avatar}
+                  alt={roomInfo.otherUser.username}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-sm text-gray-600">
+                  {roomInfo.otherUser?.username?.charAt(0).toUpperCase() || "?"}
+                </span>
+              )}
+            </div>
+
+            <div className="flex-1">
+              <h2 className="font-semibold text-gray-900">
+                {roomInfo.otherUser?.username || "알 수 없음"}
+              </h2>
+
+              {/* PT 정보 표시 */}
+              {roomInfo.ptInfo && (
+                <p className="text-sm text-gray-500">
+                  {roomInfo.ptInfo.title} • {roomInfo.ptInfo.state}
+                </p>
+              )}
+
+              {/* 역할 표시 */}
+              {roomInfo.otherUser && (
+                <p className="text-xs text-gray-400">
+                  {roomInfo.otherUser.role === "TRAINER"
+                    ? "트레이너"
+                    : roomInfo.otherUser.role === "MEMBER"
+                    ? "회원"
+                    : "매니저"}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 메시지 영역 */}
+        <div
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-1"
+        >
+          {/* 이전 메시지 로드 버튼 (향후 무한 스크롤용) */}
+          {messages.length >= 50 && (
+            <div className="text-center mb-4">
+              <button
+                onClick={loadMoreMessages}
+                disabled={isLoadingMore}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                {isLoadingMore ? "로딩 중..." : "이전 메시지 보기"}
+              </button>
+            </div>
+          )}
+
+          {/* 메시지 목록 */}
+          {messages.map((message, index) => {
+            const isOwn = message.senderId === userId;
+            const showAvatar =
+              !isOwn &&
+              (index === 0 ||
+                messages[index - 1].senderId !== message.senderId);
+
+            return (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                isOwn={isOwn}
+                showAvatar={showAvatar}
+                showReadStatus={true}
               />
-            ) : (
-              <span className="text-sm text-gray-600">
-                {roomInfo.otherUser?.username?.charAt(0).toUpperCase() || "?"}
-              </span>
-            )}
-          </div>
+            );
+          })}
 
-          <div className="flex-1">
-            <h2 className="font-semibold text-gray-900">
-              {roomInfo.otherUser?.username || "알 수 없음"}
-            </h2>
-
-            {/* PT 정보 표시 */}
-            {roomInfo.ptInfo && (
-              <p className="text-sm text-gray-500">
-                {roomInfo.ptInfo.title} • {roomInfo.ptInfo.state}
-              </p>
-            )}
-
-            {/* 역할 표시 */}
-            {roomInfo.otherUser && (
-              <p className="text-xs text-gray-400">
-                {roomInfo.otherUser.role === "TRAINER"
-                  ? "트레이너"
-                  : roomInfo.otherUser.role === "MEMBER"
-                  ? "회원"
-                  : "매니저"}
-              </p>
-            )}
-          </div>
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* 메시지 영역 */}
-      <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-1"
-      >
-        {/* 이전 메시지 로드 버튼 (향후 무한 스크롤용) */}
-        {messages.length >= 50 && (
-          <div className="text-center mb-4">
-            <button
-              onClick={loadMoreMessages}
-              disabled={isLoadingMore}
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              {isLoadingMore ? "로딩 중..." : "이전 메시지 보기"}
-            </button>
-          </div>
-        )}
-
-        {/* 메시지 목록 */}
-        {messages.map((message, index) => {
-          const isOwn = message.senderId === userId;
-          const showAvatar =
-            !isOwn &&
-            (index === 0 || messages[index - 1].senderId !== message.senderId);
-
-          return (
-            <ChatMessage
-              key={message.id}
-              message={message}
-              isOwn={isOwn}
-              showAvatar={showAvatar}
-              showReadStatus={true}
-            />
-          );
-        })}
-
-        <div ref={messagesEndRef} />
+      {/* 메시지 입력 영역 - 하단 고정 */}
+      <div className="flex-shrink-0">
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          placeholder={`${
+            roomInfo.otherUser?.username || "상대방"
+          }에게 메시지 보내기`}
+        />
       </div>
-
-      {/* 메시지 입력 영역 */}
-      <ChatInput
-        onSendMessage={handleSendMessage}
-        placeholder={`${
-          roomInfo.otherUser?.username || "상대방"
-        }에게 메시지 보내기`}
-      />
     </div>
   );
 }
