@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useRef, KeyboardEvent, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  KeyboardEvent,
+  useEffect,
+  useCallback,
+} from "react";
 import { Send, Paperclip } from "lucide-react";
 
 interface IChatInputProps {
@@ -17,13 +23,36 @@ export function ChatInput({
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 컴포넌트 마운트 시 포커스
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    const timer = setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []);
+
+  // 포커스 복원을 위한 함수
+  const restoreFocus = useCallback(() => {
+    // 기존 타이머 정리
+    if (focusTimeoutRef.current) {
+      clearTimeout(focusTimeoutRef.current);
+    }
+
+    // 새 타이머 설정 - 스크롤 완료 후 포커스
+    focusTimeoutRef.current = setTimeout(() => {
+      if (textareaRef.current && !disabled) {
+        textareaRef.current.focus();
+        // 모바일에서 커서를 끝으로 이동
+        const length = textareaRef.current.value.length;
+        textareaRef.current.setSelectionRange(length, length);
+      }
+    }, 200); // 스크롤 애니메이션 완료 후
+  }, [disabled]);
 
   const handleSend = async () => {
     const trimmedMessage = message.trim();
@@ -40,20 +69,11 @@ export function ChatInput({
       }
 
       // 메시지 전송 후 포커스 복원
-      // setTimeout을 사용하여 DOM 업데이트 후 포커스 설정
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-        }
-      }, 0);
+      restoreFocus();
     } catch (error) {
       console.error("Failed to send message:", error);
       // 에러 발생 시에도 포커스 복원
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-        }
-      }, 0);
+      restoreFocus();
     } finally {
       setIsLoading(false);
     }
@@ -82,6 +102,15 @@ export function ChatInput({
       textareaRef.current.focus();
     }
   };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="border-t border-gray-200 bg-white p-4">
@@ -118,6 +147,9 @@ export function ChatInput({
             autoCapitalize="sentences"
             autoCorrect="on"
             spellCheck="true"
+            // 포커스 유지를 위한 속성들
+            autoFocus={false} // useEffect로 제어하므로 false
+            tabIndex={0}
           />
         </div>
 

@@ -143,7 +143,7 @@ const PtDetailPage = (props: { params: Params }) => {
       case "STRETCHING":
         return item.stretchingExerciseRecords.map((record) => ({
           name: record.stretchingExercise.title,
-          details: record.description || "",
+          details: "", // 나중에 개선하자.
           settings: record.stretchingExercise.description,
         }));
 

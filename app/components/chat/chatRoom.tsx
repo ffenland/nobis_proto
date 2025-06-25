@@ -9,6 +9,7 @@ import type {
   IMessageData,
   IChatRoomInfoData,
 } from "@/app/lib/services/chat.service";
+import Image from "next/image";
 
 interface IChatRoomProps {
   roomId: string;
@@ -73,34 +74,74 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
   useEffect(() => {
     if (messagesResult?.success) {
       setMessages(messagesResult.data);
-      // 처음 로드 시 맨 아래로 스크롤
+      // 처음 로드 시 맨 아래로 스크롤 (포커스 방해하지 않도록 긴 딜레이)
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+      }, 300);
     }
   }, [messagesResult]);
 
-  // 실시간 메시지 구독
+  // 실시간 메시지 구독 (개선된 버전)
   useEffect(() => {
-    const subscription = subscribeToMessages(roomId, (newMessage) => {
-      setMessages((prev) => {
-        // 중복 메시지 방지
-        if (prev.some((msg) => msg.id === newMessage.id)) {
-          return prev;
-        }
-        return [...prev, newMessage];
-      });
+    if (!roomId) return;
 
-      // 새 메시지가 오면 스크롤을 맨 아래로
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-    });
+    let subscription: { unsubscribe: () => void } | null = null;
+    let isSubscribed = true;
 
+    // 약간의 지연을 두고 구독 시작 (React Strict Mode 대응)
+    const timer = setTimeout(() => {
+      if (isSubscribed) {
+        subscription = subscribeToMessages(roomId, (newMessage) => {
+          // 컴포넌트가 여전히 마운트된 상태에서만 상태 업데이트
+          if (isSubscribed) {
+            setMessages((prev) => {
+              // 중복 메시지 방지
+              if (prev.some((msg) => msg.id === newMessage.id)) {
+                return prev;
+              }
+              return [...prev, newMessage];
+            });
+
+            // 새 메시지가 오면 스크롤을 맨 아래로 (내가 보낸 메시지인지 확인)
+            setTimeout(() => {
+              if (messagesEndRef.current && isSubscribed) {
+                // 사용자가 스크롤을 올려서 보고 있는 중인지 확인
+                const container = messagesContainerRef.current;
+                if (container) {
+                  const isAtBottom =
+                    container.scrollHeight -
+                      container.scrollTop -
+                      container.clientHeight <
+                    100;
+
+                  // 맨 아래에 있거나 내가 보낸 메시지인 경우에만 자동 스크롤
+                  if (isAtBottom || newMessage.senderId === userId) {
+                    messagesEndRef.current.scrollIntoView({
+                      behavior: "smooth",
+                    });
+                  }
+                }
+              }
+            }, 100);
+          }
+        });
+      }
+    }, 100);
+
+    // 클린업 함수
     return () => {
-      subscription.unsubscribe();
+      isSubscribed = false;
+      clearTimeout(timer);
+
+      if (subscription) {
+        try {
+          subscription.unsubscribe();
+        } catch (error) {
+          console.warn("Error during subscription cleanup:", error);
+        }
+      }
     };
-  }, [roomId]);
+  }, [roomId, userId]); // userId 의존성 추가
 
   // 읽음 처리 (채팅방 입장 시, 새 메시지 도착 시)
   useEffect(() => {
@@ -131,6 +172,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
         throw new Error("메시지 전송에 실패했습니다.");
       }
       // 실시간 구독으로 메시지가 추가되므로 여기서는 별도 처리 불필요
+      // 스크롤은 실시간 메시지 구독에서 처리됨
     },
     [roomId]
   );
@@ -175,7 +217,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
             {/* 상대방 아바타 */}
             <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
               {roomInfo.otherUser?.avatar ? (
-                <img
+                <Image
                   src={roomInfo.otherUser.avatar}
                   alt={roomInfo.otherUser.username}
                   className="w-full h-full object-cover"

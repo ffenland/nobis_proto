@@ -1,15 +1,14 @@
 // app/trainer/chat/[roomId]/page.tsx
-import React from "react";
+
 import { getSessionOrRedirect } from "@/app/lib/session";
 import { ChatPageTemplate } from "@/app/components/chat/ChatPageTemplate";
 import { ChatRoom } from "@/app/components/chat/ChatRoom";
 
-interface IPageProps {
-  params: { roomId: string };
-}
+type IParams = Promise<{ roomId: string }>;
 
-export default async function TrainerChatRoomPage({ params }: IPageProps) {
+export default async function TrainerChatRoomPage(props: { params: IParams }) {
   const session = await getSessionOrRedirect();
+  const params = await props.params;
   const { roomId } = params;
 
   return (
@@ -18,9 +17,7 @@ export default async function TrainerChatRoomPage({ params }: IPageProps) {
       userRole="TRAINER"
       showBackButton={true}
     >
-      <div className="h-[calc(100vh-64px)]">
-        <ChatRoom roomId={roomId} userId={session.id} />
-      </div>
+      <ChatRoom roomId={roomId} userId={session.id} />
     </ChatPageTemplate>
   );
 }
