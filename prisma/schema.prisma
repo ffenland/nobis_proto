@@ -489,7 +489,7 @@ model OpeningHour {
   closeTime     Int
   isClosed      Boolean         @default(false)
 
-  @@unique([dayOfWeek, openTime, closeTime])
+  @@unique([dayOfWeek, openTime, closeTime, isClosed]) // isClosed 추가
 }
 
 // Session
