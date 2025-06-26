@@ -5,6 +5,7 @@ import {
   type IPtRecordForAttendance,
 } from "@/app/lib/utils/pt.utils";
 import { WeekDay } from "@prisma/client";
+import { convertKSTtoUTC } from "../utils";
 
 // 스케줄 아이템 타입
 export interface IScheduleViewItem {
@@ -153,8 +154,8 @@ export const getTrainerScheduleViewService = async (
         // 특정 날짜 오프
         {
           date: {
-            gte: rangeStart,
-            lt: rangeEndExclusive,
+            gte: convertKSTtoUTC(rangeStart),
+            lt: convertKSTtoUTC(rangeEndExclusive),
           },
         },
         // 반복 오프 (weekDay가 설정된 것들)
@@ -200,8 +201,8 @@ export const getTrainerScheduleViewService = async (
       where: {
         fitnessCenterId: trainer.fitnessCenterId,
         date: {
-          gte: rangeStart,
-          lt: rangeEndExclusive,
+          gte: convertKSTtoUTC(rangeStart),
+          lt: convertKSTtoUTC(rangeEndExclusive),
         },
       },
       select: {
