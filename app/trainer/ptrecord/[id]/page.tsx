@@ -57,7 +57,7 @@ const Page = ({ params }: { params: Params }) => {
   useEffect(() => {
     if (ptRecord?.pt.trainer?.fitnessCenter && !choosenCenter) {
       setChoosenCenter({
-        id: ptRecord.pt.trainer.fitnessCenterId,
+        id: ptRecord.pt.trainer.fitnessCenterId!,
         title: ptRecord.pt.trainer.fitnessCenter.title,
       });
     }

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrRedirect } from "@/app/lib/session";
 import prisma from "@/app/lib/prisma";
-import { AttendanceState } from "@prisma/client";
+import { calculateAttendanceStatus } from "@/app/lib/utils/pt.utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,15 +11,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
-    const recentRecords = await prisma.ptRecord.findMany({
+    // 모든 PT 기록을 가져와서 계산된 출석 상태로 필터링
+    const allPtRecords = await prisma.ptRecord.findMany({
       where: {
         pt: {
           memberId: session.roleId,
         },
-        attended: AttendanceState.ATTENDED,
         ptSchedule: {
           date: {
-            lt: new Date(),
+            lt: new Date(), // 과거 수업만
           },
         },
       },
@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
         ptSchedule: {
           select: {
             date: true,
+            startTime: true,
           },
         },
         pt: {
@@ -54,8 +55,24 @@ export async function GET(request: NextRequest) {
           date: "desc",
         },
       },
-      take: 10,
     });
+
+    const currentTime = new Date();
+
+    // 계산된 출석 상태가 'ATTENDED'인 기록만 필터링
+    const attendedRecords = allPtRecords.filter((record) => {
+      const attendanceStatus = calculateAttendanceStatus(
+        {
+          ptSchedule: record.ptSchedule,
+          items: record.items,
+        },
+        currentTime
+      );
+      return attendanceStatus === "ATTENDED";
+    });
+
+    // 최신 10개 기록만 선택
+    const recentRecords = attendedRecords.slice(0, 10);
 
     const formattedRecords = recentRecords.map((record) => ({
       id: record.id,

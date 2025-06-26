@@ -43,14 +43,6 @@ export function ChatPageTemplate({
                 <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
               </div>
             </div>
-
-            {/* 대시보드로 이동 버튼 */}
-            <Link
-              href={dashboardPath}
-              className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              대시보드
-            </Link>
           </div>
         </div>
       </header>

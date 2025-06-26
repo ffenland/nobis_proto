@@ -1,40 +1,63 @@
-// app/trainer/schedule/page.tsx
-import { Suspense } from "react";
-import { ScheduleCalendar } from "./ScheduleCalendar";
-import { getWeeklySchedule } from "./actions";
-import { convertUTCtoKST } from "@/app/lib/utils";
+"use client";
 
-interface ISchedulePageProps {
-  searchParams: Promise<{
-    week?: string;
-  }>;
-}
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ScheduleCalendar } from "@/app/components/schedule/ScheduleCalendar";
 
-export default async function TrainerSchedulePage({
-  searchParams,
-}: ISchedulePageProps) {
-  const params = await searchParams;
+export default function TrainerSchedulePage() {
+  const router = useRouter();
+  const [trainerId, setTrainerId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // URL에서 주차 정보 파싱 (YYYY-MM-DD 형식)
-  const weekParam = params.week;
-  const currentDate = weekParam ? new Date(weekParam) : new Date();
+  // 세션에서 트레이너 ID 가져오기
+  useEffect(() => {
+    const fetchSession = async () => {
+      try {
+        const response = await fetch("/api/auth/session");
+        if (!response.ok) {
+          throw new Error("세션 조회 실패");
+        }
 
-  // 초기 데이터 로드 (1개월분)
-  const initialData = await getWeeklySchedule(currentDate, 1);
+        const session = await response.json();
+        if (session.role !== "TRAINER") {
+          router.push("/");
+          return;
+        }
 
-  // UTC를 KST로 변환
-  const schedulesWithKST = initialData.schedules.map((schedule) => ({
-    ...schedule,
-    ptSchedule: {
-      ...schedule.ptSchedule,
-      date: convertUTCtoKST(schedule.ptSchedule.date),
-    },
-  }));
+        setTrainerId(session.roleId);
+      } catch (error) {
+        console.error("세션 조회 오류:", error);
+        router.push("/login");
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const offsWithKST = initialData.offs.map((off) => ({
-    ...off,
-    date: convertUTCtoKST(off.date),
-  }));
+    fetchSession();
+  }, [router]);
+
+  // 로딩 상태
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 트레이너 ID가 없는 경우
+  if (!trainerId) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">트레이너 정보를 찾을 수 없습니다.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -44,45 +67,7 @@ export default async function TrainerSchedulePage({
           <p className="text-gray-600">PT 수업과 휴무 일정을 확인하세요</p>
         </div>
 
-        <Suspense fallback={<ScheduleLoading />}>
-          <ScheduleCalendar
-            initialCurrentDate={currentDate}
-            initialSchedules={schedulesWithKST}
-            initialOffs={offsWithKST}
-            hasNextMonth={initialData.hasNextMonth}
-            hasPrevMonth={initialData.hasPrevMonth}
-          />
-        </Suspense>
-      </div>
-    </div>
-  );
-}
-
-// 로딩 컴포넌트
-function ScheduleLoading() {
-  return (
-    <div className="w-full">
-      <div className="flex items-center justify-between mb-4">
-        <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse"></div>
-        <div className="h-6 w-64 bg-gray-200 rounded animate-pulse"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse"></div>
-      </div>
-
-      <div className="border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-8 gap-0">
-          {/* 헤더 */}
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-12 bg-gray-100 border-r border-b"></div>
-          ))}
-
-          {/* 시간 슬롯들 */}
-          {Array.from({ length: 28 * 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-7 bg-gray-50 border-r border-b animate-pulse"
-            ></div>
-          ))}
-        </div>
+        <ScheduleCalendar trainerId={trainerId} forManager={false} />
       </div>
     </div>
   );
