@@ -31,27 +31,29 @@ enum WeekDay {
 }
 
 model User {
-  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  username             String
-  email                String                @unique
-  naverId              String?               @unique
-  kakaoId              String?               @unique
-  mobile               String                @unique
-  avatarMediaId        String?               @unique @db.Uuid
-  avatarMedia          Media?                @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
-  usernameChangeCount  Int                   @default(0) // 변경 횟수
-  lastUsernameChangeAt DateTime? // 마지막 변경 시간
-  role                 UserRole              @default(MEMBER)
-  trainerProfile       Trainer?
-  managerProfile       Manager?
-  memberProfile        Member?
-  userData             UserData?
-  deletedAt            DateTime?
-  rateLimit            RateLimit[]
-  chatRoomParticipants ChatRoomParticipant[]
-  sentMessages         Message[]
+  id                       String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  username                 String
+  email                    String                    @unique
+  naverId                  String?                   @unique
+  kakaoId                  String?                   @unique
+  mobile                   String                    @unique
+  avatarMediaId            String?                   @unique @db.Uuid
+  avatarMedia              Media?                    @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  usernameChangeCount      Int                       @default(0) // 변경 횟수
+  lastUsernameChangeAt     DateTime? // 마지막 변경 시간
+  role                     UserRole                  @default(MEMBER)
+  trainerProfile           Trainer?
+  managerProfile           Manager?
+  memberProfile            Member?
+  userData                 UserData?
+  deletedAt                DateTime?
+  rateLimit                RateLimit[]
+  chatRoomParticipants     ChatRoomParticipant[]
+  sentMessages             Message[]
+  requestedScheduleChanges PtScheduleChangeRequest[] @relation("ScheduleChangeRequestor")
+  respondedScheduleChanges PtScheduleChangeRequest[] @relation("ScheduleChangeResponder")
 
   // 업로드한 모든 미디어 (다대일 관계)
   uploadedMedia Media[] @relation("UploadedMedia")
@@ -183,16 +185,61 @@ model Pt {
   weekTimes        WeekTime[]
 }
 
+enum ScheduleChangeState {
+  PENDING // 변경 요청 대기
+  APPROVED // 승인됨
+  REJECTED // 거절됨
+  EXPIRED // 만료됨
+  CANCELLED // 요청자가 취소
+}
+
+model PtScheduleChangeRequest {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // PtRecord와 관계 (핵심!)
+  ptRecord   PtRecord @relation(fields: [ptRecordId], references: [id])
+  ptRecordId String   @db.Uuid
+
+  // 요청자 정보 (relation name 추가)
+  requestor   User   @relation("ScheduleChangeRequestor", fields: [requestorId], references: [id])
+  requestorId String @db.Uuid
+
+  // 요청된 새로운 일정 정보
+  requestedDate      DateTime
+  requestedStartTime Int
+  requestedEndTime   Int
+
+  // 상태 및 메타데이터
+  state  ScheduleChangeState @default(PENDING)
+  reason String // 변경 사유
+
+  // 응답 정보 (relation name 추가)
+  responder       User?     @relation("ScheduleChangeResponder", fields: [responderId], references: [id])
+  responderId     String?   @db.Uuid
+  responseMessage String? // 승인/거절 사유
+  respondedAt     DateTime?
+
+  // 만료 시간
+  expiresAt DateTime
+
+  @@index([ptRecordId])
+  @@index([state])
+  @@index([expiresAt])
+}
+
 model PtRecord {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  pt           Pt             @relation(fields: [ptId], references: [id])
-  ptId         String         @db.Uuid
-  ptSchedule   PtSchedule     @relation(fields: [ptScheduleId], references: [id])
-  ptScheduleId String         @db.Uuid
-  items        PtRecordItem[]
-  memo         String         @default("")
+  id                    String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  pt                    Pt                        @relation(fields: [ptId], references: [id])
+  ptId                  String                    @db.Uuid
+  ptSchedule            PtSchedule                @relation(fields: [ptScheduleId], references: [id])
+  ptScheduleId          String                    @db.Uuid
+  items                 PtRecordItem[]
+  memo                  String                    @default("")
+  scheduleChangeRequest PtScheduleChangeRequest[]
 }
 
 enum RecordType {
