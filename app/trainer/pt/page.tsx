@@ -5,88 +5,212 @@ import {
   getRemainText,
 } from "@/app/lib/utils";
 import { getPtList } from "./actions";
-import { FaUser, FaRegClock, FaBookOpen } from "react-icons/fa";
+import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
+import { Card, CardContent } from "@/app/components/ui/Card";
+import { Badge } from "@/app/components/ui/Loading";
 import Link from "next/link";
 import dayjs from "dayjs";
-
-const TodayPts = async () => {};
+import { User, Clock, BookOpen, Calendar, ChevronRight } from "lucide-react";
 
 const TrainerPt = async () => {
   const today = convertKSTtoUTC(new Date(new Date().setHours(0, 0, 0, 0)));
   const ptList = await getPtList();
+
+  // 중복 회원 체크
   const memberIdCount: Record<string, number> = {};
   ptList.forEach((pt) => {
     if (pt.memberId) {
       memberIdCount[pt.memberId] = (memberIdCount[pt.memberId] || 0) + 1;
     }
   });
-  ptList.sort((a, b) => {
-    return a.date.getTime() - b.date.getTime();
-  });
+
+  // 날짜순으로 정렬
+  ptList.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  // 오늘 수업과 예정 수업 분리
+  const todayClasses = ptList.filter(
+    (pt) =>
+      dayjs(pt.date).format("YYYY-MM-DD") === dayjs(today).format("YYYY-MM-DD")
+  );
+
+  const upcomingClasses = ptList.filter(
+    (pt) =>
+      dayjs(pt.date).format("YYYY-MM-DD") !== dayjs(today).format("YYYY-MM-DD")
+  );
 
   return (
-    <div className="w-full flex flex-col gap-4">
-      <div className="my-2 w-full px-5">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-700 mb-1">
-          진행중인 PT 수업
-        </h1>
-        <div className="h-1 w-full bg-primary rounded mb-2" />
-      </div>
-      {ptList.map((pt) => (
-        <Link
-          href={`/trainer/pt/${pt.ptId}`}
-          key={pt.ptId}
-          className="card bg-base-100 shadow-xl border"
-        >
-          <div className="card-body gap-2">
-            <div className="flex items-center gap-3 mb-1">
-              <FaUser className="text-primary" />
-              <span className="font-bold text-base">{pt.memberName}님</span>
-              {pt.memberId && memberIdCount[pt.memberId] > 1 && (
-                <span className="badge badge-error text-xs">중복 회원</span>
-              )}
+    <PageLayout maxWidth="lg">
+      <PageHeader
+        title="진행중인 PT 수업"
+        subtitle="회원별 활성 PT 프로그램 관리"
+      />
+
+      {/* 빈 상태 */}
+      {ptList.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <BookOpen className="w-8 h-8 text-gray-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-1">
+                  진행중인 PT 수업이 없습니다
+                </h3>
+                <p className="text-sm text-gray-500">
+                  회원의 PT 신청을 기다리고 있습니다
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-3 mb-1">
-              <FaBookOpen className="text-secondary" />
-              <span className="text-sm font-semibold">{pt.ptTitle}</span>
-              <span className="badge badge-outline text-xs">
-                {pt.order}번째 수업
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mb-1">
-              <FaRegClock className="text-accent" />
-              <span className="text-sm">{formatDateThisYear(pt.date)}</span>
-              {dayjs(pt.date).format("YYYY-MM-DD") ===
-              dayjs(today).format("YYYY-MM-DD") ? (
-                <span className="badge badge-accent badge-outline text-xs">
-                  오늘 수업
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 오늘 수업 섹션 */}
+      {todayClasses.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-gray-700" />
+            <h2 className="text-lg font-semibold text-gray-900">
+              오늘 수업 ({todayClasses.length}개)
+            </h2>
+          </div>
+
+          <div className="space-y-3">
+            {todayClasses.map((pt) => (
+              <PtCard
+                key={pt.ptId}
+                pt={pt}
+                memberIdCount={memberIdCount}
+                isToday={true}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 예정 수업 섹션 */}
+      {upcomingClasses.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-gray-700" />
+            <h2 className="text-lg font-semibold text-gray-900">
+              예정 수업 ({upcomingClasses.length}개)
+            </h2>
+          </div>
+
+          <div className="space-y-3">
+            {upcomingClasses.map((pt) => (
+              <PtCard
+                key={pt.ptId}
+                pt={pt}
+                memberIdCount={memberIdCount}
+                isToday={false}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </PageLayout>
+  );
+};
+
+// PT 카드 컴포넌트
+interface PtCardProps {
+  pt: {
+    ptId: string;
+    ptTitle: string;
+    memberId?: string;
+    memberName?: string;
+    date: Date;
+    startTime: number;
+    endTime: number;
+    order: number;
+  };
+  memberIdCount: Record<string, number>;
+  isToday: boolean;
+}
+
+const PtCard = ({ pt, memberIdCount, isToday }: PtCardProps) => {
+  return (
+    <Link href={`/trainer/pt/${pt.ptId}`}>
+      <Card className="hover:bg-gray-50 transition-colors cursor-pointer group">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 space-y-3">
+              {/* 회원 정보 */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-gray-600" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-900">
+                    {pt.memberName}님
+                  </span>
+                  {pt.memberId && memberIdCount[pt.memberId] > 1 && (
+                    <Badge variant="error">중복 회원</Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* PT 프로그램 정보 */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-gray-600" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">
+                    {pt.ptTitle}
+                  </span>
+                  <Badge variant="default">{pt.order}번째 수업</Badge>
+                </div>
+              </div>
+
+              {/* 일정 정보 */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-gray-600" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-700">
+                    {formatDateThisYear(pt.date)}
+                  </span>
+                  {isToday ? (
+                    <Badge variant="success">오늘 수업</Badge>
+                  ) : (
+                    <Badge variant="default">
+                      {getRemainText(pt.date, pt.startTime)}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* 수업 시간 */}
+              <div className="flex items-center gap-2 text-sm text-gray-600 ml-11">
+                <span>
+                  {formatTimeToString(
+                    Math.floor(pt.startTime / 100),
+                    pt.startTime % 100
+                  )}
                 </span>
-              ) : (
-                <span className="badge badge-accent badge-outline text-xs">
-                  {getRemainText(pt.date, pt.startTime)}
+                <span>~</span>
+                <span>
+                  {formatTimeToString(
+                    Math.floor(pt.endTime / 100),
+                    pt.endTime % 100
+                  )}
                 </span>
-              )}
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-semibold">수업시간</span>
-              <span>
-                {formatTimeToString(
-                  Math.floor(pt.startTime / 100),
-                  pt.startTime % 100
-                )}
-              </span>
-              <span>~</span>
-              <span>
-                {formatTimeToString(
-                  Math.floor(pt.endTime / 100),
-                  pt.endTime % 100
-                )}
-              </span>
+
+            {/* 화살표 아이콘 */}
+            <div className="ml-4">
+              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" />
             </div>
           </div>
-        </Link>
-      ))}
-    </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 };
 

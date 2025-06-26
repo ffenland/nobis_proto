@@ -9,6 +9,7 @@ export const getPtList = async () => {
   const utcToday = convertKSTtoUTC(new Date(today));
   const session = await getSessionOrRedirect();
   const trainerId = session.roleId;
+
   const ptList = await prisma.pt.findMany({
     where: {
       trainerId,
@@ -65,17 +66,19 @@ export const getPtList = async () => {
       },
     },
   });
-  const result = ptList.flatMap((pt) => {
-    return {
+
+  const result = ptList
+    .filter((pt) => pt.ptRecord.length > 0) // 예정된 수업이 있는 것만 필터링
+    .map((pt) => ({
       ptId: pt.id,
       ptTitle: pt.ptRecord[0].pt.ptProduct.title,
       memberId: pt.member?.user.id,
       memberName: pt.member?.user.username,
-      date: pt.ptRecord[0].ptSchedule.date ?? null,
-      startTime: pt.ptRecord[0].ptSchedule.startTime ?? null,
-      endTime: pt.ptRecord[0].ptSchedule.endTime ?? null,
+      date: pt.ptRecord[0].ptSchedule.date,
+      startTime: pt.ptRecord[0].ptSchedule.startTime,
+      endTime: pt.ptRecord[0].ptSchedule.endTime,
       order: pt._count.ptRecord - pt.ptRecord.length + 1,
-    };
-  });
+    }));
+
   return result;
 };
