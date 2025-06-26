@@ -15,7 +15,7 @@ const managerOnlyUrls: Routes = {};
 
 const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_SIZE = 10 * 1000; // 10초
-const MAX_REQUESTS = 10;
+const MAX_REQUESTS = 100;
 
 const middleware = async (request: NextRequest) => {
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";

@@ -75,22 +75,17 @@ function CenterCard({ center }: { center: ICenterSummary }) {
       {center.openingHours.length > 0 && (
         <div className="mb-4">
           <h4 className="text-sm font-semibold text-gray-900 mb-2">영업시간</h4>
-          <div className="grid grid-cols-2 gap-1 text-xs text-gray-600">
+          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
             {center.openingHours
               .filter((hour) => !hour.isClosed)
-              .slice(0, 4)
               .map((hour) => (
-                <div key={hour.dayOfWeek} className="flex justify-between">
+                <div key={hour.dayOfWeek} className="flex justify-start gap-4">
                   <span>{displayWeekDay(hour.dayOfWeek)}</span>
                   <span>
                     {displayTime(hour.openTime)} ~ {displayTime(hour.closeTime)}
                   </span>
                 </div>
               ))}
-            {center.openingHours.filter((hour) => !hour.isClosed).length >
-              4 && (
-              <div className="col-span-2 text-center text-gray-400">...</div>
-            )}
           </div>
         </div>
       )}
@@ -173,7 +168,7 @@ export default async function CentersPage() {
       {centers.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1  lg:grid-cols-2 gap-6">
           {centers.map((center) => (
             <CenterCard key={center.id} center={center} />
           ))}

@@ -8,7 +8,6 @@ export const getPtRecordInfoService = async (ptRecordId: string) => {
     where: { id: ptRecordId },
     select: {
       id: true,
-      attended: true,
       pt: {
         select: {
           id: true,

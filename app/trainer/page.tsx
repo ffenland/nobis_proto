@@ -172,15 +172,12 @@ const TrainerDashboardPage = () => {
           ) : (
             <div className="space-y-3">
               {stats.todaySchedule.map((session) => (
-                <Link
-                  key={session.id}
-                  href={`/trainer/pt-records/${session.id}`}
-                >
+                <Link key={session.id} href={`/trainer/ptrecord/${session.id}`}>
                   <div className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-medium text-gray-900">
-                          {session.pt.member.user.username} 회원
+                          {session.pt.member?.user.username} 회원
                         </h4>
                         <p className="text-sm text-gray-600">
                           {formatTime(session.ptSchedule.startTime)} -{" "}
