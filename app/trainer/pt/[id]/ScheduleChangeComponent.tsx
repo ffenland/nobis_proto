@@ -1,7 +1,7 @@
 // app/trainer/pt/[id]/ScheduleChangeComponents.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import {
@@ -11,6 +11,7 @@ import {
   ModalFooter,
 } from "@/app/components/ui/Modal";
 import { Input, Textarea } from "@/app/components/ui/Input";
+import { TimeRangeInput } from "@/app/components/ui/TimeInput";
 import {
   Calendar,
   Clock,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { TPtRecord } from "./actions";
 import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
+import { calculateEndTime, isValidTimeSlot } from "@/app/lib/utils/time.utils";
 
 interface ScheduleChangeComponentsProps {
   ptRecords: TPtRecord[];
@@ -48,9 +50,11 @@ const ScheduleChangeComponents = ({
 
   // 폼 상태
   const [newDate, setNewDate] = useState("");
-  const [newStartTime, setNewStartTime] = useState("");
-  const [newEndTime, setNewEndTime] = useState("");
+  const [newStartTime, setNewStartTime] = useState(900); // 09:00 기본값
   const [reason, setReason] = useState("");
+
+  // 수업 시간 (시간 단위) - PtProduct에서 가져와야 함
+  const [classDuration, setClassDuration] = useState(1); // 기본 1시간
 
   // 일정 변경 가능한 수업만 필터링 (미래 수업)
   const changeableRecords = ptRecords.filter((record) => {
@@ -66,6 +70,32 @@ const ScheduleChangeComponents = ({
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
+
+  // 수업 시간 정보 가져오기
+  useEffect(() => {
+    if (selectedRecord) {
+      // TODO: PtProduct에서 실제 수업 시간 가져오기
+      // const duration = selectedRecord.ptSchedule.ptProduct?.durationHours || 1;
+      // setClassDuration(duration);
+
+      // 현재는 시작시간과 종료시간으로 계산
+      const startTime = selectedRecord.ptSchedule.startTime;
+      const endTime = selectedRecord.ptSchedule.endTime;
+      const durationMinutes = (() => {
+        const startHour = Math.floor(startTime / 100);
+        const startMin = startTime % 100;
+        const endHour = Math.floor(endTime / 100);
+        const endMin = endTime % 100;
+
+        const startTotalMin = startHour * 60 + startMin;
+        const endTotalMin = endHour * 60 + endMin;
+
+        return endTotalMin - startTotalMin;
+      })();
+
+      setClassDuration(durationMinutes / 60); // 시간 단위로 변환
+    }
+  }, [selectedRecord]);
 
   // 일정 변경 요청 버튼 클릭
   const handleScheduleChangeClick = async (record: TPtRecord) => {
@@ -83,11 +113,10 @@ const ScheduleChangeComponents = ({
         setExistingRequest(data.existingRequest);
         setShowExistingModal(true);
       } else {
-        // 기본값 설정 - Date 객체 처리 수정
+        // 기본값 설정
         const scheduleDate = new Date(record.ptSchedule.date);
         setNewDate(formatDateForInput(scheduleDate));
-        setNewStartTime(formatTimeInput(record.ptSchedule.startTime));
-        setNewEndTime(formatTimeInput(record.ptSchedule.endTime));
+        setNewStartTime(record.ptSchedule.startTime);
         setReason("");
         setShowChangeModal(true);
       }
@@ -99,24 +128,17 @@ const ScheduleChangeComponents = ({
     }
   };
 
-  // 시간 포맷 함수 (1030 -> "10:30")
-  const formatTimeInput = (time: number) => {
-    const hour = Math.floor(time / 100);
-    const minute = time % 100;
-    return `${hour.toString().padStart(2, "0")}:${minute
-      .toString()
-      .padStart(2, "0")}`;
-  };
-
-  // 시간 파싱 함수 ("10:30" -> 1030)
-  const parseTimeInput = (timeStr: string) => {
-    const [hour, minute] = timeStr.split(":").map(Number);
-    return hour * 100 + minute;
-  };
-
   // 일정 변경 요청 제출
   const handleSubmitChange = async (forceCancelExisting = false) => {
     if (!selectedRecord) return;
+
+    // 시간 유효성 검증
+    if (!isValidTimeSlot(newStartTime)) {
+      alert("시간은 정시 또는 30분 단위로만 선택 가능합니다.");
+      return;
+    }
+
+    const newEndTime = calculateEndTime(newStartTime, classDuration);
 
     setIsLoading(true);
 
@@ -124,8 +146,8 @@ const ScheduleChangeComponents = ({
       const requestData = {
         ptRecordId: selectedRecord.id,
         requestedDate: newDate,
-        requestedStartTime: parseTimeInput(newStartTime),
-        requestedEndTime: parseTimeInput(newEndTime),
+        requestedStartTime: newStartTime,
+        requestedEndTime: newEndTime,
         reason,
         forceCancelExisting,
       };
@@ -168,8 +190,7 @@ const ScheduleChangeComponents = ({
     setShowExistingModal(false);
     const scheduleDate = new Date(selectedRecord.ptSchedule.date);
     setNewDate(formatDateForInput(scheduleDate));
-    setNewStartTime(formatTimeInput(selectedRecord.ptSchedule.startTime));
-    setNewEndTime(formatTimeInput(selectedRecord.ptSchedule.endTime));
+    setNewStartTime(selectedRecord.ptSchedule.startTime);
     setReason("");
     setShowChangeModal(true);
   };
@@ -180,7 +201,7 @@ const ScheduleChangeComponents = ({
 
   return (
     <>
-      {/* 일정 변경 섹션 - 기본 정보 카드 내부에 추가 */}
+      {/* 일정 변경 섹션 */}
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-center gap-2 mb-3">
           <Edit className="w-5 h-5 text-blue-600" />
@@ -317,6 +338,9 @@ const ScheduleChangeComponents = ({
                     Math.floor(selectedRecord.ptSchedule.endTime / 100),
                     selectedRecord.ptSchedule.endTime % 100
                   )}
+                  <span className="ml-2 text-gray-500">
+                    ({classDuration}시간)
+                  </span>
                 </div>
               </div>
 
@@ -338,28 +362,13 @@ const ScheduleChangeComponents = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      시작 시간
-                    </label>
-                    <Input
-                      type="time"
-                      value={newStartTime}
-                      onChange={(e) => setNewStartTime(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      종료 시간
-                    </label>
-                    <Input
-                      type="time"
-                      value={newEndTime}
-                      onChange={(e) => setNewEndTime(e.target.value)}
-                    />
-                  </div>
-                </div>
+                <TimeRangeInput
+                  startTime={newStartTime}
+                  onStartTimeChange={setNewStartTime}
+                  durationHours={classDuration}
+                  openTime={600} // 06:00
+                  closeTime={2200} // 22:00
+                />
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -382,14 +391,15 @@ const ScheduleChangeComponents = ({
                 <ul className="mt-2 text-sm text-blue-700 space-y-1">
                   <li>• 일정 변경 요청은 회원의 승인이 필요합니다</li>
                   <li>• 요청 후 48시간 내에 응답하지 않으면 자동 만료됩니다</li>
-                  <li>• 트레이너는 언제든 일정 변경을 요청할 수 있습니다</li>
+                  <li>• 시간은 30분 단위로만 선택 가능합니다</li>
+                  <li>• 수업 시간은 {classDuration}시간으로 고정됩니다</li>
                 </ul>
               </div>
             </div>
           )}
         </ModalContent>
         <ModalFooter>
-          <div className="">
+          <div className="flex gap-2">
             <Button variant="outline" onClick={() => setShowChangeModal(false)}>
               취소
             </Button>

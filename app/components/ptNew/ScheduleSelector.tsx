@@ -1,28 +1,27 @@
+// app/components/ptNew/ScheduleSelector.tsx 개선 버전
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import useSWR from "swr";
+import { useState, useRef } from "react";
 import dayjs from "dayjs";
-import "dayjs/locale/ko";
 import weekOfYear from "dayjs/plugin/weekOfYear";
 import isoWeek from "dayjs/plugin/isoWeek";
-import weekday from "dayjs/plugin/weekday";
-import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
-import { Card, CardContent } from "@/app/components/ui/Card";
-import { Button } from "@/app/components/ui/Button";
-import { Badge } from "@/app/components/ui/Loading";
-import {
-  IDaySchedule,
-  ISchedulePattern,
-} from "@/app/lib/services/schedule.service";
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
-dayjs.extend(weekday);
-dayjs.extend(isSameOrAfter);
-dayjs.locale("ko");
+import useSWR from "swr";
+import { Button } from "@/app/components/ui/Button";
+import { Badge } from "@/app/components/ui/Loading";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { IDaySchedule } from "@/app/lib/services/pt-apply.service";
+import {
+  addThirtyMinutes,
+  formatTime,
+  generateTimeSlots,
+  generateClassTimeSlots,
+  timeRangesOverlap,
+} from "@/app/lib/utils/time.utils";
 
-// API fetcher
+// API fetcher - 로컬에서 정의
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
     if (!res.ok) throw new Error("Failed to fetch");
@@ -31,8 +30,11 @@ const fetcher = (url: string) =>
 
 interface IScheduleSelectorProps {
   trainerId: string;
-  pattern: ISchedulePattern;
-  duration: number;
+  pattern: {
+    regular: boolean;
+    count: number;
+  };
+  duration: number; // 수업 시간 (시간 단위)
   chosenSchedule: IDaySchedule;
   setChosenSchedule: (schedule: IDaySchedule) => void;
   openTime?: number;
@@ -58,52 +60,15 @@ const ScheduleSelector = ({
     fetcher
   );
 
-  // 시간 슬롯 조회
-  const { data: timeSlotsData } = useSWR<{ timeSlots: number[] }>(
-    `/api/member/time-slots?openTime=${openTime}&closeTime=${closeTime}`,
-    fetcher
-  );
-
-  const timeSlots = timeSlotsData?.timeSlots || [];
+  // 시간 슬롯 생성 (30분 단위)
+  const timeSlots = generateTimeSlots(openTime, closeTime);
 
   // 요일별 한글 이름
   const weekDayNames = ["일", "월", "화", "수", "목", "금", "토"];
 
-  // 시간 포맷 (HHMM -> HH:MM)
-  const formatTime = (time: number) => {
-    const hour = Math.floor(time / 100);
-    const minute = time % 100;
-    return `${hour.toString().padStart(2, "0")}:${minute
-      .toString()
-      .padStart(2, "0")}`;
-  };
-
-  // 30분 추가
-  const addThirtyMinutes = (time: number) => {
-    const hour = Math.floor(time / 100);
-    const minute = time % 100;
-
-    if (minute === 30) {
-      return (hour + 1) * 100;
-    } else {
-      return time + 30;
-    }
-  };
-
-  // 시간 길이 계산
-  const getTimeLength = (startTime: number): number[] => {
-    const timeLength: number[] = [];
-    let currentTime = startTime;
-
-    for (let i = 0; i < Math.floor(duration / 0.5); i++) {
-      if (currentTime >= closeTime || currentTime < openTime) {
-        break;
-      }
-      timeLength.push(currentTime);
-      currentTime = addThirtyMinutes(currentTime);
-    }
-
-    return timeLength;
+  // 수업 시간 길이 계산 (30분 단위 슬롯들)
+  const getClassTimeSlots = (startTime: number): number[] => {
+    return generateClassTimeSlots(startTime, duration, openTime, closeTime);
   };
 
   // 주간 날짜 생성
@@ -127,8 +92,8 @@ const ScheduleSelector = ({
 
     setTimeError(undefined);
 
-    const timeLength = getTimeLength(time);
-    if (timeLength.length === 0) {
+    const classTimeSlots = getClassTimeSlots(time);
+    if (classTimeSlots.length === 0) {
       setTimeError("해당 시간은 선택할 수 없습니다.");
       return;
     }
@@ -137,100 +102,94 @@ const ScheduleSelector = ({
     const dateKey = date.format("YYYY-MM-DD");
     const occupiedTimes = trainerSchedule?.[dateKey] || [];
 
-    const hasConflict = timeLength.some((t) => occupiedTimes.includes(t));
+    // 수업 시간 전체가 트레이너의 기존 일정과 겹치는지 확인
+    const endTime = addThirtyMinutes(classTimeSlots[classTimeSlots.length - 1]);
+    const hasConflict = occupiedTimes.some((occupied) =>
+      timeRangesOverlap(time, endTime, occupied, addThirtyMinutes(occupied))
+    );
+
     if (hasConflict) {
+      setTimeError("해당 시간은 이미 예약되어 있습니다.");
       return;
     }
 
-    const newSchedule = { ...chosenSchedule };
-    newSchedule[dateKey] = [...timeLength];
-    setChosenSchedule(newSchedule);
+    // 기존 선택된 시간인지 확인
+    const isAlreadySelected = chosenSchedule[dateKey]?.includes(time);
+
+    if (isAlreadySelected) {
+      // 선택 해제
+      const updatedSchedule = { ...chosenSchedule };
+      delete updatedSchedule[dateKey];
+      setChosenSchedule(updatedSchedule);
+    } else {
+      // 새로 선택
+      if (
+        pattern.regular &&
+        Object.keys(chosenSchedule).length >= pattern.count
+      ) {
+        setTimeError(
+          `정기 스케줄은 최대 ${pattern.count}개까지 선택 가능합니다.`
+        );
+        return;
+      }
+
+      setChosenSchedule({
+        ...chosenSchedule,
+        [dateKey]: classTimeSlots,
+      });
+    }
   };
 
-  // 선택된 시간 클릭 (취소)
-  const handleChosenTimeClick = (date: dayjs.Dayjs) => {
+  // 시간 슬롯 상태 확인
+  const getTimeSlotStatus = (date: dayjs.Dayjs, time: number) => {
     const dateKey = date.format("YYYY-MM-DD");
-    const newSchedule = { ...chosenSchedule };
-    delete newSchedule[dateKey];
-    setChosenSchedule(newSchedule);
-  };
+    const isPast =
+      date.isBefore(today.current, "day") ||
+      (date.isSame(today.current, "day") &&
+        time < parseInt(dayjs().format("HHmm")));
 
-  // 이전 주
-  const handlePrevWeek = () => {
-    const minAllowedDate =
-      pattern.regular && Object.keys(chosenSchedule).length > 0
-        ? dayjs(Object.keys(chosenSchedule).sort()[0]).startOf("week")
-        : today.current.startOf("week");
+    if (isPast) return "past";
 
-    const newWeek = currentWeek.subtract(1, "week");
-    if (newWeek.isSameOrAfter(minAllowedDate, "week")) {
-      setCurrentWeek(newWeek);
-    }
-  };
+    const occupiedTimes = trainerSchedule?.[dateKey] || [];
+    const classTimeSlots = getClassTimeSlots(time);
 
-  // 다음 주
-  const handleNextWeek = () => {
-    let maxAllowedDate = today.current.add(12, "weeks").endOf("week");
+    if (classTimeSlots.length === 0) return "invalid";
 
-    if (pattern.regular && Object.keys(chosenSchedule).length > 0) {
-      const firstSelectedDate = dayjs(Object.keys(chosenSchedule).sort()[0]);
-      maxAllowedDate = firstSelectedDate.add(1, "week");
-    }
-
-    const newWeek = currentWeek.add(1, "week");
-    if (
-      newWeek.isBefore(maxAllowedDate) ||
-      newWeek.isSame(maxAllowedDate, "week")
-    ) {
-      setCurrentWeek(newWeek);
-    }
-  };
-
-  // 초기 주 설정
-  useEffect(() => {
-    const currentDay = today.current;
-    const nextMonday =
-      currentDay.day() === 0
-        ? currentDay.add(1, "day")
-        : currentDay.startOf("isoWeek");
-    setCurrentWeek(nextMonday);
-  }, []);
-
-  if (scheduleError) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <p className="text-red-600">스케줄을 불러올 수 없습니다.</p>
-        </CardContent>
-      </Card>
+    const endTime = addThirtyMinutes(classTimeSlots[classTimeSlots.length - 1]);
+    const isOccupied = occupiedTimes.some((occupied) =>
+      timeRangesOverlap(time, endTime, occupied, addThirtyMinutes(occupied))
     );
-  }
+
+    if (isOccupied) return "occupied";
+
+    const isSelected = chosenSchedule[dateKey]?.includes(time);
+    if (isSelected) return "selected";
+
+    // 정기 스케줄 제약사항
+    if (pattern.regular && Object.keys(chosenSchedule).length > 0) {
+      const firstSelectedDate = Object.keys(chosenSchedule).sort()[0];
+      const isInSameWeek = date.isSame(dayjs(firstSelectedDate), "week");
+      if (!isInSameWeek) return "disabled";
+    }
+
+    return "available";
+  };
+
+  // 주 이동
+  const moveWeek = (direction: "prev" | "next") => {
+    const newWeek =
+      direction === "prev"
+        ? currentWeek.subtract(1, "week")
+        : currentWeek.add(1, "week");
+    setCurrentWeek(newWeek);
+  };
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="sm" onClick={handlePrevWeek}>
-            ← 이전 주
-          </Button>
-          <h3 className="font-medium text-gray-900">
-            {currentWeek.add(1, "day").format("YYYY년 MM월")}
-          </h3>
-          <Button variant="outline" size="sm" onClick={handleNextWeek}>
-            다음 주 →
-          </Button>
-        </div>
-
-        {/* 에러 메시지 */}
-        {timeError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{timeError}</p>
-          </div>
-        )}
-        {/* 상단 정보 */}
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <div className="text-sm text-gray-600">
+    <div className="space-y-4">
+      {/* 헤더 정보 */}
+      <div className="bg-white border rounded-lg p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
             {pattern.regular ? (
               <div>
                 <p>
@@ -261,190 +220,208 @@ const ScheduleSelector = ({
             )}
           </div>
         </div>
-        {/* 안내 메시지 */}
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          {Object.keys(chosenSchedule).length > 0 ? (
-            <p className="text-sm text-blue-700">
-              <span className="font-medium">첫 수업일:</span>{" "}
-              {dayjs(Object.keys(chosenSchedule).sort()[0]).format(
-                "YYYY년 MM월 DD일"
-              )}
-            </p>
-          ) : pattern.regular ? (
-            <p className="text-sm text-blue-700">
-              우선 처음 수업할 날짜를 선택해 주세요. 선택한 시간대를 다시 누르면
-              취소할 수 있습니다.
-            </p>
-          ) : (
-            <div className="text-sm text-blue-700">
-              <p>최소 2개의 날짜를 선택해주세요.</p>
-              <p>그 이후의 일정은 나중에 선택할 수 있습니다.</p>
-            </div>
-          )}
+      </div>
+
+      {/* 안내 메시지 */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        {Object.keys(chosenSchedule).length > 0 ? (
+          <p className="text-sm text-blue-700">
+            <span className="font-medium">첫 수업일:</span>{" "}
+            {dayjs(Object.keys(chosenSchedule).sort()[0]).format(
+              "YYYY년 MM월 DD일"
+            )}
+          </p>
+        ) : pattern.regular ? (
+          <p className="text-sm text-blue-700">
+            우선 처음 수업할 날짜를 선택해 주세요. 선택한 시간대를 다시 누르면
+            취소할 수 있습니다. 시간은 30분 단위로만 선택 가능합니다.
+          </p>
+        ) : (
+          <div className="text-sm text-blue-700">
+            <p>최소 2개의 날짜를 선택해주세요.</p>
+            <p>시간은 30분 단위로만 선택 가능합니다.</p>
+          </div>
+        )}
+      </div>
+
+      {/* 에러 메시지 */}
+      {timeError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-700">{timeError}</p>
         </div>
-        {/* 범례 */}
-        <div className="mt-4 flex flex-wrap gap-4 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-200 rounded"></div>
-            <span>선택된 시간 (✓)</span>
+      )}
+
+      {/* 주간 네비게이션 */}
+      <div className="flex items-center justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => moveWeek("prev")}
+          disabled={
+            currentWeek.isSame(today.current, "week") ||
+            currentWeek.isBefore(today.current, "week")
+          }
+        >
+          <ChevronLeft className="w-4 h-4" />
+          이전 주
+        </Button>
+        <h3 className="font-medium">
+          {currentWeek.format("YYYY년 MM월")} {currentWeek.week()}주차
+        </h3>
+        <Button variant="outline" size="sm" onClick={() => moveWeek("next")}>
+          다음 주
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {/* 범례 */}
+      <div className="flex flex-wrap gap-4 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-green-200 rounded"></div>
+          <span>선택된 시간 (✓)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-red-200 rounded"></div>
+          <span>예약 불가 (×)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-gray-200 rounded"></div>
+          <span>선택 불가</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-white border rounded"></div>
+          <span>선택 가능</span>
+        </div>
+      </div>
+
+      {/* 선택된 스케줄 요약 */}
+      {Object.keys(chosenSchedule).length > 0 && (
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">
+            선택된 일정
+          </h4>
+          <div className="space-y-1">
+            {Object.keys(chosenSchedule)
+              .sort()
+              .map((dateKey) => {
+                const times = chosenSchedule[dateKey];
+                const startTime = times[0];
+                const endTime = addThirtyMinutes(times[times.length - 1]);
+                const date = dayjs(dateKey);
+
+                return (
+                  <div
+                    key={dateKey}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span>
+                      {date.format("MM월 DD일")} ({weekDayNames[date.day()]})
+                    </span>
+                    <Badge variant="success">
+                      {formatTime(startTime)} - {formatTime(endTime)}
+                    </Badge>
+                  </div>
+                );
+              })}
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-200 rounded"></div>
-            <span>예약 불가 (×)</span>
+        </div>
+      )}
+
+      {/* 주간 달력 그리드 */}
+      <div className="grid grid-cols-8 gap-1">
+        {/* 시간 헤더 컬럼 */}
+        <div className="border rounded-lg overflow-hidden">
+          <div className="p-2 text-center text-xs font-medium bg-gray-50 text-gray-600 h-[48px] flex items-center justify-center">
+            시간
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-gray-200 rounded"></div>
-            <span>선택 불가</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-white border rounded"></div>
-            <span>선택 가능</span>
+          {/* 시간 표시 */}
+          <div className="space-y-px">
+            {timeSlots.map((time, timeIndex) => (
+              <div
+                key={time}
+                className="h-6 flex items-center justify-center text-xs text-gray-500 bg-gray-50 border-r"
+              >
+                {timeIndex % 2 === 0 && formatTime(time)}
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* 선택된 스케줄 요약 */}
-        {Object.keys(chosenSchedule).length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">
-              선택된 일정
-            </h4>
-            <div className="space-y-1">
-              {Object.keys(chosenSchedule)
-                .sort()
-                .map((dateKey) => {
-                  const times = chosenSchedule[dateKey];
-                  const startTime = times[0];
-                  const endTime = addThirtyMinutes(times[times.length - 1]);
-                  const date = dayjs(dateKey);
+        {/* 요일별 컬럼들 */}
+        {getDaysOfWeek(currentWeek).map((day, dayIndex) => {
+          const isToday = day.isSame(today.current, "day");
+          const isPast = day.isBefore(today.current, "day");
+          const dateKey = day.format("YYYY-MM-DD");
+
+          // 정기 스케줄 제약사항
+          const cannotChoose =
+            pattern.regular && Object.keys(chosenSchedule).length > 0
+              ? day.isBefore(dayjs(Object.keys(chosenSchedule).sort()[0])) ||
+                day.isSameOrAfter(
+                  dayjs(Object.keys(chosenSchedule).sort()[0]).add(1, "weeks")
+                )
+              : false;
+
+          return (
+            <div key={dateKey} className="border rounded-lg overflow-hidden">
+              {/* 날짜 헤더 */}
+              <div
+                className={`p-2 text-center text-xs font-medium h-[48px] flex flex-col items-center justify-center ${
+                  isToday
+                    ? "bg-blue-100 text-blue-800"
+                    : isPast
+                    ? "bg-gray-100 text-gray-400"
+                    : "bg-gray-50 text-gray-600"
+                }`}
+              >
+                <div>{weekDayNames[dayIndex]}</div>
+                <div className="text-lg">{day.format("D")}</div>
+              </div>
+
+              {/* 시간 슬롯들 */}
+              <div className="space-y-px">
+                {timeSlots.map((time) => {
+                  const status = getTimeSlotStatus(day, time);
+
+                  const slotClasses = {
+                    past: "bg-gray-100 cursor-not-allowed",
+                    occupied: "bg-red-200 cursor-not-allowed",
+                    invalid: "bg-gray-200 cursor-not-allowed",
+                    disabled: "bg-gray-200 cursor-not-allowed",
+                    selected: "bg-green-200 cursor-pointer",
+                    available:
+                      "bg-white hover:bg-blue-50 cursor-pointer border",
+                  };
+
+                  const slotIcons = {
+                    past: "",
+                    occupied: "×",
+                    invalid: "",
+                    disabled: "",
+                    selected: "✓",
+                    available: "",
+                  };
 
                   return (
                     <div
-                      key={dateKey}
-                      className="flex items-center justify-between text-sm"
+                      key={time}
+                      className={`h-6 flex items-center justify-center text-xs ${slotClasses[status]}`}
+                      onClick={() => {
+                        if (status === "available" || status === "selected") {
+                          handleTimeClick(day, time);
+                        }
+                      }}
                     >
-                      <span>
-                        {date.format("MM월 DD일")} ({weekDayNames[date.day()]})
-                      </span>
-                      <Badge variant="success">
-                        {formatTime(startTime)} - {formatTime(endTime)}
-                      </Badge>
+                      {slotIcons[status]}
                     </div>
                   );
                 })}
-            </div>
-          </div>
-        )}
-
-        {/* 주간 달력 그리드 */}
-        <div className="grid grid-cols-8 gap-1">
-          {/* 시간 헤더 컬럼 */}
-          <div className="border rounded-lg overflow-hidden">
-            <div className="p-2 text-center text-xs font-medium bg-gray-50 text-gray-600 h-[48px] flex items-center justify-center">
-              시간
-            </div>
-            {/* 시간 표시 */}
-            <div className="space-y-px">
-              {timeSlots.map((time, timeIndex) => (
-                <div
-                  key={time}
-                  className="h-6 flex items-center justify-center text-xs text-gray-500 bg-gray-50 border-r"
-                >
-                  {timeIndex % 2 === 0 && formatTime(time)}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 요일별 컬럼들 */}
-          {getDaysOfWeek(currentWeek).map((day, dayIndex) => {
-            const isToday = day.isSame(today.current, "day");
-            const isPast = day.isBefore(today.current, "day");
-            const dateKey = day.format("YYYY-MM-DD");
-
-            // 트레이너가 예약된 시간들
-            const occupiedTimes = trainerSchedule?.[dateKey] || [];
-            // 사용자가 선택한 시간들
-            const chosenTimes = chosenSchedule[dateKey] || [];
-
-            // 정기 스케줄 제약사항
-            const cannotChoose =
-              pattern.regular && Object.keys(chosenSchedule).length > 0
-                ? day.isBefore(dayjs(Object.keys(chosenSchedule).sort()[0])) ||
-                  day.isSameOrAfter(
-                    dayjs(Object.keys(chosenSchedule).sort()[0]).add(1, "weeks")
-                  )
-                : false;
-
-            return (
-              <div key={dateKey} className="border rounded-lg overflow-hidden">
-                {/* 날짜 헤더 */}
-                <div
-                  className={`p-2 text-center text-xs font-medium h-[48px] flex flex-col items-center justify-center ${
-                    isToday
-                      ? "bg-blue-100 text-blue-700"
-                      : dayIndex === 6
-                      ? "bg-blue-50 text-blue-600"
-                      : "bg-gray-50 text-gray-600"
-                  }`}
-                >
-                  <div>{weekDayNames[day.day()]}</div>
-                  <div className="font-bold">{day.date()}일</div>
-                </div>
-
-                {/* 시간 슬롯들 */}
-                <div className="space-y-px">
-                  {timeSlots.map((time, timeIndex) => {
-                    const isOccupied = occupiedTimes.includes(time);
-                    const isChosen = chosenTimes.includes(time);
-                    const isLastSlot = timeIndex === timeSlots.length - 1;
-
-                    return (
-                      <div
-                        key={time}
-                        className={`h-6 flex items-center justify-center text-xs cursor-pointer transition-colors ${
-                          isPast || cannotChoose || isLastSlot
-                            ? "bg-gray-200 cursor-not-allowed"
-                            : isOccupied
-                            ? "bg-red-200 text-red-700 cursor-not-allowed"
-                            : isChosen
-                            ? "bg-green-200 text-green-700 hover:bg-green-300"
-                            : "bg-white hover:bg-gray-100 border"
-                        }`}
-                        onClick={() => {
-                          if (
-                            isPast ||
-                            cannotChoose ||
-                            isLastSlot ||
-                            isOccupied
-                          )
-                            return;
-
-                          if (isChosen) {
-                            handleChosenTimeClick(day);
-                          } else {
-                            handleTimeClick(day, time);
-                          }
-                        }}
-                        title={`${formatTime(time)} ${
-                          isOccupied
-                            ? "- 예약됨"
-                            : isChosen
-                            ? "- 선택됨"
-                            : "- 선택 가능"
-                        }`}
-                      >
-                        {isOccupied && "×"}
-                        {isChosen && "✓"}
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
