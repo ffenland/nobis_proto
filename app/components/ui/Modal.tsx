@@ -27,7 +27,7 @@ const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div
         className={cn(
-          "bg-white rounded-xl w-full max-h-96 overflow-hidden",
+          "bg-white rounded-xl w-full max-h-[70vh] overflow-hidden flex flex-col", // 변경된 부분
           sizes[size]
         )}
       >
@@ -77,7 +77,9 @@ interface ModalContentProps {
 
 const ModalContent: React.FC<ModalContentProps> = ({ children, className }) => {
   return (
-    <div className={cn("p-4 max-h-64 overflow-y-auto", className)}>
+    <div className={cn("p-4 flex-1 overflow-y-auto", className)}>
+      {" "}
+      {/* 변경된 부분 */}
       {children}
     </div>
   );

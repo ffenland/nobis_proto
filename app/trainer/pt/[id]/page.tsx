@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { PtState } from "@prisma/client";
 import RecordDetailToggle from "./RecordDetailToggle";
+import ScheduleChangeComponents from "./ScheduleChangeComponent";
+import ScheduleChangeRequests from "./ScheduleChangeRequests";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -283,8 +285,25 @@ const TrainerPtDetailPage = async ({ params }: PageProps) => {
                 </div>
               </div>
             )}
+
+            {/* 일정 변경 컴포넌트 - CONFIRMED 상태일 때만 표시 */}
+            {ptDetail.state === PtState.CONFIRMED && (
+              <ScheduleChangeComponents ptRecords={ptDetail.ptRecord} />
+            )}
           </CardContent>
         </Card>
+
+        {/* 일정 변경 요청 목록 - CONFIRMED 상태일 때만 표시 */}
+        {ptDetail.state === PtState.CONFIRMED && (
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">일정 변경 요청</h3>
+            </CardHeader>
+            <CardContent>
+              <ScheduleChangeRequests ptId={ptId} />
+            </CardContent>
+          </Card>
+        )}
 
         {/* 수업 기록 목록 */}
         <Card>
