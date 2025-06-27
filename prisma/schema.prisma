@@ -210,6 +210,10 @@ model PtScheduleChangeRequest {
   requestedDate      DateTime
   requestedStartTime Int
   requestedEndTime   Int
+  // 원래의 일정
+  originalDate       DateTime
+  originalStartTime  Int
+  originalEndTime    Int
 
   // 상태 및 메타데이터
   state  ScheduleChangeState @default(PENDING)
