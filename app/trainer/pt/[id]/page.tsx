@@ -1,240 +1,389 @@
-import Image from "next/image";
+// app/trainer/pt/[id]/page.tsx
 import Link from "next/link";
-import { getPtDetail, goToChatWithMember, submitPendingPt } from "./actions";
+import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
+import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { Badge } from "@/app/components/ui/Loading";
 import {
-  displayTime,
-  formatDate,
-  formatDateThisYear,
-  getTailwindColorHex,
-  getWeekDayMapData,
-  getWeekDayMapDataByWeekDayEnum,
-} from "@/app/lib/utils";
-import { calculateEndDate } from "@/app/lib/product";
+  getPtDetailAction,
+  type TPtDetail,
+  type TPtRecord,
+  type TPtRecordItem,
+} from "./actions";
+import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
+import {
+  User,
+  Calendar,
+  Clock,
+  Target,
+  CheckCircle,
+  XCircle,
+  Circle,
+} from "lucide-react";
+import { PtState } from "@prisma/client";
+import RecordDetailToggle from "./RecordDetailToggle";
 
-type Params = Promise<{ id: string }>;
-const PtDetail = async (props: { params: Params }) => {
-  const params = await props.params;
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 
-  const pt = await getPtDetail(params.id);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+// 출석 상태 계산 함수
+const calculateAttendanceStatus = (
+  ptSchedule: TPtRecord["ptSchedule"],
+  items: TPtRecordItem[]
+): "ATTENDED" | "ABSENT" | "RESERVED" => {
+  const now = new Date();
+  const classDate = new Date(ptSchedule.date);
+  const classStartTime = ptSchedule.startTime;
 
-  if (!pt) {
-    return <div className="text-center py-10">PT를 찾을 수 없습니다.</div>;
-  } else {
+  const startHour = Math.floor(classStartTime / 100);
+  const startMinute = classStartTime % 100;
+
+  const classStart = new Date(classDate);
+  classStart.setHours(startHour, startMinute, 0, 0);
+
+  // 미래 수업인 경우
+  if (classStart > now) {
+    return "RESERVED";
+  }
+
+  // 과거 수업인 경우 - 기록이 있으면 출석, 없으면 결석
+  return items.length > 0 ? "ATTENDED" : "ABSENT";
+};
+
+// 출석 통계 계산 함수
+const calculateAttendanceStats = (ptRecords: TPtRecord[]) => {
+  const stats = {
+    attended: 0,
+    absent: 0,
+    reserved: 0,
+  };
+
+  ptRecords.forEach((record) => {
+    const status = calculateAttendanceStatus(record.ptSchedule, record.items);
+    stats[status.toLowerCase() as keyof typeof stats]++;
+  });
+
+  return stats;
+};
+
+// 운동 기록 요약 렌더링 함수
+const renderExerciseSummary = (items: TPtRecordItem[]) => {
+  if (items.length === 0) {
+    return "기록 없음";
+  }
+
+  const summary = items
+    .slice(0, 2)
+    .map((item) => item.title || item.description || "운동")
+    .join(", ");
+  const remaining = items.length - 2;
+
+  return `${summary}${remaining > 0 ? ` 외 ${remaining}개` : ""}`;
+};
+
+const TrainerPtDetailPage = async ({ params }: PageProps) => {
+  const { id: ptId } = await params;
+
+  let ptDetail: TPtDetail;
+
+  try {
+    ptDetail = await getPtDetailAction(ptId);
+  } catch (error) {
     return (
-      <div className="max-w-2xl mx-auto p-2 flex flex-col gap-6">
-        {/* 프로그램 카드 */}
-        <div className="card bg-base-100 shadow-xl">
-          <div className="card-body gap-2 p-3">
-            <h2 className="card-title text-lg md:text-xl">
-              {pt.ptProduct.title}
-            </h2>
-            <div className="flex flex-wrap gap-2 text-sm">
-              <span className="badge badge-outline">
-                1회 {pt.ptProduct.time}시간
-              </span>
-              <span className="badge badge-outline">
-                총 {pt.ptProduct.totalCount}회
-              </span>
-              <span className="badge badge-outline">
-                {pt.ptProduct.price.toLocaleString()}원
-              </span>
-            </div>
-            <p className="text-sm text-gray-500 mt-1">
-              {pt.ptProduct.description}
-            </p>
+      <PageLayout maxWidth="2xl">
+        <div className="text-center py-12">
+          <div className="text-red-600 mb-4">
+            <XCircle className="w-12 h-12 mx-auto" />
           </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            PT 정보를 불러올 수 없습니다
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {error instanceof Error
+              ? error.message
+              : "알 수 없는 오류가 발생했습니다."}
+          </p>
+          <Link href="/trainer/pt">
+            <Button variant="primary">목록으로 돌아가기</Button>
+          </Link>
         </div>
+      </PageLayout>
+    );
+  }
 
-        {/* 회원 정보 카드 */}
-        <div className="card bg-base-100 shadow">
-          <div className="card-body flex-row items-center gap-4 p-2">
-            <div>
-              <Image
-                src={pt.member?.user.avatar || "/images/default_profile.jpg"}
-                alt="user"
-                width={56}
-                height={56}
-                className="rounded-full border"
-              />
-            </div>
-            <div className="flex flex-col gap-1 flex-1">
-              <span className="font-bold text-base">
-                {pt.member?.user.username}
-              </span>
-              <span className="text-xs text-gray-500">
-                가입일: {pt.member ? formatDate(pt.member.user.createdAt) : "-"}
-              </span>
-            </div>
-            {/* 카드 안에 작게 채팅하기 버튼 */}
-            <form action={goToChatWithMember} className="">
-              <input type="hidden" name="ptId" value={params.id} />
-              <button
-                className="btn btn-xs btn-outline btn-secondary"
-                type="submit"
-              >
-                채팅하기
-              </button>
-            </form>
-          </div>
-        </div>
+  // 완료된 세션 수 계산 (출석한 세션)
+  const completedCount = ptDetail.ptRecord.filter(
+    (record) =>
+      calculateAttendanceStatus(record.ptSchedule, record.items) === "ATTENDED"
+  ).length;
 
-        {/* 스케줄 카드 */}
-        <div className="card bg-base-100 shadow">
-          <div className="card-body gap-2 p-2">
-            <div className="flex flex-col md:flex-row md:items-center md:gap-4">
-              <span className="font-bold text-base">
-                {pt.isRegular ? "정기 PT" : "비정기 PT"} 신청
-              </span>
-              {pt.isRegular && (
-                <span className="badge badge-info">
-                  주 {pt.weekTimes.length}회
+  // 출석 통계 계산
+  const attendanceStats = calculateAttendanceStats(ptDetail.ptRecord);
+
+  // PT 상태 결정
+  const getStatus = () => {
+    if (ptDetail.state === PtState.PENDING) {
+      return { text: "승인 대기", variant: "warning" as const };
+    } else if (completedCount >= ptDetail.ptProduct.totalCount) {
+      return { text: "완료", variant: "default" as const };
+    } else {
+      return { text: "진행 중", variant: "success" as const };
+    }
+  };
+
+  const status = getStatus();
+  const progressPercentage = Math.round(
+    (completedCount / ptDetail.ptProduct.totalCount) * 100
+  );
+
+  // 출석 상태별 스타일
+  const getAttendanceStyle = (status: string) => {
+    switch (status) {
+      case "ATTENDED":
+        return {
+          bgColor: "bg-green-50 border-green-200",
+          textColor: "text-green-800",
+          badge: "완료",
+          badgeVariant: "success" as const,
+          icon: CheckCircle,
+        };
+      case "ABSENT":
+        return {
+          bgColor: "bg-red-50 border-red-200",
+          textColor: "text-red-800",
+          badge: "결석",
+          badgeVariant: "error" as const,
+          icon: XCircle,
+        };
+      case "RESERVED":
+        return {
+          bgColor: "bg-blue-50 border-blue-200",
+          textColor: "text-blue-800",
+          badge: "예정",
+          badgeVariant: "default" as const,
+          icon: Circle,
+        };
+      default:
+        return {
+          bgColor: "bg-gray-50 border-gray-200",
+          textColor: "text-gray-800",
+          badge: "알 수 없음",
+          badgeVariant: "default" as const,
+          icon: Circle,
+        };
+    }
+  };
+
+  return (
+    <PageLayout maxWidth="2xl">
+      <PageHeader
+        title="PT 상세 정보"
+        subtitle={`${ptDetail.member?.user.username}님의 ${ptDetail.ptProduct.title}`}
+      />
+
+      <div className="space-y-6">
+        {/* PT 기본 정보 카드 */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">
+                {ptDetail.ptProduct.title}
+              </h2>
+              <Badge variant={status.variant}>{status.text}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="flex items-center gap-3">
+                <User className="w-5 h-5 text-gray-500" />
+                <div>
+                  <div className="text-sm text-gray-600">회원명</div>
+                  <div className="font-medium">
+                    {ptDetail.member?.user.username}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-gray-500" />
+                <div>
+                  <div className="text-sm text-gray-600">시작일</div>
+                  <div className="font-medium">
+                    {formatDateThisYear(ptDetail.startDate)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Target className="w-5 h-5 text-gray-500" />
+                <div>
+                  <div className="text-sm text-gray-600">총 횟수</div>
+                  <div className="font-medium">
+                    {ptDetail.ptProduct.totalCount}회
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-gray-500" />
+                <div>
+                  <div className="text-sm text-gray-600">수업 시간</div>
+                  <div className="font-medium">
+                    {ptDetail.ptProduct.time}시간
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 진행률 */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-gray-600">진행률</span>
+                <span className="font-medium">
+                  {completedCount}/{ptDetail.ptProduct.totalCount}회 (
+                  {progressPercentage}%)
                 </span>
-              )}
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all"
+                  style={{ width: `${progressPercentage}%` }}
+                ></div>
+              </div>
             </div>
-            {pt.isRegular && (
-              <div className="flex flex-wrap gap-2 mt-1">
-                {pt.weekTimes.map((weekTime, idx: number) => {
-                  const weekDayMapData = getWeekDayMapDataByWeekDayEnum(
-                    weekTime.weekDay
+
+            {/* 출석 통계 */}
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
+                <div className="text-2xl font-bold text-green-700">
+                  {attendanceStats.attended}
+                </div>
+                <div className="text-sm text-green-600">출석</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
+                <div className="text-2xl font-bold text-red-700">
+                  {attendanceStats.absent}
+                </div>
+                <div className="text-sm text-red-600">결석</div>
+              </div>
+              <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="text-2xl font-bold text-blue-700">
+                  {attendanceStats.reserved}
+                </div>
+                <div className="text-sm text-blue-600">예정</div>
+              </div>
+            </div>
+
+            {/* 설명 (있는 경우) */}
+            {ptDetail.description && (
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <div className="text-sm font-medium text-gray-700 mb-1">
+                  PT 설명
+                </div>
+                <div className="text-sm text-gray-600">
+                  {ptDetail.description}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 수업 기록 목록 */}
+        <Card>
+          <CardHeader>
+            <h3 className="text-lg font-semibold">수업 기록</h3>
+          </CardHeader>
+          <CardContent>
+            {ptDetail.ptRecord.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Circle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>수업 기록이 없습니다.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {ptDetail.ptRecord.map((record) => {
+                  const attendanceStatus = calculateAttendanceStatus(
+                    record.ptSchedule,
+                    record.items
                   );
+                  const style = getAttendanceStyle(attendanceStatus);
+                  const IconComponent = style.icon;
+
                   return (
-                    <span
-                      key={idx}
-                      className="badge border-0 px-1"
-                      style={{
-                        borderBottom: `2.5px solid ${
-                          weekDayMapData?.color
-                            ? getTailwindColorHex(weekDayMapData.color)
-                            : "#888"
-                        }`,
-                        borderRadius: 0,
-                        paddingBottom: 0,
-                      }}
+                    <div
+                      key={record.id}
+                      className={`border rounded-lg p-4 ${style.bgColor} transition-all`}
                     >
-                      {weekDayMapData?.kor.long}
-                    </span>
+                      <RecordDetailToggle
+                        record={record}
+                        attendanceStatus={attendanceStatus}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <IconComponent className="w-5 h-5" />
+                            <div className="font-medium">
+                              {formatDateThisYear(record.ptSchedule.date)}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {formatTimeToString(
+                                Math.floor(record.ptSchedule.startTime / 100),
+                                record.ptSchedule.startTime % 100
+                              )}{" "}
+                              -{" "}
+                              {formatTimeToString(
+                                Math.floor(record.ptSchedule.endTime / 100),
+                                record.ptSchedule.endTime % 100
+                              )}
+                            </div>
+                            <Badge variant={style.badgeVariant}>
+                              {style.badge}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-gray-700 mb-1">
+                            {renderExerciseSummary(record.items)}
+                          </div>
+                          {record.memo && (
+                            <div className="text-sm text-gray-600 flex items-center gap-1">
+                              <span>💬</span>
+                              <span>{record.memo}</span>
+                            </div>
+                          )}
+
+                          {/* 기록 작성/수정 버튼 */}
+                          {attendanceStatus === "ATTENDED" ? (
+                            <div className="mt-3">
+                              <Link href={`/trainer/pt-records/${record.id}`}>
+                                <Button variant="outline" size="sm">
+                                  {record.items.length > 0
+                                    ? "기록 수정"
+                                    : "기록 작성"}
+                                </Button>
+                              </Link>
+                            </div>
+                          ) : null}
+                        </div>
+                      </RecordDetailToggle>
+                    </div>
                   );
                 })}
               </div>
             )}
-            <div className="flex flex-wrap gap-4 mt-2 text-xs">
-              <span>
-                시작일:{" "}
-                <span className="font-bold">
-                  {formatDateThisYear(pt.startDate)}
-                </span>
-              </span>
-              {pt.isRegular && (
-                <span>
-                  PT 마감일:{" "}
-                  <span className="font-bold">
-                    {formatDateThisYear(
-                      calculateEndDate({
-                        startDate: pt.startDate,
-                        totalCount: pt.ptProduct.totalCount,
-                        enuriDay: 0,
-                      })
-                    )}
-                  </span>
-                </span>
-              )}
-            </div>
-            <div className="divider my-1" />
-            <div className="flex gap-2 items-center">
-              <span className="font-bold">신청 스케줄</span>
-              <span className="badge badge-outline">
-                {pt.ptRecord.length}회
-              </span>
-            </div>
-            <div className="flex flex-col gap-2 mt-2">
-              {pt.ptRecord
-                .sort((a, b) => {
-                  const aDate = new Date(a.ptSchedule.date);
-                  aDate.setHours(0, 0, 0, 0);
-                  const bDate = new Date(b.ptSchedule.date);
-                  bDate.setHours(0, 0, 0, 0);
+          </CardContent>
+        </Card>
 
-                  // 오늘 날짜인 경우 맨 위로
-                  if (
-                    aDate.getTime() === today.getTime() &&
-                    bDate.getTime() !== today.getTime()
-                  )
-                    return -1;
-                  if (
-                    bDate.getTime() === today.getTime() &&
-                    aDate.getTime() !== today.getTime()
-                  )
-                    return 1;
-
-                  // 나머지는 기존 정렬 로직
-                  if (aDate.getTime() === bDate.getTime()) {
-                    return a.ptSchedule.startTime - b.ptSchedule.startTime;
-                  }
-                  return aDate.getTime() - bDate.getTime();
-                })
-                .map((schedule, idx: number) => {
-                  const weekDayMapData = getWeekDayMapData(
-                    schedule.ptSchedule.date
-                  );
-                  return (
-                    <Link
-                      href={`/trainer/ptrecord/${schedule.id}`}
-                      key={idx}
-                      className="flex flex-col md:flex-row md:items-center md:gap-4 border rounded bg-base-200 px-3 py-2 hover:bg-primary/10 transition-colors cursor-pointer"
-                    >
-                      <div className="flex gap-2 items-center">
-                        <span className="font-bold">
-                          {formatDateThisYear(schedule.ptSchedule.date)}
-                        </span>
-                        <span
-                          className="badge border-0 px-1"
-                          style={{
-                            borderBottom: `2.5px solid ${
-                              weekDayMapData?.color
-                                ? getTailwindColorHex(weekDayMapData.color)
-                                : "#888"
-                            }`,
-                            borderRadius: 0,
-                            paddingBottom: 0,
-                          }}
-                        >
-                          {weekDayMapData.kor.long}
-                        </span>
-                        {schedule.ptSchedule.date === today ? (
-                          <span className="badge bg-pink-500 text-white font-bold p-2">
-                            오늘
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex gap-2 items-center text-sm">
-                        <span>
-                          {displayTime(schedule.ptSchedule.startTime)}
-                        </span>
-                        <span>
-                          ~ {displayTime(schedule.ptSchedule.endTime)}
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-
-        {/* 하단 버튼 영역 */}
-        <div className="flex items-center justify-center  gap-2 mt-2">
-          {pt.trainerConfirmed === false && (
-            <form action={submitPendingPt} className="flex-1">
-              <input type="hidden" name="ptId" value={params.id} />
-              <button className="btn btn-primary w-full">승인하기</button>
-            </form>
-          )}
+        {/* 액션 버튼들 */}
+        <div className="flex gap-4">
+          <Link href="/trainer/pt">
+            <Button variant="outline">목록으로 돌아가기</Button>
+          </Link>
+          {ptDetail.state === PtState.CONFIRMED &&
+            completedCount < ptDetail.ptProduct.totalCount && (
+              <Link href={`/trainer/schedule`}>
+                <Button variant="primary">스케줄 보기</Button>
+              </Link>
+            )}
         </div>
       </div>
-    );
-  }
+    </PageLayout>
+  );
 };
 
-export default PtDetail;
+export default TrainerPtDetailPage;

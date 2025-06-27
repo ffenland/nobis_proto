@@ -1,50 +1,62 @@
+// app/trainer/pt/[id]/actions.ts
 "use server";
 
 import prisma from "@/app/lib/prisma";
 import { getSessionOrRedirect } from "@/app/lib/session";
-import { Prisma } from "@prisma/client";
-import { redirect } from "next/navigation";
+import { PtState } from "@prisma/client";
 
-export type IPtDetail = Prisma.PromiseReturnType<typeof getPtDetail>;
-export const getPtDetail = async (id: string) => {
-  const pt = await prisma.pt.findUnique({
+export const getPtDetailAction = async (ptId: string) => {
+  const session = await getSessionOrRedirect();
+
+  if (session.role !== "TRAINER") {
+    throw new Error("접근 권한이 없습니다.");
+  }
+
+  const pt = await prisma.pt.findFirst({
     where: {
-      id,
+      id: ptId,
+      trainerId: session.roleId,
+      state: {
+        in: [PtState.PENDING, PtState.CONFIRMED],
+      },
     },
     select: {
+      id: true,
+      state: true,
+      startDate: true,
+      isRegular: true,
+      description: true,
       trainerConfirmed: true,
+      trainer: {
+        select: {
+          user: {
+            select: {
+              username: true,
+            },
+          },
+        },
+      },
       member: {
         select: {
           user: {
             select: {
               username: true,
-              avatar: true,
-              createdAt: true,
             },
           },
-        },
-      },
-      isRegular: true,
-      startDate: true,
-      weekTimes: {
-        select: {
-          weekDay: true,
-          startTime: true,
-          endTime: true,
         },
       },
       ptProduct: {
         select: {
           title: true,
-          price: true,
-          description: true,
-          time: true,
           totalCount: true,
+          time: true,
+          price: true,
         },
       },
       ptRecord: {
         select: {
           id: true,
+          memo: true,
           ptSchedule: {
             select: {
               date: true,
@@ -52,117 +64,88 @@ export const getPtDetail = async (id: string) => {
               endTime: true,
             },
           },
+          items: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              type: true,
+              entry: true,
+              machineSetRecords: {
+                select: {
+                  id: true,
+                  set: true,
+                  settingValues: {
+                    select: {
+                      id: true,
+                      value: true,
+                      machineSetting: {
+                        select: {
+                          title: true,
+                          unit: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              freeSetRecords: {
+                select: {
+                  id: true,
+                  reps: true,
+                  set: true,
+                  weights: {
+                    select: {
+                      weight: true,
+                      unit: true,
+                    },
+                  },
+                },
+              },
+              stretchingExerciseRecords: {
+                select: {
+                  id: true,
+                  description: true,
+                  stretchingExercise: {
+                    select: {
+                      title: true,
+                      description: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          ptSchedule: {
+            date: "asc",
+          },
+        },
+      },
+      weekTimes: {
+        select: {
+          id: true,
+          weekDay: true,
+          startTime: true,
+          endTime: true,
         },
       },
     },
   });
+
+  if (!pt) {
+    throw new Error("PT 정보를 찾을 수 없습니다.");
+  }
+
+  if (!pt.member) {
+    throw new Error("회원이 배정되지 않았습니다.");
+  }
+
   return pt;
 };
 
-export const submitPendingPt = async (data: FormData) => {
-  try {
-    const ptId = data.get("ptId") as string;
-    console.log("ptId", ptId);
-    if (!ptId) {
-    } else {
-      // TODO: ptId로 pt를 찾고, trainerConfirmed를 true로 바꿔야함
-      await prisma.pt.update({
-        where: {
-          id: ptId,
-        },
-        data: {
-          trainerConfirmed: true,
-        },
-      });
-      return redirect(`/trainer/pt/${ptId}`);
-    }
-  } catch (error) {
-    return redirect("/trainer/pt/");
-  }
-};
-
-export const goToChatWithMember = async (data: FormData) => {
-  const session = await getSessionOrRedirect();
-  const userId = session.id;
-  const ptId = data.get("ptId") as string;
-  const pt = await prisma.pt.findUnique({
-    where: {
-      id: ptId,
-    },
-    select: {
-      member: {
-        select: {
-          user: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
-      trainer: {
-        select: {
-          user: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
-    },
-  });
-  if (!pt || !pt.member || !pt.trainer || pt.trainer?.user.id !== userId) {
-    return redirect("/trainer/pt/");
-  }
-  const chatRooms = await prisma.chatRoom.findMany({
-    where: {
-      participants: {
-        every: {
-          userId: {
-            in: [pt.member.user.id, pt.trainer.user.id],
-          },
-        },
-      },
-    },
-
-    select: {
-      id: true,
-      participants: {
-        select: {
-          id: true,
-          userId: true,
-        },
-      },
-    },
-  });
-
-  const memberUserId = pt.member!.user.id;
-  const trainerUserId = pt.trainer!.user.id;
-
-  const chatRoom = chatRooms.find((room) => {
-    const userIds = room.participants.map((p) => p.userId);
-    return (
-      userIds.length === 2 &&
-      userIds.includes(memberUserId) &&
-      userIds.includes(trainerUserId)
-    );
-  });
-
-  if (!chatRoom) {
-    const newChatRoom = await prisma.chatRoom.create({
-      data: {
-        participants: {
-          create: [
-            {
-              userId: pt.member.user.id,
-            },
-            {
-              userId: pt.trainer.user.id,
-            },
-          ],
-        },
-      },
-    });
-    return redirect(`/trainer/chat/${newChatRoom.id}`);
-  }
-  return redirect(`/trainer/chat/${chatRoom.id}`);
-};
+// 타입 추론을 위한 타입 유틸리티
+export type TPtDetail = Awaited<ReturnType<typeof getPtDetailAction>>;
+export type TPtRecord = TPtDetail["ptRecord"][number];
+export type TPtRecordItem = TPtRecord["items"][number];
