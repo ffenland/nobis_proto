@@ -2,13 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import {
-  createMemberScheduleChangeRequest,
-  createTrainerScheduleChangeRequest,
-  cancelExistingAndCreateNewRequest,
-  type IScheduleChangeRequest,
+  createScheduleChangeRequest,
+  checkExistingPendingRequest,
 } from "@/app/lib/services/pt-schedule-change.service";
 
-interface RequestBody {
+// 요청 데이터 타입 정의
+interface ICreateRequestBody {
   ptRecordId: string;
   requestedDate: string;
   requestedStartTime: number;
@@ -27,7 +26,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: RequestBody = await request.json();
+    // 요청 본문 파싱 (타입 지정)
+    const body: ICreateRequestBody = await request.json();
     const {
       ptRecordId,
       requestedDate,
@@ -51,71 +51,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 타입 검증
-    if (
-      typeof ptRecordId !== "string" ||
-      typeof requestedDate !== "string" ||
-      typeof requestedStartTime !== "number" ||
-      typeof requestedEndTime !== "number" ||
-      typeof reason !== "string"
-    ) {
-      return NextResponse.json(
-        { error: "잘못된 데이터 형식입니다." },
-        { status: 400 }
-      );
-    }
-
-    // 날짜 유효성 검증
-    const parsedDate = new Date(requestedDate);
-    if (isNaN(parsedDate.getTime())) {
-      return NextResponse.json(
-        { error: "유효하지 않은 날짜입니다." },
-        { status: 400 }
-      );
-    }
-
-    // 시간 유효성 검증
-    if (
-      requestedStartTime < 600 ||
-      requestedStartTime > 2200 ||
-      requestedEndTime < 600 ||
-      requestedEndTime > 2200 ||
-      requestedStartTime >= requestedEndTime
-    ) {
-      return NextResponse.json(
-        { error: "유효하지 않은 시간입니다." },
-        { status: 400 }
-      );
-    }
-
-    const requestParams: IScheduleChangeRequest = {
-      ptRecordId,
-      requestorId: session.id,
-      requestedDate: parsedDate,
-      requestedStartTime,
-      requestedEndTime,
-      reason,
-    };
-
-    let requestId: string;
-
     try {
-      if (forceCancelExisting) {
-        // 기존 요청 취소 후 새 요청 생성
-        requestId = await cancelExistingAndCreateNewRequest(requestParams);
-      } else {
-        // 일반적인 요청 생성 (Member/Trainer 구분)
-        if (session.role === "MEMBER") {
-          requestId = await createMemberScheduleChangeRequest(requestParams);
-        } else if (session.role === "TRAINER") {
-          requestId = await createTrainerScheduleChangeRequest(requestParams);
-        } else {
+      // 기존 요청 체크 (강제 취소가 아닌 경우)
+      if (!forceCancelExisting) {
+        const existingCheck = await checkExistingPendingRequest(ptRecordId);
+        if (existingCheck.hasExisting) {
           return NextResponse.json(
-            { error: "회원 또는 트레이너만 요청할 수 있습니다." },
-            { status: 403 }
+            {
+              error: "EXISTING_REQUEST_FOUND",
+              message: "이미 처리 대기 중인 요청이 있습니다.",
+            },
+            { status: 409 }
           );
         }
       }
+
+      // 새 요청 생성
+      const requestId = await createScheduleChangeRequest({
+        ptRecordId,
+        requestorId: session.id,
+        requestedDate,
+        requestedStartTime,
+        requestedEndTime,
+        reason,
+        forceCancelExisting,
+      });
 
       return NextResponse.json({
         success: true,

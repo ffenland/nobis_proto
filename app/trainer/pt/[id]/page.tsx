@@ -377,6 +377,16 @@ const TrainerPtDetailPage = async ({ params }: PageProps) => {
                                 </Button>
                               </Link>
                             </div>
+                          ) : attendanceStatus === "RESERVED" ? (
+                            <div className="mt-3">
+                              <Link href={`/trainer/pt-records/${record.id}`}>
+                                <Button variant="outline" size="sm">
+                                  {record.items.length > 0
+                                    ? "기록 수정"
+                                    : "기록 작성"}
+                                </Button>
+                              </Link>
+                            </div>
                           ) : null}
                         </div>
                       </RecordDetailToggle>

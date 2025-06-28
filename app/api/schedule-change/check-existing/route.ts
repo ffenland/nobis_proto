@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 서비스 함수 호출 (타입 자동 추론)
     const result = await checkExistingPendingRequest(ptRecordId);
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("기존 요청 체크 실패:", error);

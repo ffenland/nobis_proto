@@ -1,82 +1,38 @@
 // app/lib/services/pt-schedule-change.service.ts
+
 import prisma from "@/app/lib/prisma";
 import { ScheduleChangeState } from "@prisma/client";
 
-// 타입 정의
+// ===== 입력 타입만 수동 정의 =====
 export interface IScheduleChangeRequest {
   ptRecordId: string;
   requestorId: string;
-  requestedDate: Date;
+  requestedDate: string;
   requestedStartTime: number;
   requestedEndTime: number;
   reason: string;
+  forceCancelExisting?: boolean;
 }
 
 export interface IScheduleChangeResponse {
   requestId: string;
   responderId: string;
-  approved: boolean;
   responseMessage?: string;
 }
 
-export interface IExistingRequest {
-  id: string;
-  requestedDate: Date;
-  requestedStartTime: number;
-  requestedEndTime: number;
-  reason: string;
-  createdAt: Date;
-  expiresAt: Date;
-  requestorName: string;
-}
-
-// 기존 PENDING 요청 체크
-export const checkExistingPendingRequest = async (
-  ptRecordId: string
-): Promise<{
-  hasExisting: boolean;
-  existingRequest: IExistingRequest | null;
-}> => {
-  const existingRequest = await prisma.ptScheduleChangeRequest.findFirst({
-    where: {
-      ptRecordId,
-      state: ScheduleChangeState.PENDING,
-    },
-    include: {
-      requestor: {
-        select: {
-          username: true,
-        },
-      },
-    },
-  });
-
-  return {
-    hasExisting: !!existingRequest,
-    existingRequest: existingRequest
-      ? {
-          id: existingRequest.id,
-          requestedDate: existingRequest.requestedDate,
-          requestedStartTime: existingRequest.requestedStartTime,
-          requestedEndTime: existingRequest.requestedEndTime,
-          reason: existingRequest.reason,
-          createdAt: existingRequest.createdAt,
-          expiresAt: existingRequest.expiresAt,
-          requestorName: existingRequest.requestor.username,
-        }
-      : null,
-  };
-};
-
-// 일정 충돌 체크
-const checkScheduleConflict = async (params: {
+interface IScheduleConflictCheck {
   trainerId: string;
   memberId: string;
-  newDate: Date;
+  newDate: string;
   newStartTime: number;
   newEndTime: number;
   excludePtRecordId?: string;
-}): Promise<void> => {
+}
+
+// ===== 유틸리티 함수들 =====
+
+// 충돌 체크 함수 (select 사용)
+const checkScheduleConflict = async (params: IScheduleConflictCheck) => {
   const {
     trainerId,
     memberId,
@@ -86,150 +42,163 @@ const checkScheduleConflict = async (params: {
     excludePtRecordId,
   } = params;
 
-  // 트레이너의 다른 PT 충돌 체크
+  const targetDate = new Date(newDate);
+
+  // 트레이너 충돌 체크 (필요한 필드만 select)
   const trainerConflict = await prisma.ptRecord.findFirst({
     where: {
-      AND: [
-        { id: { not: excludePtRecordId } },
-        {
-          pt: {
-            trainerId,
-            state: "CONFIRMED",
+      id: excludePtRecordId ? { not: excludePtRecordId } : undefined,
+      pt: { trainerId },
+      ptSchedule: {
+        date: targetDate,
+        OR: [
+          {
+            AND: [
+              { startTime: { lte: newStartTime } },
+              { endTime: { gt: newStartTime } },
+            ],
+          },
+          {
+            AND: [
+              { startTime: { lt: newEndTime } },
+              { endTime: { gte: newEndTime } },
+            ],
+          },
+          {
+            AND: [
+              { startTime: { gte: newStartTime } },
+              { endTime: { lte: newEndTime } },
+            ],
+          },
+        ],
+      },
+    },
+    select: {
+      id: true,
+      pt: {
+        select: {
+          member: {
+            select: {
+              user: {
+                select: { username: true },
+              },
+            },
           },
         },
-        {
-          ptSchedule: {
-            date: newDate,
-            startTime: { lt: newEndTime },
-            endTime: { gt: newStartTime },
-          },
-        },
-      ],
+      },
     },
   });
 
   if (trainerConflict) {
-    throw new Error("해당 시간에 트레이너의 다른 수업이 있습니다.");
+    throw new Error(
+      `해당 시간에 이미 ${trainerConflict.pt.member?.user.username}님과의 수업이 예정되어 있습니다.`
+    );
   }
 
-  // 회원의 다른 PT 충돌 체크
+  // 회원 충돌 체크 (필요한 필드만 select)
   const memberConflict = await prisma.ptRecord.findFirst({
     where: {
-      AND: [
-        { id: { not: excludePtRecordId } },
-        {
-          pt: {
-            memberId,
-            state: "CONFIRMED",
+      id: excludePtRecordId ? { not: excludePtRecordId } : undefined,
+      pt: { memberId },
+      ptSchedule: {
+        date: targetDate,
+        OR: [
+          {
+            AND: [
+              { startTime: { lte: newStartTime } },
+              { endTime: { gt: newStartTime } },
+            ],
+          },
+          {
+            AND: [
+              { startTime: { lt: newEndTime } },
+              { endTime: { gte: newEndTime } },
+            ],
+          },
+          {
+            AND: [
+              { startTime: { gte: newStartTime } },
+              { endTime: { lte: newEndTime } },
+            ],
+          },
+        ],
+      },
+    },
+    select: {
+      id: true,
+      pt: {
+        select: {
+          trainer: {
+            select: {
+              user: {
+                select: { username: true },
+              },
+            },
           },
         },
-        {
-          ptSchedule: {
-            date: newDate,
-            startTime: { lt: newEndTime },
-            endTime: { gt: newStartTime },
-          },
-        },
-      ],
+      },
     },
   });
 
   if (memberConflict) {
-    throw new Error("해당 시간에 회원의 다른 수업이 있습니다.");
+    throw new Error(
+      `해당 시간에 이미 ${memberConflict.pt.trainer?.user.username} 트레이너와의 수업이 예정되어 있습니다.`
+    );
   }
 };
 
-// Member 요청 생성
-export const createMemberScheduleChangeRequest = async (
-  params: IScheduleChangeRequest
-): Promise<string> => {
-  const {
-    ptRecordId,
-    requestorId,
-    requestedDate,
-    requestedStartTime,
-    requestedEndTime,
-    reason,
-  } = params;
+// ===== 메인 함수들 =====
 
-  return await prisma.$transaction(async (tx) => {
-    // 1. 기존 PENDING 요청 체크
-    const existingCheck = await checkExistingPendingRequest(ptRecordId);
-    if (existingCheck.hasExisting) {
-      throw new Error("EXISTING_REQUEST_FOUND");
-    }
-
-    // 2. PtRecord 조회 및 권한 체크
-    const ptRecord = await tx.ptRecord.findUnique({
-      where: { id: ptRecordId },
-      include: {
-        ptSchedule: true,
-        pt: {
-          include: {
-            member: { include: { user: true } },
-            trainer: { include: { user: true } },
-          },
-        },
+// 기존 PENDING 요청 체크 (select 사용, Original 정보 포함)
+export const checkExistingPendingRequest = async (ptRecordId: string) => {
+  const existingRequest = await prisma.ptScheduleChangeRequest.findFirst({
+    where: {
+      ptRecordId,
+      state: ScheduleChangeState.PENDING,
+    },
+    select: {
+      id: true,
+      reason: true,
+      requestedDate: true,
+      requestedStartTime: true,
+      requestedEndTime: true,
+      originalDate: true,
+      originalStartTime: true,
+      originalEndTime: true,
+      createdAt: true,
+      expiresAt: true,
+      requestor: {
+        select: { username: true },
       },
-    });
-
-    if (!ptRecord) {
-      throw new Error("수업 정보를 찾을 수 없습니다.");
-    }
-
-    // 권한 체크 - 요청자가 해당 PT의 회원인지
-    if (ptRecord.pt.member?.user.id !== requestorId) {
-      throw new Error("해당 수업의 회원만 변경 요청할 수 있습니다.");
-    }
-
-    // 3. 24시간 규칙 체크
-    const now = new Date();
-    const classDateTime = new Date(ptRecord.ptSchedule.date);
-    const startHour = Math.floor(ptRecord.ptSchedule.startTime / 100);
-    const startMinute = ptRecord.ptSchedule.startTime % 100;
-    classDateTime.setHours(startHour, startMinute, 0, 0);
-
-    const hoursUntilClass =
-      (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    if (hoursUntilClass < 24) {
-      throw new Error("수업 24시간 전까지만 변경 요청이 가능합니다.");
-    }
-
-    // 4. 충돌 체크
-    await checkScheduleConflict({
-      trainerId: ptRecord.pt.trainerId!,
-      memberId: ptRecord.pt.memberId!,
-      newDate: requestedDate,
-      newStartTime: requestedStartTime,
-      newEndTime: requestedEndTime,
-      excludePtRecordId: ptRecordId,
-    });
-
-    // 5. 요청 생성
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 48);
-
-    const request = await tx.ptScheduleChangeRequest.create({
-      data: {
-        ptRecordId,
-        requestorId,
-        requestedDate,
-        requestedStartTime,
-        requestedEndTime,
-        reason,
-        expiresAt,
-      },
-    });
-
-    return request.id;
+    },
   });
+
+  if (existingRequest) {
+    return {
+      hasExisting: true,
+      existingRequest: {
+        id: existingRequest.id,
+        reason: existingRequest.reason,
+        requestorName: existingRequest.requestor.username,
+        requestedDate: existingRequest.requestedDate,
+        requestedStartTime: existingRequest.requestedStartTime,
+        requestedEndTime: existingRequest.requestedEndTime,
+        originalDate: existingRequest.originalDate,
+        originalStartTime: existingRequest.originalStartTime,
+        originalEndTime: existingRequest.originalEndTime,
+        createdAt: existingRequest.createdAt,
+        expiresAt: existingRequest.expiresAt,
+      },
+    };
+  }
+
+  return { hasExisting: false };
 };
 
-// Trainer 요청 생성
-export const createTrainerScheduleChangeRequest = async (
+// 일정 변경 요청 생성 (select 사용, Original 정보 저장)
+export const createScheduleChangeRequest = async (
   params: IScheduleChangeRequest
-): Promise<string> => {
+) => {
   const {
     ptRecordId,
     requestorId,
@@ -237,111 +206,54 @@ export const createTrainerScheduleChangeRequest = async (
     requestedStartTime,
     requestedEndTime,
     reason,
+    forceCancelExisting = false,
   } = params;
 
   return await prisma.$transaction(async (tx) => {
-    // 1. 기존 PENDING 요청 체크
-    const existingCheck = await checkExistingPendingRequest(ptRecordId);
-    if (existingCheck.hasExisting) {
-      throw new Error("EXISTING_REQUEST_FOUND");
+    // 1. 기존 PENDING 요청이 있다면 처리
+    if (forceCancelExisting) {
+      await tx.ptScheduleChangeRequest.updateMany({
+        where: {
+          ptRecordId,
+          state: ScheduleChangeState.PENDING,
+        },
+        data: {
+          state: ScheduleChangeState.CANCELLED,
+          responseMessage: "새로운 요청으로 인한 자동 취소",
+        },
+      });
     }
 
-    // 2. PtRecord 조회 및 권한 체크
+    // 2. PtRecord 조회 및 권한 체크 (필요한 필드만 select)
     const ptRecord = await tx.ptRecord.findUnique({
       where: { id: ptRecordId },
-      include: {
-        ptSchedule: true,
-        pt: {
-          include: {
-            member: { include: { user: true } },
-            trainer: { include: { user: true } },
+      select: {
+        id: true,
+        ptSchedule: {
+          select: {
+            date: true,
+            startTime: true,
+            endTime: true,
           },
         },
-      },
-    });
-
-    if (!ptRecord) {
-      throw new Error("수업 정보를 찾을 수 없습니다.");
-    }
-
-    // 권한 체크 - 요청자가 해당 PT의 트레이너인지
-    if (ptRecord.pt.trainer?.user.id !== requestorId) {
-      throw new Error("해당 수업의 트레이너만 변경 요청할 수 있습니다.");
-    }
-
-    // 3. 미래 수업인지 체크 (트레이너는 24시간 제약 없음)
-    const now = new Date();
-    const classDate = new Date(ptRecord.ptSchedule.date);
-
-    if (classDate <= now) {
-      throw new Error("이미 지난 수업은 변경할 수 없습니다.");
-    }
-
-    // 4. 충돌 체크
-    await checkScheduleConflict({
-      trainerId: ptRecord.pt.trainerId!,
-      memberId: ptRecord.pt.memberId!,
-      newDate: requestedDate,
-      newStartTime: requestedStartTime,
-      newEndTime: requestedEndTime,
-      excludePtRecordId: ptRecordId,
-    });
-
-    // 5. 요청 생성
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 48);
-
-    const request = await tx.ptScheduleChangeRequest.create({
-      data: {
-        ptRecordId,
-        requestorId,
-        requestedDate,
-        requestedStartTime,
-        requestedEndTime,
-        reason,
-        expiresAt,
-      },
-    });
-
-    return request.id;
-  });
-};
-
-// 기존 요청 취소 후 새 요청 생성
-export const cancelExistingAndCreateNewRequest = async (
-  params: IScheduleChangeRequest
-): Promise<string> => {
-  const {
-    ptRecordId,
-    requestorId,
-    requestedDate,
-    requestedStartTime,
-    requestedEndTime,
-    reason,
-  } = params;
-
-  return await prisma.$transaction(async (tx) => {
-    // 1. 기존 PENDING 요청들을 CANCELLED로 변경
-    await tx.ptScheduleChangeRequest.updateMany({
-      where: {
-        ptRecordId,
-        state: ScheduleChangeState.PENDING,
-      },
-      data: {
-        state: ScheduleChangeState.CANCELLED,
-        responseMessage: "새로운 요청으로 인한 자동 취소",
-      },
-    });
-
-    // 2. PtRecord 조회 및 권한 체크
-    const ptRecord = await tx.ptRecord.findUnique({
-      where: { id: ptRecordId },
-      include: {
-        ptSchedule: true,
         pt: {
-          include: {
-            member: { include: { user: true } },
-            trainer: { include: { user: true } },
+          select: {
+            trainerId: true,
+            memberId: true,
+            member: {
+              select: {
+                user: {
+                  select: { id: true },
+                },
+              },
+            },
+            trainer: {
+              select: {
+                user: {
+                  select: { id: true },
+                },
+              },
+            },
           },
         },
       },
@@ -395,7 +307,7 @@ export const cancelExistingAndCreateNewRequest = async (
       excludePtRecordId: ptRecordId,
     });
 
-    // 5. 새 요청 생성
+    // 5. 새 요청 생성 (Original 정보 포함)
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 48);
 
@@ -406,8 +318,14 @@ export const cancelExistingAndCreateNewRequest = async (
         requestedDate,
         requestedStartTime,
         requestedEndTime,
+        originalDate: ptRecord.ptSchedule.date,
+        originalStartTime: ptRecord.ptSchedule.startTime,
+        originalEndTime: ptRecord.ptSchedule.endTime,
         reason,
         expiresAt,
+      },
+      select: {
+        id: true,
       },
     });
 
@@ -415,23 +333,43 @@ export const cancelExistingAndCreateNewRequest = async (
   });
 };
 
-// 요청 승인
+// 요청 승인 (select 사용)
 export const approveScheduleChangeRequest = async (
   params: IScheduleChangeResponse
-): Promise<void> => {
+) => {
   const { requestId, responderId, responseMessage } = params;
 
   await prisma.$transaction(async (tx) => {
-    // 1. 요청 조회 및 유효성 체크
+    // 1. 요청 조회 및 유효성 체크 (필요한 필드만 select)
     const request = await tx.ptScheduleChangeRequest.findUnique({
       where: { id: requestId },
-      include: {
+      select: {
+        id: true,
+        state: true,
+        requestorId: true,
+        ptRecordId: true,
+        requestedDate: true,
+        requestedStartTime: true,
+        requestedEndTime: true,
+        expiresAt: true,
         ptRecord: {
-          include: {
+          select: {
             pt: {
-              include: {
-                member: { include: { user: true } },
-                trainer: { include: { user: true } },
+              select: {
+                member: {
+                  select: {
+                    user: {
+                      select: { id: true },
+                    },
+                  },
+                },
+                trainer: {
+                  select: {
+                    user: {
+                      select: { id: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -452,7 +390,7 @@ export const approveScheduleChangeRequest = async (
       throw new Error("만료된 요청입니다.");
     }
 
-    // 응답 권한 체크 (요청자가 아닌 상대방인지)
+    // 응답 권한 체크
     const memberUserId = request.ptRecord.pt.member?.user.id;
     const trainerUserId = request.ptRecord.pt.trainer?.user.id;
 
@@ -478,7 +416,10 @@ export const approveScheduleChangeRequest = async (
         startTime: request.requestedStartTime,
         endTime: request.requestedEndTime,
       },
-      update: {}, // 이미 존재하면 그대로 사용
+      update: {},
+      select: {
+        id: true,
+      },
     });
 
     // 3. PtRecord의 ptScheduleId 업데이트
@@ -502,23 +443,39 @@ export const approveScheduleChangeRequest = async (
   });
 };
 
-// 요청 거절
+// 요청 거절 (select 사용)
 export const rejectScheduleChangeRequest = async (
   params: IScheduleChangeResponse
-): Promise<void> => {
+) => {
   const { requestId, responderId, responseMessage } = params;
 
   await prisma.$transaction(async (tx) => {
-    // 1. 요청 조회 및 유효성 체크
+    // 1. 요청 조회 및 유효성 체크 (필요한 필드만 select)
     const request = await tx.ptScheduleChangeRequest.findUnique({
       where: { id: requestId },
-      include: {
+      select: {
+        id: true,
+        state: true,
+        requestorId: true,
+        expiresAt: true,
         ptRecord: {
-          include: {
+          select: {
             pt: {
-              include: {
-                member: { include: { user: true } },
-                trainer: { include: { user: true } },
+              select: {
+                member: {
+                  select: {
+                    user: {
+                      select: { id: true },
+                    },
+                  },
+                },
+                trainer: {
+                  select: {
+                    user: {
+                      select: { id: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -564,14 +521,19 @@ export const rejectScheduleChangeRequest = async (
   });
 };
 
-// 요청 취소 (요청자만 가능)
+// 요청 취소 (select 사용)
 export const cancelScheduleChangeRequest = async (
   requestId: string,
   userId: string
-): Promise<void> => {
+) => {
   await prisma.$transaction(async (tx) => {
     const request = await tx.ptScheduleChangeRequest.findUnique({
       where: { id: requestId },
+      select: {
+        id: true,
+        requestorId: true,
+        state: true,
+      },
     });
 
     if (!request) {
@@ -596,13 +558,27 @@ export const cancelScheduleChangeRequest = async (
   });
 };
 
-// 사용자의 요청/응답 목록 조회
+// 사용자의 요청/응답 목록 조회 (select 사용, Original 정보 포함)
 export const getUserScheduleChangeRequests = async (userId: string) => {
   const requests = await prisma.ptScheduleChangeRequest.findMany({
     where: {
       OR: [{ requestorId: userId }, { responderId: userId }],
     },
-    include: {
+    select: {
+      id: true,
+      state: true,
+      reason: true,
+      responseMessage: true,
+      createdAt: true,
+      respondedAt: true,
+      expiresAt: true,
+      requestorId: true,
+      originalDate: true,
+      originalStartTime: true,
+      originalEndTime: true,
+      requestedDate: true,
+      requestedStartTime: true,
+      requestedEndTime: true,
       requestor: {
         select: { username: true },
       },
@@ -610,15 +586,30 @@ export const getUserScheduleChangeRequests = async (userId: string) => {
         select: { username: true },
       },
       ptRecord: {
-        include: {
-          ptSchedule: true,
+        select: {
+          ptSchedule: {
+            select: {
+              date: true,
+              startTime: true,
+              endTime: true,
+            },
+          },
           pt: {
-            include: {
+            select: {
+              id: true,
               member: {
-                include: { user: { select: { username: true } } },
+                select: {
+                  user: {
+                    select: { username: true },
+                  },
+                },
               },
               trainer: {
-                include: { user: { select: { username: true } } },
+                select: {
+                  user: {
+                    select: { username: true },
+                  },
+                },
               },
               ptProduct: {
                 select: { title: true },
@@ -650,6 +641,11 @@ export const getUserScheduleChangeRequests = async (userId: string) => {
       memberName: request.ptRecord.pt.member?.user.username,
       trainerName: request.ptRecord.pt.trainer?.user.username,
     },
+    originalSchedule: {
+      date: request.originalDate,
+      startTime: request.originalStartTime,
+      endTime: request.originalEndTime,
+    },
     currentSchedule: {
       date: request.ptRecord.ptSchedule.date,
       startTime: request.ptRecord.ptSchedule.startTime,
@@ -662,3 +658,140 @@ export const getUserScheduleChangeRequests = async (userId: string) => {
     },
   }));
 };
+
+// 요청 상세 조회 (select 사용)
+export const getScheduleChangeRequestDetail = async (
+  requestId: string,
+  userId: string
+) => {
+  const scheduleChangeRequest = await prisma.ptScheduleChangeRequest.findUnique(
+    {
+      where: { id: requestId },
+      select: {
+        id: true,
+        state: true,
+        reason: true,
+        responseMessage: true,
+        createdAt: true,
+        respondedAt: true,
+        expiresAt: true,
+        requestorId: true,
+        originalDate: true,
+        originalStartTime: true,
+        originalEndTime: true,
+        requestedDate: true,
+        requestedStartTime: true,
+        requestedEndTime: true,
+        requestor: {
+          select: { username: true },
+        },
+        responder: {
+          select: { username: true },
+        },
+        ptRecord: {
+          select: {
+            ptSchedule: {
+              select: {
+                date: true,
+                startTime: true,
+                endTime: true,
+              },
+            },
+            pt: {
+              select: {
+                id: true,
+                member: {
+                  select: {
+                    user: {
+                      select: {
+                        id: true,
+                        username: true,
+                      },
+                    },
+                  },
+                },
+                trainer: {
+                  select: {
+                    user: {
+                      select: {
+                        id: true,
+                        username: true,
+                      },
+                    },
+                  },
+                },
+                ptProduct: {
+                  select: { title: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+  );
+
+  if (!scheduleChangeRequest) {
+    return null;
+  }
+
+  // 권한 체크
+  const memberUserId = scheduleChangeRequest.ptRecord.pt.member?.user.id;
+  const trainerUserId = scheduleChangeRequest.ptRecord.pt.trainer?.user.id;
+
+  if (userId !== memberUserId && userId !== trainerUserId) {
+    throw new Error("해당 요청을 조회할 권한이 없습니다.");
+  }
+
+  // 응답 데이터 구성 (타입 자동 추론)
+  return {
+    id: scheduleChangeRequest.id,
+    state: scheduleChangeRequest.state,
+    reason: scheduleChangeRequest.reason,
+    responseMessage: scheduleChangeRequest.responseMessage,
+    createdAt: scheduleChangeRequest.createdAt,
+    respondedAt: scheduleChangeRequest.respondedAt,
+    expiresAt: scheduleChangeRequest.expiresAt,
+    requestorName: scheduleChangeRequest.requestor.username,
+    responderName: scheduleChangeRequest.responder?.username,
+    isMyRequest: scheduleChangeRequest.requestorId === userId,
+    canRespond:
+      scheduleChangeRequest.requestorId !== userId &&
+      scheduleChangeRequest.state === "PENDING" &&
+      new Date() < scheduleChangeRequest.expiresAt,
+    ptInfo: {
+      id: scheduleChangeRequest.ptRecord.pt.id,
+      title: scheduleChangeRequest.ptRecord.pt.ptProduct.title,
+      memberName: scheduleChangeRequest.ptRecord.pt.member?.user.username,
+      trainerName: scheduleChangeRequest.ptRecord.pt.trainer?.user.username,
+    },
+    originalSchedule: {
+      date: scheduleChangeRequest.originalDate,
+      startTime: scheduleChangeRequest.originalStartTime,
+      endTime: scheduleChangeRequest.originalEndTime,
+    },
+    currentSchedule: {
+      date: scheduleChangeRequest.ptRecord.ptSchedule.date,
+      startTime: scheduleChangeRequest.ptRecord.ptSchedule.startTime,
+      endTime: scheduleChangeRequest.ptRecord.ptSchedule.endTime,
+    },
+    requestedSchedule: {
+      date: scheduleChangeRequest.requestedDate,
+      startTime: scheduleChangeRequest.requestedStartTime,
+      endTime: scheduleChangeRequest.requestedEndTime,
+    },
+  };
+};
+
+// ===== 타입 추론 활용 =====
+// 함수 반환 타입 자동 추출 (타입 추론 활용)
+export type ICheckExistingResult = Awaited<
+  ReturnType<typeof checkExistingPendingRequest>
+>;
+export type IScheduleChangeRequestList = Awaited<
+  ReturnType<typeof getUserScheduleChangeRequests>
+>;
+export type IScheduleChangeRequestItem = IScheduleChangeRequestList[number];
+export type IScheduleChangeRequestDetail = Awaited<
+  ReturnType<typeof getScheduleChangeRequestDetail>
+>;

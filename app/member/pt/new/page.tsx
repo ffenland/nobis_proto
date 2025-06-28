@@ -16,21 +16,9 @@ import {
   IFitnessCenters,
   IPtProgramsByCenter,
   IDaySchedule,
+  type IPendingPtCheck,
 } from "@/app/lib/services/pt-apply.service";
 import { ISchedulePattern } from "@/app/lib/services/schedule.service";
-
-// 🚨 NEW: PENDING PT 체크 타입만 추가
-interface IPendingPtCheck {
-  hasPending: boolean;
-  pendingPt?: {
-    id: string;
-    ptTitle: string;
-    trainerName: string;
-    appliedDate: string;
-    price: number;
-    totalCount: number;
-  };
-}
 
 const PtApplicationPage = () => {
   const router = useRouter();

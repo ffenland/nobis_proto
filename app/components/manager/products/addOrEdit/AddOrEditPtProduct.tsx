@@ -91,7 +91,7 @@ const AddOrEditPtProduct = ({ ptProductId }: { ptProductId?: string }) => {
                 to: new Date(prevPtProduct.closedAt)
               })
             }
-            const selectedTrainers = 
+            // const selectedTrainers = 
 
           }
         }

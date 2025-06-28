@@ -374,3 +374,12 @@ export class MediaService {
     });
   }
 }
+
+// Type exports
+const mediaService = MediaService.getInstance();
+
+export type IMediaListResult = Awaited<ReturnType<typeof mediaService.getMediaList>>;
+export type IMediaDetails = Awaited<ReturnType<typeof mediaService.getMediaById>>;
+export type IMediaStatusUpdate = Awaited<ReturnType<typeof mediaService.updateMediaStatus>>;
+export type IMediaUsageStats = Awaited<ReturnType<typeof mediaService.getUserMediaUsage>>;
+export type IScheduledDeletionMedia = Awaited<ReturnType<typeof mediaService.getScheduledForDeletion>>;

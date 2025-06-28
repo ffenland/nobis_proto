@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { rejectScheduleChangeRequest } from "@/app/lib/services/pt-schedule-change.service";
 
-interface RejectRequestBody {
+// 요청 데이터 타입 정의
+interface IRejectRequestBody {
   responseMessage: string;
 }
 
@@ -29,33 +30,34 @@ export async function POST(
       );
     }
 
-    const body: RejectRequestBody = await request.json();
+    // 요청 본문 파싱 (타입 지정)
+    const body: IRejectRequestBody = await request.json();
     const { responseMessage } = body;
 
-    if (!responseMessage || typeof responseMessage !== "string") {
+    if (!responseMessage || !responseMessage.trim()) {
       return NextResponse.json(
         { error: "거절 사유를 입력해주세요." },
         { status: 400 }
       );
     }
 
+    // 서비스 함수 호출
     await rejectScheduleChangeRequest({
       requestId,
       responderId: session.id,
-      approved: false,
       responseMessage,
     });
 
     return NextResponse.json({
       success: true,
-      message: "일정 변경이 거절되었습니다.",
+      message: "일정 변경 요청이 거절되었습니다.",
     });
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    console.error("일정 변경 거절 실패:", error);
+    console.error("일정 변경 요청 거절 실패:", error);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

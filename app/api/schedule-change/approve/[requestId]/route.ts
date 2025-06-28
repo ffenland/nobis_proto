@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { approveScheduleChangeRequest } from "@/app/lib/services/pt-schedule-change.service";
 
-interface ApproveRequestBody {
+// 요청 데이터 타입 정의
+interface IApproveRequestBody {
   responseMessage?: string;
 }
 
@@ -29,26 +30,27 @@ export async function POST(
       );
     }
 
-    const body: ApproveRequestBody = await request.json();
+    // 요청 본문 파싱 (타입 지정)
+    const body: IApproveRequestBody = await request.json();
     const { responseMessage } = body;
 
+    // 서비스 함수 호출
     await approveScheduleChangeRequest({
       requestId,
       responderId: session.id,
-      approved: true,
-      responseMessage,
+      responseMessage: responseMessage || "승인되었습니다.",
     });
 
     return NextResponse.json({
       success: true,
-      message: "일정 변경이 승인되었습니다.",
+      message: "일정 변경 요청이 승인되었습니다.",
     });
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    console.error("일정 변경 승인 실패:", error);
+    console.error("일정 변경 요청 승인 실패:", error);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

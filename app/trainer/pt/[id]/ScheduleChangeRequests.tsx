@@ -22,47 +22,18 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
-
-interface ScheduleChangeRequest {
-  id: string;
-  state: string;
-  reason: string;
-  responseMessage?: string;
-  createdAt: string;
-  respondedAt?: string;
-  expiresAt: string;
-  requestorName: string;
-  responderName?: string;
-  isMyRequest: boolean;
-  canRespond: boolean;
-  ptInfo: {
-    id: string;
-    title: string;
-    memberName?: string;
-    trainerName?: string;
-  };
-  currentSchedule: {
-    date: string;
-    startTime: number;
-    endTime: number;
-  };
-  requestedSchedule: {
-    date: string;
-    startTime: number;
-    endTime: number;
-  };
-}
+import { type IScheduleChangeRequestItem } from "@/app/lib/services/pt-schedule-change.service";
 
 interface ScheduleChangeRequestsProps {
   ptId: string;
 }
 
 const ScheduleChangeRequests = ({ ptId }: ScheduleChangeRequestsProps) => {
-  const [requests, setRequests] = useState<ScheduleChangeRequest[]>([]);
+  const [requests, setRequests] = useState<IScheduleChangeRequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showResponseModal, setShowResponseModal] = useState(false);
   const [selectedRequest, setSelectedRequest] =
-    useState<ScheduleChangeRequest | null>(null);
+    useState<IScheduleChangeRequestItem | null>(null);
   const [responseMessage, setResponseMessage] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -75,7 +46,7 @@ const ScheduleChangeRequests = ({ ptId }: ScheduleChangeRequestsProps) => {
       if (response.ok) {
         // 현재 PT에 관련된 요청만 필터링
         const ptRequests = data.requests.filter(
-          (req: ScheduleChangeRequest) => req.ptInfo.id === ptId
+          (req: IScheduleChangeRequestItem) => req.ptInfo.id === ptId
         );
         setRequests(ptRequests);
       }
@@ -139,7 +110,7 @@ const ScheduleChangeRequests = ({ ptId }: ScheduleChangeRequestsProps) => {
   };
 
   // 응답 모달 열기
-  const handleResponseClick = (request: ScheduleChangeRequest) => {
+  const handleResponseClick = (request: IScheduleChangeRequestItem) => {
     setSelectedRequest(request);
     setResponseMessage("");
     setShowResponseModal(true);

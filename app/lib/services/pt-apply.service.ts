@@ -666,3 +666,16 @@ export type ITrainerSchedule = Awaited<
 >;
 export type IPtApplication = Awaited<ReturnType<typeof applyPtService>>;
 export type IPendingPtDetails = Awaited<ReturnType<typeof getPendingPtDetails>>;
+
+// API response type for pending PT check
+export interface IPendingPtCheck {
+  hasPending: boolean;
+  pendingPt?: {
+    id: string;
+    ptTitle: string;
+    trainerName: string;
+    appliedDate: string;
+    price: number;
+    totalCount: number;
+  } | null;
+}

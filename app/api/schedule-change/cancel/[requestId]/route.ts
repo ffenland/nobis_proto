@@ -25,6 +25,7 @@ export async function POST(
       );
     }
 
+    // 서비스 함수 호출
     await cancelScheduleChangeRequest(requestId, session.id);
 
     return NextResponse.json({

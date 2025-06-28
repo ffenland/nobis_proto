@@ -76,3 +76,7 @@ export async function deletePendingPtService({
     return deletedPt;
   });
 }
+
+// Type exports
+export type ICanDeletePtResult = Awaited<ReturnType<typeof canDeletePtService>>;
+export type IDeletePendingPtResult = Awaited<ReturnType<typeof deletePendingPtService>>;

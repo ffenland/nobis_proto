@@ -22,20 +22,10 @@ import {
 import { TPtRecord } from "./actions";
 import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
 import { calculateEndTime, isValidTimeSlot } from "@/app/lib/utils/time.utils";
+import { type ICheckExistingResult } from "@/app/lib/services/pt-schedule-change.service";
 
 interface ScheduleChangeComponentsProps {
   ptRecords: TPtRecord[];
-}
-
-interface ExistingRequest {
-  id: string;
-  requestedDate: string;
-  requestedStartTime: number;
-  requestedEndTime: number;
-  reason: string;
-  createdAt: string;
-  expiresAt: string;
-  requestorName: string;
 }
 
 const ScheduleChangeComponents = ({
@@ -45,7 +35,7 @@ const ScheduleChangeComponents = ({
   const [showExistingModal, setShowExistingModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<TPtRecord | null>(null);
   const [existingRequest, setExistingRequest] =
-    useState<ExistingRequest | null>(null);
+    useState<ICheckExistingResult['existingRequest'] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // 폼 상태

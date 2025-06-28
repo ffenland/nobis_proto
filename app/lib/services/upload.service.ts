@@ -344,3 +344,10 @@ export function useFileUpload() {
     scheduleVideoDelete: videoService.scheduleDelete.bind(videoService),
   };
 }
+
+// Type exports
+const imageUploadService = ImageUploadService.getInstance();
+const videoUploadService = VideoUploadService.getInstance();
+
+export type IImageUploadResult = Awaited<ReturnType<typeof imageUploadService.uploadImage>>;
+export type IVideoUploadResult = Awaited<ReturnType<typeof videoUploadService.uploadVideo>>;
