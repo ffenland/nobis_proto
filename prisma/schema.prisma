@@ -241,6 +241,8 @@ model PtRecord {
   ptId                  String                    @db.Uuid
   ptSchedule            PtSchedule                @relation(fields: [ptScheduleId], references: [id])
   ptScheduleId          String                    @db.Uuid
+  fitnessCeneter        FitnessCenter             @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId       String                    @db.Uuid
   items                 PtRecordItem[]
   memo                  String                    @default("")
   scheduleChangeRequest PtScheduleChangeRequest[]
@@ -530,7 +532,9 @@ model FitnessCenter {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   weights      Weights[]
-  Media        Media[]
+  media        Media[]
+  ptRecords    PtRecord[]
+  inOperation  Boolean       @default(true)
 }
 
 model OpeningHour {
