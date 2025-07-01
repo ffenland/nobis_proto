@@ -81,6 +81,7 @@ const PtApplicationPage = () => {
   }, []);
 
   // 기존 handleSubmit 함수 (PENDING 에러 처리만 추가)
+  // 수정된 handleSubmit 함수
   const handleSubmit = async () => {
     if (!selectedCenter || !selectedPt || !selectedTrainer) return;
 
@@ -92,7 +93,7 @@ const PtApplicationPage = () => {
         startDate: Object.keys(chosenSchedule).sort()[0], // 첫 번째 날짜를 시작일로
         isRegular: pattern.regular,
         chosenSchedule,
-        totalCount: selectedPt.totalCount,
+        fitnessCenterId: selectedCenter.id, // totalCount 대신 fitnessCenterId 사용
         message,
       };
 

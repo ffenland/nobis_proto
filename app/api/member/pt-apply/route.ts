@@ -40,18 +40,18 @@ export async function POST(request: NextRequest) {
       startDate,
       isRegular,
       chosenSchedule,
-      totalCount,
+      fitnessCenterId, // totalCount 대신 fitnessCenterId 추가
       message,
     } = body;
 
-    // 필수 필드 검증
+    // 필수 필드 검증 (totalCount 제거, fitnessCenterId 추가)
     if (
       !ptProductId ||
       !trainerId ||
       !startDate ||
       typeof isRegular !== "boolean" ||
       !chosenSchedule ||
-      !totalCount
+      !fitnessCenterId
     ) {
       return NextResponse.json(
         { error: "필수 정보가 누락되었습니다." },
@@ -89,14 +89,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // totalCount 유효성 검증
-    if (typeof totalCount !== "number" || totalCount < 1 || totalCount > 100) {
-      return NextResponse.json(
-        { error: "유효하지 않은 총 수업 횟수입니다. (1-100회)" },
-        { status: 400 }
-      );
-    }
-
     // 스케줄 형식 검증
     for (const [dateStr, times] of Object.entries(chosenSchedule)) {
       const date = new Date(dateStr);
@@ -124,7 +116,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // PT 신청 데이터 구성
+    // PT 신청 데이터 구성 (totalCount 제거, fitnessCenterId 추가)
     const applicationData: IPtApplicationData = {
       memberId: session.roleId,
       ptProductId,
@@ -132,7 +124,7 @@ export async function POST(request: NextRequest) {
       startDate: parsedStartDate,
       isRegular,
       chosenSchedule,
-      totalCount,
+      fitnessCenterId,
       message: message || "",
     };
 
@@ -148,8 +140,6 @@ export async function POST(request: NextRequest) {
           ptId: newPt.id,
           state: newPt.state,
           isRegular: newPt.isRegular,
-          ptProduct: newPt.ptProduct,
-          trainer: newPt.trainer,
         },
       },
       { status: 201 }

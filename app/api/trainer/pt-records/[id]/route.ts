@@ -1,6 +1,6 @@
 // app/api/trainer/pt-records/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getPtRecordInfoService } from "@/app/lib/services/pt-record.service";
+import { getPtRecordDetailService } from "@/app/lib/services/pt-record.service";
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const ptRecord = await getPtRecordInfoService(id);
+    const ptRecord = await getPtRecordDetailService(id);
     return NextResponse.json(ptRecord);
   } catch (error) {
     console.error("PT Record 조회 실패:", error);

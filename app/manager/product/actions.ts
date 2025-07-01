@@ -1,54 +1,118 @@
-'use server'
+"use server";
+import prisma from "@/app/lib/prisma";
+import { PtState } from "@prisma/client";
+import { cache } from "react";
 
-import prisma from '@/app/lib/prisma'
-import { Prisma } from '@prisma/client'
-
-export type IPtProductLookUp = Prisma.PromiseReturnType<
-  typeof getPtProductLookUpList
->[number]
-
-export type IMembershipProductLookUp = Prisma.PromiseReturnType<
-  typeof getMembershipProductLookUpList
->[number]
-
-export const getPtProductLookUpList = async () => {
-  // pt상품 목록과, 현재 활성화된 pt 갯수를 표시해준다.
-  const currentPtProduct = await prisma.ptProduct.findMany({
+// PT 상품 목록 조회
+export const getPtProductsOverviewService = cache(async () => {
+  const ptProducts = await prisma.ptProduct.findMany({
     select: {
       id: true,
       title: true,
       price: true,
-      _count: {
+      totalCount: true,
+      time: true,
+      onSale: true,
+      createdAt: true,
+      openedAt: true,
+      closedAt: true,
+      trainer: {
         select: {
-          pt: {
-            where: {
-              isActive: true
-            }
-          }
-        }
-      }
-    }
-  })
-  return currentPtProduct
-}
+          id: true,
+        },
+      },
+      pt: {
+        where: {
+          state: {
+            in: [PtState.PENDING, PtState.CONFIRMED],
+          },
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
 
-export const getMembershipProductLookUpList = async () => {
-  // pt상품 목록과, 현재 활성화된 pt 갯수를 표시해준다.
-  const currentMembershipProduct = await prisma.membershipProduct.findMany({
+  return ptProducts.map((product) => ({
+    id: product.id,
+    title: product.title,
+    price: product.price,
+    totalCount: product.totalCount,
+    time: product.time,
+    onSale: product.onSale,
+    createdAt: product.createdAt,
+    openedAt: product.openedAt,
+    closedAt: product.closedAt,
+    trainerCount: product.trainer.length,
+    activePtCount: product.pt.length,
+  }));
+});
+
+// 멤버십 상품 목록 조회
+export const getMembershipProductsOverviewService = cache(async () => {
+  const membershipProducts = await prisma.membershipProduct.findMany({
     select: {
       id: true,
       title: true,
       price: true,
-      _count: {
+      totalCount: true,
+      onSale: true,
+      createdAt: true,
+      openedAt: true,
+      closedAt: true,
+      membership: {
+        where: {
+          isActive: true,
+        },
         select: {
-          membership: {
-            where: {
-              isActive: true
-            }
-          }
-        }
-      }
-    }
-  })
-  return currentMembershipProduct
-}
+          id: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return membershipProducts.map((product) => ({
+    id: product.id,
+    title: product.title,
+    price: product.price,
+    totalCount: product.totalCount,
+    onSale: product.onSale,
+    createdAt: product.createdAt,
+    openedAt: product.openedAt,
+    closedAt: product.closedAt,
+    activeMembershipCount: product.membership.length,
+  }));
+});
+
+// 제품 전체 개요 조회
+export const getProductsOverviewService = cache(async () => {
+  const [ptProducts, membershipProducts] = await Promise.all([
+    getPtProductsOverviewService(),
+    getMembershipProductsOverviewService(),
+  ]);
+
+  return {
+    ptProducts,
+    membershipProducts,
+  };
+});
+
+// 타입 추론
+export type IPtProductOverview = Awaited<
+  ReturnType<typeof getPtProductsOverviewService>
+>[number];
+
+export type IMembershipProductOverview = Awaited<
+  ReturnType<typeof getMembershipProductsOverviewService>
+>[number];
+
+export type IProductsOverview = Awaited<
+  ReturnType<typeof getProductsOverviewService>
+>;

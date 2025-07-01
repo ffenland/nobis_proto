@@ -1,250 +1,272 @@
-'use client'
+// app/manager/product/membership/new/page.tsx
+"use client";
 
-import React, { useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
-import { DayPicker } from 'react-day-picker'
-import 'react-day-picker/dist/style.css'
-import { INewMembershipData, membershipSubmit } from './actions' // 서버 액션 import 가정
-import { useRouter } from 'next/navigation'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import Link from "next/link";
 
-const NewMembershipProduct = () => {
-  const router = useRouter()
+interface IMembershipProductFormData {
+  title: string;
+  price: number;
+  description: string;
+  totalCount: number;
+  onSale: boolean;
+  isLimitedTime: boolean;
+  openedAt: string;
+  closedAt: string;
+}
+
+const MembershipProductNewPage = () => {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
-    control,
     watch,
-    setError,
-    formState: { errors }
-  } = useForm<INewMembershipData>()
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
-  const [serverError, setServerError] = useState('')
-  const isLimitedTime = watch('isLimitedTime')
-  const dateRange = watch('dateRange')
-  const isSubmitDisabled =
-    isLimitedTime === 'true' && (!dateRange?.from || !dateRange?.to)
+    formState: { errors },
+  } = useForm<IMembershipProductFormData>({
+    defaultValues: {
+      title: "",
+      price: 0,
+      description: "",
+      totalCount: 30,
+      onSale: true,
+      isLimitedTime: false,
+      openedAt: new Date().toISOString().split("T")[0],
+      closedAt: "2199-12-31",
+    },
+  });
 
-  const onValid = async (data: INewMembershipData) => {
-    setIsSubmitting(true)
-    setServerError('')
+  const isLimitedTime = watch("isLimitedTime");
+
+  const onSubmit = async (data: IMembershipProductFormData) => {
+    setIsSubmitting(true);
+    setError(null);
+
     try {
-      let openedAt: Date, closedAt: Date
-      if (data.isLimitedTime === 'true') {
-        // 기간한정 상품의 경우
-        if (!data.dateRange?.from || !data.dateRange?.to) {
-          // 기간한정 상품인데 날짜정보가 없는 경우.
-          setError('dateRange', {
-            type: 'empty',
-            message: '날짜를 선택해주세요.'
-          })
-          return
-        }
-        openedAt = data.dateRange.from
-        closedAt = data.dateRange.to
-      } else {
-        // 기간제한 없이 판매하는 경우
-        openedAt = new Date()
-        closedAt = new Date('2099-12-31')
-      }
-
-      const submissionData = {
+      const submitData = {
         title: data.title,
-        description: data.description,
         price: data.price,
+        description: data.description,
         totalCount: data.totalCount,
         onSale: data.onSale,
-        openedAt,
-        closedAt
+        openedAt: data.openedAt,
+        closedAt: data.isLimitedTime
+          ? data.closedAt
+          : "2199-12-31T23:59:59.999Z",
+      };
+
+      const response = await fetch("/api/manager/product/membership", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(submitData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "멤버십 상품 생성에 실패했습니다.");
       }
 
-      // 서버 액션 호출
-      const result = await membershipSubmit(submissionData)
-      // 결과 처리 로직
-      if (result.ok) {
-        router.push(`/manager/product/membership/${result.data.id}`)
-      } else {
-        if (result.error) {
-          setServerError(result.error)
-        }
-      }
+      const result = await response.json();
+      router.push(`/manager/product/membership/${result.id}`);
     } catch (error) {
-      // 에러 처리
-      console.error(error)
-      console.log(error)
-      setServerError(
-        '알 수 없는 오류가 발생했습니다. 페이지를 새로고침 해주세요.'
-      )
+      console.error("멤버십 상품 생성 실패:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "알 수 없는 오류가 발생했습니다."
+      );
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
-    <div className="flex w-full flex-col">
-      <span className="mx-auto my-2 text-xl font-bold">신규 회원권 등록</span>
-      {serverError ? <span className="text-red-500">{serverError}</span> : null}
-      <form onSubmit={handleSubmit(onValid)}>
-        <label className="form-control w-full">
-          <div className="label">
-            <span className="label-text">이름</span>
-            <span className="label-text-alt">회원권의 이름을 적어주세요.</span>
-          </div>
-          <input
-            {...register('title', { required: '이름은 필수입니다' })}
-            type="text"
-            placeholder="주중 100일 회원권"
-            className="input input-bordered w-full"
-          />
-          {errors.title && (
-            <span className="text-red-500">{errors.title.message}</span>
-          )}
-        </label>
-
-        <label className="form-control w-full">
-          <div className="label">
-            <span className="label-text">가격</span>
-            <span className="label-text-alt">가격을 숫자로 적어주세요.</span>
-          </div>
-          <input
-            {...register('price', {
-              required: '가격은 필수입니다',
-              pattern: { value: /^\d+$/, message: '숫자만 입력해주세요' }
-            })}
-            type="number"
-            placeholder="100000"
-            className="input input-bordered w-full"
-          />
-          {errors.price && (
-            <span className="text-red-500">{errors.price.message}</span>
-          )}
-        </label>
-
-        <label className="form-control w-full">
-          <div className="label">
-            <span className="label-text">일수</span>
-            <span className="label-text-alt">
-              회원권 이용가능 일수를 숫자로 넣어주세요.
-            </span>
-          </div>
-          <input
-            {...register('totalCount', {
-              required: '일수는 필수입니다',
-              pattern: { value: /^\d+$/, message: '숫자만 입력해주세요' }
-            })}
-            type="number"
-            placeholder="100"
-            className="input input-bordered w-full"
-          />
-          {errors.totalCount && (
-            <span className="text-red-500">{errors.totalCount.message}</span>
-          )}
-        </label>
-
-        <label className="form-control w-full">
-          <div className="label">
-            <span className="label-text">세부내용</span>
-            <span className="label-text-alt">기타사항</span>
-          </div>
-          <input
-            {...register('description', { required: '세부내용은 필수입니다' })}
-            type="text"
-            placeholder="월~목 주중에만 사용가능한 100일권입니다."
-            className="input input-bordered w-full"
-          />
-          {errors.description && (
-            <span className="text-red-500">{errors.description.message}</span>
-          )}
-        </label>
-
-        <div className="mt-5 flex flex-col">
-          <span className="text-sm">기간 설정</span>
-          <div className="RADIO flex gap-5">
-            <div className="form-control">
-              <label className="label flex cursor-pointer items-center gap-2">
-                <span className="label-text">기간제한없음</span>
-                <input
-                  {...register('isLimitedTime')}
-                  type="radio"
-                  className="radio"
-                  value="false"
-                  defaultChecked
-                />
-              </label>
-            </div>
-            <div className="form-control">
-              <label className="label flex cursor-pointer items-center gap-2">
-                <span className="label-text">기간한정상품</span>
-                <input
-                  {...register('isLimitedTime')}
-                  type="radio"
-                  className="radio"
-                  value="true"
-                />
-              </label>
-            </div>
-          </div>
+    <div className="container mx-auto p-4 max-w-2xl">
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">
+            새 멤버십 상품 등록
+          </h1>
+          <Link
+            href="/manager/product"
+            className="text-gray-600 hover:text-gray-800"
+          >
+            ← 뒤로가기
+          </Link>
         </div>
 
-        {isLimitedTime === 'true' && (
-          <div className="mt-5">
-            <Controller
-              name="dateRange"
-              control={control}
-              render={({ field }) => (
-                <DayPicker
-                  mode="range"
-                  selected={field.value}
-                  onSelect={field.onChange}
-                  numberOfMonths={1}
-                />
-              )}
-            />
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-800">{error}</p>
           </div>
         )}
-        <div className="mt-5 flex flex-col">
-          <span className="text-sm">
-            이벤트성 상품의 경우 바로 판매되지 않게 비활성화 해주세요.
-          </span>
-          <div className="RADIO flex gap-5">
-            <div className="form-control">
-              <label className="label flex cursor-pointer items-center gap-2">
-                <span className="label-text text-green-500">활성화</span>
-                <input
-                  {...register('onSale')}
-                  type="radio"
-                  className="radio checked:bg-green-500"
-                  value="true"
-                  defaultChecked
-                />
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* 상품명 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              상품명 *
+            </label>
+            <input
+              type="text"
+              {...register("title", { required: "상품명을 입력해주세요." })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+              placeholder="멤버십 상품명을 입력하세요"
+            />
+            {errors.title && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.title.message}
+              </p>
+            )}
+          </div>
+
+          {/* 가격 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              가격 (원) *
+            </label>
+            <input
+              type="number"
+              {...register("price", {
+                required: "가격을 입력해주세요.",
+                min: { value: 0, message: "가격은 0원 이상이어야 합니다." },
+              })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+              placeholder="0"
+            />
+            {errors.price && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.price.message}
+              </p>
+            )}
+          </div>
+
+          {/* 총 일수 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              총 일수 *
+            </label>
+            <input
+              type="number"
+              {...register("totalCount", {
+                required: "총 일수를 입력해주세요.",
+                min: { value: 1, message: "최소 1일 이상이어야 합니다." },
+              })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+              placeholder="30"
+            />
+            {errors.totalCount && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.totalCount.message}
+              </p>
+            )}
+          </div>
+
+          {/* 상품 설명 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              상품 설명
+            </label>
+            <textarea
+              {...register("description")}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+              placeholder="상품에 대한 자세한 설명을 입력하세요"
+            />
+          </div>
+
+          {/* 판매 상태 */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              {...register("onSale")}
+              className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
+            />
+            <label className="ml-2 block text-sm text-gray-700">판매 중</label>
+          </div>
+
+          {/* 기간 제한 */}
+          <div className="space-y-4">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                {...register("isLimitedTime")}
+                className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
+              />
+              <label className="ml-2 block text-sm text-gray-700">
+                판매 기간 제한
               </label>
             </div>
-            <div className="form-control">
-              <label className="label flex cursor-pointer items-center gap-2">
-                <span className="label-text text-red-500">비활성화</span>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  판매 시작일
+                </label>
                 <input
-                  {...register('onSale')}
-                  type="radio"
-                  className="radio checked:bg-red-500"
-                  value="false"
+                  type="date"
+                  {...register("openedAt", {
+                    required: "판매 시작일을 선택해주세요.",
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
                 />
-              </label>
+                {errors.openedAt && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.openedAt.message}
+                  </p>
+                )}
+              </div>
+
+              {isLimitedTime && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    판매 종료일
+                  </label>
+                  <input
+                    type="date"
+                    {...register("closedAt", {
+                      required: isLimitedTime
+                        ? "판매 종료일을 선택해주세요."
+                        : false,
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                  />
+                  {errors.closedAt && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.closedAt.message}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        <div className="mt-5 flex items-center justify-center">
-          <button
-            type="submit"
-            className={`btn ${
-              isSubmitting || isSubmitDisabled ? 'btn-disabled' : 'btn-primary'
-            }`}
-            disabled={isSubmitting || isSubmitDisabled}>
-            {isSubmitting ? '저장 중...' : '저장하기'}
-          </button>
-        </div>
-      </form>
+          {/* 제출 버튼 */}
+          <div className="flex justify-end space-x-4">
+            <Link
+              href="/manager/product"
+              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            >
+              취소
+            </Link>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
+            >
+              {isSubmitting ? "등록 중..." : "등록"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
-  )
-}
+  );
+};
 
-export default NewMembershipProduct
+export default MembershipProductNewPage;

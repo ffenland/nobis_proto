@@ -1,105 +1,231 @@
-import { redirect } from "next/navigation";
-import { getPtProduct } from "./edit/actions";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
+import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { Badge } from "@/app/components/ui/Loading";
+import { getPtProductDetailService } from "./actions";
 
-function formatPrice(price: number) {
-  return price.toLocaleString("ko-KR") + "원";
+interface PtProductDetailPageProps {
+  params: {
+    id: string;
+  };
 }
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("ko-KR");
-}
+const PtProductDetailPage = async ({ params }: PtProductDetailPageProps) => {
+  const product = await getPtProductDetailService(params.id);
 
-type Params = Promise<{ id: string }>;
+  if (!product) {
+    notFound();
+  }
 
-const PtProductDetail = async (props: { params: Params }) => {
-  const params = await props.params;
-  const id = params.id;
-  if (!id) {
-    redirect("/manager/product/pt");
-  }
-  const ptProduct = await getPtProduct(id);
-  if (!ptProduct) {
-    redirect("/manager/product/pt");
-  }
+  const formatDate = (date: Date) => {
+    return new Date(date).toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const isExpired = new Date(product.closedAt) < new Date();
+  const isUnlimited =
+    new Date(product.closedAt).getTime() > new Date("2099-01-01").getTime();
+
   return (
-    <div className="w-full max-w-2xl mx-auto p-4">
-      <div className="flex w-full justify-between items-center mb-4">
-        <h1 className="text-2xl md:text-3xl font-bold">{ptProduct.title}</h1>
-        <div className="flex gap-2">
-          <Link href="/manager/product/pt">
-            <button className="btn btn-sm">목록으로</button>
+    <PageLayout maxWidth="lg">
+      <PageHeader
+        title={product.title}
+        subtitle="PT 상품 상세 정보"
+        action={
+          <Link href={`/manager/product/pt/${product.id}/edit`}>
+            <Button variant="primary">수정</Button>
           </Link>
-          <Link href={`/manager/product/pt/${ptProduct.id}/edit`}>
-            <button className="btn btn-primary btn-sm">수정하기</button>
-          </Link>
-        </div>
-      </div>
-      <div className="card bg-white shadow-md rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <div className="text-gray-500 text-sm mb-1">가격</div>
-            <div className="font-semibold text-lg">
-              {formatPrice(ptProduct.price)}
-            </div>
-          </div>
-          <div>
-            <div className="text-gray-500 text-sm mb-1">총 횟수</div>
-            <div className="font-semibold text-lg">
-              {ptProduct.totalCount}회
-            </div>
-          </div>
-          <div>
-            <div className="text-gray-500 text-sm mb-1">판매 상태</div>
-            <div
-              className={
-                ptProduct.onSale
-                  ? "text-green-600 font-semibold"
-                  : "text-red-500 font-semibold"
-              }
-            >
-              {ptProduct.onSale ? "판매중" : "비활성화"}
-            </div>
-          </div>
-          <div>
-            <div className="text-gray-500 text-sm mb-1">판매 시작일</div>
-            <div>{formatDate(String(ptProduct.openedAt))}</div>
-          </div>
-          <div>
-            <div className="text-gray-500 text-sm mb-1">판매 종료일</div>
-            <div>{formatDate(String(ptProduct.closedAt))}</div>
-          </div>
-        </div>
-        <div className="mb-4">
-          <div className="text-gray-500 text-sm mb-1">설명</div>
-          <div className="whitespace-pre-line text-base">
-            {ptProduct.description}
-          </div>
-        </div>
-        <div className="mb-2">
-          <div className="text-gray-500 text-sm mb-1">PT 1회 소요 시간</div>
-          <div>{ptProduct.time}분</div>
-        </div>
-        <div className="mt-6">
-          <h2 className="mb-2 text-xl font-semibold">담당 트레이너</h2>
-          <ul className="flex flex-wrap gap-3">
-            {ptProduct.trainers.map((trainer) => (
-              <li
-                key={trainer.trainerId}
-                className="flex w-full items-center gap-2 bg-base-200 rounded px-3 py-2"
-              >
-                {/* 아바타(이니셜) */}
-                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg">
-                  {trainer.username?.[0] || "?"}
+        }
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 기본 정보 */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold text-gray-900">기본 정보</h3>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">가격</dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {product.price.toLocaleString()}원
+                  </dd>
                 </div>
-                <span className="font-medium">{trainer.username}</span>
-              </li>
-            ))}
-          </ul>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    총 수업 횟수
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {product.totalCount}회
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    수업 시간
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {product.time}시간
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    판매 상태
+                  </dt>
+                  <dd>
+                    <Badge variant={product.onSale ? "success" : "default"}>
+                      {product.onSale ? "판매중" : "판매중단"}
+                    </Badge>
+                  </dd>
+                </div>
+              </div>
+
+              <div>
+                <dt className="text-sm font-medium text-gray-500 mb-2">
+                  상품 설명
+                </dt>
+                <dd className="text-gray-900 whitespace-pre-wrap">
+                  {product.description || "설명이 없습니다."}
+                </dd>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    판매 시작일
+                  </dt>
+                  <dd className="text-gray-900">
+                    {formatDate(product.openedAt)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    판매 종료일
+                  </dt>
+                  <dd className="text-gray-900">
+                    {isUnlimited ? "무제한" : formatDate(product.closedAt)}
+                    {isExpired && !isUnlimited && (
+                      <span className="ml-2 text-xs text-red-600">
+                        (만료됨)
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 담당 트레이너 */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold text-gray-900">
+                담당 트레이너 ({product.trainers.length}명)
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {product.trainers.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-gray-500">등록된 트레이너가 없습니다</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {product.trainers.map((trainer) => (
+                    <div
+                      key={trainer.id}
+                      className="p-3 border border-gray-200 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-medium">
+                            {trainer.username[0]}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">
+                            {trainer.username}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {trainer.introduce}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 통계 */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold text-gray-900">통계</h3>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <dt className="text-sm font-medium text-gray-500">
+                  총 PT 신청
+                </dt>
+                <dd className="text-2xl font-bold text-gray-900">
+                  {product.stats.totalPt}개
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">
+                  승인 대기중
+                </dt>
+                <dd className="text-2xl font-bold text-orange-600">
+                  {product.stats.pendingPt}개
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">진행중</dt>
+                <dd className="text-2xl font-bold text-green-600">
+                  {product.stats.confirmedPt}개
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">완료</dt>
+                <dd className="text-2xl font-bold text-blue-600">
+                  {product.stats.completedPt}개
+                </dd>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold text-gray-900">수익 정보</h3>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <dt className="text-sm font-medium text-gray-500">총 매출</dt>
+                <dd className="text-2xl font-bold text-gray-900">
+                  {(product.stats.confirmedPt * product.price).toLocaleString()}
+                  원
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">예상 매출</dt>
+                <dd className="text-lg font-semibold text-gray-600">
+                  {(product.stats.pendingPt * product.price).toLocaleString()}원
+                </dd>
+                <p className="text-xs text-gray-500 mt-1">(승인 대기중 기준)</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 };
 
-export default PtProductDetail;
+export default PtProductDetailPage;
