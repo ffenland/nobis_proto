@@ -264,6 +264,7 @@ model PtRecordItem {
   freeSetRecords            FreeSetRecord[]
   stretchingExerciseRecords StretchingExerciseRecord[]
   photos                    Media[]
+  isActive                  Boolean                    @default(true) // 현재 유효한 기록인지 여부
 }
 
 model Machine {
