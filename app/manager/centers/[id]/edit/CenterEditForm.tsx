@@ -1,7 +1,7 @@
 // app/manager/centers/[id]/edit/CenterEditForm.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useFormState } from "react-dom";
 import { updateCenterAction, type IServerActionResponse } from "../../actions";
@@ -53,7 +53,7 @@ export default function CenterEditForm({
   trainers,
 }: CenterEditFormProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [state, formAction] = useFormState(
     updateCenterAction.bind(null, center.id),
     initialState
@@ -83,12 +83,13 @@ export default function CenterEditForm({
     return acc;
   }, {} as Record<string, { openTime: number; closeTime: number; isClosed: boolean }>);
 
-  // 폼 제출 성공 시 리다이렉트
-  if (state.success && state.data) {
-    startTransition(() => {
+  // 폼 제출 성공 시 리다이렉트 - 간단하게!
+  useEffect(() => {
+    if (state.success && state.data) {
+      // startTransition 없이 그냥 네비게이션
       router.push(`/manager/centers/${center.id}`);
-    });
-  }
+    }
+  }, [state.success, state.data, center.id, router]);
 
   // 트레이너 선택/해제
   const handleTrainerToggle = (trainerId: string) => {
@@ -112,8 +113,18 @@ export default function CenterEditForm({
     });
   };
 
+  // 커스텀 폼 액션 래퍼 - 제출 상태 관리
+  const handleFormAction = async (formData: FormData) => {
+    setIsSubmitting(true);
+    try {
+      await formAction(formData);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <form action={formAction} className="space-y-8">
+    <form action={handleFormAction} className="space-y-8">
       {/* 에러 메시지 */}
       {state.error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -400,16 +411,16 @@ export default function CenterEditForm({
           type="button"
           onClick={() => router.back()}
           className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-          disabled={isPending}
+          disabled={isSubmitting}
         >
           취소
         </button>
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isSubmitting}
           className="px-6 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isPending ? "수정 중..." : "변경사항 저장"}
+          {isSubmitting ? "수정 중..." : "변경사항 저장"}
         </button>
       </div>
     </form>
