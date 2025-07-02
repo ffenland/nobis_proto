@@ -150,7 +150,7 @@ model PtProduct {
   price       Int
   description String
   totalCount  Int
-  time        Int       @default(1)
+  time        Int       @default(60) // minute
   onSale      Boolean   @default(true)
   trainer     Trainer[]
   openedAt    DateTime  @default(now())

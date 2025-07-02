@@ -1,9 +1,16 @@
-// components/ptNew/scheduleUtils.ts (업데이트 버전)
+// components/ptNew/scheduleUtils.ts (수정 버전)
 import { IDaySchedule } from "@/app/lib/services/pt-apply.service";
 import {
   addThirtyMinutes,
   timeRangesOverlap,
   formatTime,
+} from "@/app/lib/utils/time.utils";
+
+// addThirtyMinutes를 re-export하여 다른 컴포넌트에서 사용할 수 있도록 함
+export {
+  addThirtyMinutes,
+  formatTime,
+  timeRangesOverlap,
 } from "@/app/lib/utils/time.utils";
 
 // 정기 스케줄을 실제 날짜 배열로 계산하는 함수
@@ -211,63 +218,29 @@ export const checkScheduleConflicts = (
   return conflicts;
 };
 
-// 스케줄 요약 정보 타입 정의
-interface ScheduleSummary {
+// 스케줄 요약 정보 생성
+export const generateScheduleSummary = (
+  chosenSchedule: IDaySchedule,
+  pattern: { regular: boolean; count: number }
+): {
   totalSessions: number;
   firstSession: string;
   lastSession?: string;
-  weeklyPattern?: {
-    dayOfWeek: string;
-    time: string;
+  weeklyPattern?: string;
+} => {
+  const dates = Object.keys(chosenSchedule).sort();
+  const firstDate = dates[0];
+  const firstTimes = chosenSchedule[firstDate];
+
+  return {
+    totalSessions: pattern.count,
+    firstSession: `${firstDate} ${formatTime(firstTimes[0])}-${formatTime(
+      addThirtyMinutes(firstTimes[firstTimes.length - 1])
+    )}`,
+    weeklyPattern: pattern.regular
+      ? `매주 ${new Date(firstDate).toLocaleDateString("ko-KR", {
+          weekday: "long",
+        })}`
+      : undefined,
   };
-  scheduleList: Array<{
-    date: string;
-    dayOfWeek: string;
-    timeRange: string;
-  }>;
-}
-
-// 스케줄 요약 정보 생성
-export const generateScheduleSummary = (
-  schedules: Array<{
-    date: string;
-    startTime: number;
-    endTime: number;
-  }>,
-  isRegular: boolean = false
-): ScheduleSummary => {
-  const weekDayNames = ["일", "월", "화", "수", "목", "금", "토"];
-
-  const scheduleList = schedules.map((schedule) => {
-    const date = new Date(schedule.date);
-    return {
-      date: schedule.date,
-      dayOfWeek: weekDayNames[date.getDay()],
-      timeRange: `${formatTime(schedule.startTime)} - ${formatTime(
-        schedule.endTime
-      )}`,
-    };
-  });
-
-  const summary: ScheduleSummary = {
-    totalSessions: schedules.length,
-    firstSession: schedules[0]?.date || "",
-    scheduleList,
-  };
-
-  if (schedules.length > 1) {
-    summary.lastSession = schedules[schedules.length - 1].date;
-  }
-
-  if (isRegular && schedules.length > 0) {
-    const firstDate = new Date(schedules[0].date);
-    summary.weeklyPattern = {
-      dayOfWeek: weekDayNames[firstDate.getDay()],
-      time: `${formatTime(schedules[0].startTime)} - ${formatTime(
-        schedules[0].endTime
-      )}`,
-    };
-  }
-
-  return summary;
 };
