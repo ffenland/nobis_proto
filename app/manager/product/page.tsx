@@ -53,7 +53,7 @@ const ProductsPage = async () => {
                           <div className="flex items-center gap-4 text-sm text-gray-600">
                             <span>{product.price.toLocaleString()}원</span>
                             <span>총 {product.totalCount}회</span>
-                            <span>회당 {product.time}시간</span>
+                            <span>회당 {product.time}분</span>
                           </div>
                           <div className="flex items-center gap-2 mt-2">
                             <span

@@ -6,13 +6,10 @@ import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { getPtProductDetailService } from "./actions";
 
-interface PtProductDetailPageProps {
-  params: {
-    id: string;
-  };
-}
+type Params = Promise<{ id: string }>;
 
-const PtProductDetailPage = async ({ params }: PtProductDetailPageProps) => {
+const PtProductDetailPage = async (props: { params: Params }) => {
+  const params = await props.params;
   const product = await getPtProductDetailService(params.id);
 
   if (!product) {
@@ -37,9 +34,15 @@ const PtProductDetailPage = async ({ params }: PtProductDetailPageProps) => {
         title={product.title}
         subtitle="PT 상품 상세 정보"
         action={
-          <Link href={`/manager/product/pt/${product.id}/edit`}>
-            <Button variant="primary">수정</Button>
-          </Link>
+          <div className="flex gap-3 ">
+            <Link href={`/manager/product/pt/${product.id}/edit`}>
+              <Button variant="primary">수정</Button>
+            </Link>
+            {/* 목록으로 이동 */}
+            <Link href={"/manager/product/"}>
+              <Button variant="primary">목록으로</Button>
+            </Link>
+          </div>
         }
       />
 
@@ -71,7 +74,7 @@ const PtProductDetailPage = async ({ params }: PtProductDetailPageProps) => {
                     수업 시간
                   </dt>
                   <dd className="text-lg font-semibold text-gray-900">
-                    {product.time}시간
+                    {product.time}분
                   </dd>
                 </div>
                 <div>

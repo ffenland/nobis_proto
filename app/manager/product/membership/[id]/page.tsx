@@ -39,9 +39,15 @@ const MembershipProductDetailPage = async ({
         title={product.title}
         subtitle="멤버십 상품 상세 정보"
         action={
-          <Link href={`/manager/product/membership/${product.id}/edit`}>
-            <Button variant="primary">수정</Button>
-          </Link>
+          <div className="flex gap-3">
+            <Link href={`/manager/product/membership/${product.id}/edit`}>
+              <Button variant="primary">수정</Button>
+            </Link>
+            {/* 목록으로 이동 */}
+            <Link href={"/manager/product/"}>
+              <Button variant="primary">목록으로</Button>
+            </Link>
+          </div>
         }
       />
 

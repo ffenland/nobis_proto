@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import useSWR from "swr";
 import Link from "next/link";
+import { ITrainerForSelection } from "@/app/lib/services/product.service";
 
 interface IPtProductFormData {
   title: string;
@@ -20,13 +21,6 @@ interface IPtProductFormData {
   trainerIds: string[];
 }
 
-interface ITrainerForSelection {
-  id: string;
-  user: {
-    username: string;
-  };
-}
-
 // API fetcher
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
@@ -34,10 +28,33 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
+// 시간 옵션 생성 (10분 단위, 10분~120분)
+const generateTimeOptions = () => {
+  const options = [];
+  for (let i = 10; i <= 120; i += 10) {
+    const hours = Math.floor(i / 60);
+    const minutes = i % 60;
+    let label = "";
+
+    if (hours > 0) {
+      label += `${hours}시간`;
+      if (minutes > 0) {
+        label += ` ${minutes}분`;
+      }
+    } else {
+      label = `${minutes}분`;
+    }
+
+    options.push({ value: i, label });
+  }
+  return options;
+};
+
 const PtProductNewPage = () => {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isTimeDropdownOpen, setIsTimeDropdownOpen] = useState(false);
 
   // 트레이너 목록 조회
   const {
@@ -58,7 +75,7 @@ const PtProductNewPage = () => {
       price: 0,
       description: "",
       totalCount: 1,
-      time: 1,
+      time: 60, // 기본값 60분
       onSale: true,
       isLimitedTime: false,
       openedAt: new Date().toISOString().split("T")[0],
@@ -69,6 +86,10 @@ const PtProductNewPage = () => {
 
   const isLimitedTime = watch("isLimitedTime");
   const selectedTrainerIds = watch("trainerIds");
+  const selectedTime = watch("time");
+
+  // 시간 옵션들
+  const timeOptions = generateTimeOptions();
 
   // 트레이너 목록이 로드되면 모든 트레이너를 선택된 상태로 설정
   useEffect(() => {
@@ -105,6 +126,20 @@ const PtProductNewPage = () => {
         trainers.map((trainer) => trainer.id)
       );
     }
+  };
+
+  // 시간 선택 핸들러
+  const handleTimeSelect = (timeValue: number) => {
+    setValue("time", timeValue);
+    setIsTimeDropdownOpen(false);
+  };
+
+  // 선택된 시간의 라벨 찾기
+  const getSelectedTimeLabel = () => {
+    const selectedOption = timeOptions.find(
+      (option) => option.value === selectedTime
+    );
+    return selectedOption ? selectedOption.label : "60분";
   };
 
   const onSubmit = async (data: IPtProductFormData) => {
@@ -280,19 +315,63 @@ const PtProductNewPage = () => {
             )}
           </div>
 
-          {/* 수업 시간 */}
+          {/* 수업 시간 - 드롭다운 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              수업 시간 (시간) *
+              수업 시간 *
             </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsTimeDropdownOpen(!isTimeDropdownOpen)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent bg-white text-left flex items-center justify-between"
+              >
+                <span>{getSelectedTimeLabel()}</span>
+                <svg
+                  className={`h-5 w-5 text-gray-400 transition-transform ${
+                    isTimeDropdownOpen ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {isTimeDropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {timeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleTimeSelect(option.value)}
+                      className={`w-full px-3 py-2 text-left hover:bg-gray-100 ${
+                        selectedTime === option.value
+                          ? "bg-gray-50 text-gray-900 font-medium"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Hidden input for React Hook Form */}
             <input
-              type="number"
+              type="hidden"
               {...register("time", {
-                required: "수업 시간을 입력해주세요.",
-                min: { value: 1, message: "최소 1시간 이상이어야 합니다." },
+                required: "수업 시간을 선택해주세요.",
+                min: { value: 10, message: "최소 10분 이상이어야 합니다." },
+                max: { value: 120, message: "최대 120분까지 선택 가능합니다." },
               })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-              placeholder="1"
             />
             {errors.time && (
               <p className="mt-1 text-sm text-red-600">{errors.time.message}</p>
@@ -445,6 +524,14 @@ const PtProductNewPage = () => {
           </div>
         </form>
       </div>
+
+      {/* 드롭다운이 열려있을 때 백그라운드 클릭으로 닫기 */}
+      {isTimeDropdownOpen && (
+        <div
+          className="fixed inset-0 z-5"
+          onClick={() => setIsTimeDropdownOpen(false)}
+        />
+      )}
     </div>
   );
 };

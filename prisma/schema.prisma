@@ -88,6 +88,7 @@ model Member {
   membershipCoupon MembershipCoupon[]
   fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId  String?            @db.Uuid
+  active           Boolean            @default(true)
 }
 
 model Trainer {
@@ -106,6 +107,7 @@ model Trainer {
   fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId  String?            @db.Uuid
   trainerOff       TrainerOff[]
+  working          Boolean            @default(true)
 }
 
 model Manager {
