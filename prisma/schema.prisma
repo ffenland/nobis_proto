@@ -307,21 +307,61 @@ model MachineSetRecord {
   ptRecordItemId String                @db.Uuid
 }
 
-model Weights {
-  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title           String // 기구 이름 (예: "덤벨", "올림픽 바벨")
-  unit            String          @default("kg")
-  weight          Float
-  description     String?
-  fitnessCenter   FitnessCenter?  @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId String?         @db.Uuid
-  freeSetRecord   FreeSetRecord[]
+// 운동기구 카테고리 enum
+enum EquipmentCategory {
+  WEIGHT // 웨이트 (덤벨, 바벨, 원판)
+  CARDIO // 유산소 도구 (줄넘기, 스텝박스)
+  RESISTANCE // 저항 도구 (고무밴드, 저항밴드)
+  FUNCTIONAL // 기능성 도구 (폼롤러, 밸런스볼)
+  ACCESSORY // 액세서리 (벨트, 스트랩)
+  MOBILITY // 가동성 도구 (요가매트, 스트레칭 도구)
+  CORE // 코어 도구 (메디신볼, 슬라이딩 디스크)
+  SPECIALTY // 특수 도구 (케틀벨, 샌드백)
+}
+
+// 운동기구 통합 모델
+model Equipment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 기본 정보
+  title    String // 기구 이름 (예: "덤벨 5kg", "고무밴드 옐로우")
+  category EquipmentCategory // 카테고리
+
+  // 수치 정보 (유연한 구조)
+  primaryValue   Float? // 주요 값 (무게, 탄성도, 저항력 등)
+  primaryUnit    String? // 주요 단위 (kg, lbs, level, resistance 등)
+  secondaryValue Float? // 부차 값 (길이, 지름 등)
+  secondaryUnit  String? // 부차 단위 (cm, inch 등)
+
+  // 부가 정보
+  brand       String? // 브랜드
+  model       String? // 모델명
+  description String? // 설명
+
+  // 관리 정보
+  quantity Int     @default(1) // 수량
+  location String? // 보관 위치
+
+  // 관계
+  fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
+  fitnessCenterId String?        @db.Uuid
+
+  // 운동 기록 연결
+  freeSetRecords           FreeSetRecord[]
+  stretchingExerciseRecord StretchingExerciseRecord[]
+
+  // 미디어 (사진)
+  photos Media[]
+
+  @@index([fitnessCenterId, category])
 }
 
 model FreeSetRecord {
   id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt      DateTime     @default(now())
-  weights        Weights[]
+  equipments     Equipment[]
   reps           Int // 횟수
   set            Int // 몇번째 세트인지
   ptRecordItem   PtRecordItem @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
@@ -342,6 +382,7 @@ model StretchingExerciseRecord {
   createdAt            DateTime           @default(now())
   stretchingExercise   StretchingExercise @relation(fields: [stretchingExerciseId], references: [id])
   stretchingExerciseId String             @db.Uuid
+  equipments           Equipment[]
   description          String?
   ptRecordItem         PtRecordItem       @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
   ptRecordItemId       String             @db.Uuid
@@ -533,7 +574,7 @@ model FitnessCenter {
   offDays      OffDay[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  weights      Weights[]
+  equipments   Equipment[]
   media        Media[]
   ptRecords    PtRecord[]
   inOperation  Boolean       @default(true)
@@ -682,16 +723,19 @@ model Media {
   avatar User? @relation("UserAvatar")
 
   machineId String?  @db.Uuid
-  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   fitnessCenterId String?        @db.Uuid
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
 
   ptRecordItemId String?       @db.Uuid
-  ptRecordItem   PtRecordItem? @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
+  ptRecordItem   PtRecordItem? @relation(fields: [ptRecordItemId], references: [id], onDelete: SetNull)
 
   stretchingExerciseId String?             @db.Uuid
   stretchingExercise   StretchingExercise? @relation(fields: [stretchingExerciseId], references: [id], onDelete: SetNull)
+
+  equipmentId String?    @db.Uuid
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   // 메타데이터 (JSON)
   metadata Json? // 추가 정보를 위한 유연한 필드

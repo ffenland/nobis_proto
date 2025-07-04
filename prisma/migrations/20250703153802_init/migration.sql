@@ -5,13 +5,34 @@ CREATE TYPE "UserRole" AS ENUM ('MEMBER', 'TRAINER', 'MANAGER');
 CREATE TYPE "WeekDay" AS ENUM ('MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN');
 
 -- CreateEnum
-CREATE TYPE "AttendanceState" AS ENUM ('ATTENDED', 'ABSENT', 'RESERVED');
+CREATE TYPE "PtState" AS ENUM ('PENDING', 'CONFIRMED', 'REJECTED');
 
 -- CreateEnum
-CREATE TYPE "ToolType" AS ENUM ('DUMBBELL', 'BARBELL', 'RESISTANCE', 'PLATFORM', 'OTHER');
+CREATE TYPE "ScheduleChangeState" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'EXPIRED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "RecordType" AS ENUM ('MACHINE', 'FREE', 'STRETCHING');
+
+-- CreateEnum
+CREATE TYPE "EquipmentCategory" AS ENUM ('WEIGHT', 'CARDIO', 'RESISTANCE', 'FUNCTIONAL', 'ACCESSORY', 'MOBILITY', 'CORE', 'SPECIALTY');
 
 -- CreateEnum
 CREATE TYPE "ScheduleState" AS ENUM ('PENDING', 'CONFIRMED', 'CANCELED');
+
+-- CreateEnum
+CREATE TYPE "PaymentType" AS ENUM ('CARD', 'CASH', 'POINT');
+
+-- CreateEnum
+CREATE TYPE "MessageType" AS ENUM ('TEXT', 'IMAGE', 'SYSTEM');
+
+-- CreateEnum
+CREATE TYPE "PhotoType" AS ENUM ('PROFILE', 'MACHINE', 'CENTER', 'EXERCISE', 'STRETCHING', 'PT_RECORD', 'BEFORE_AFTER', 'ACHIEVEMENT');
+
+-- CreateEnum
+CREATE TYPE "VideoType" AS ENUM ('EXERCISE_DEMO', 'PT_RECORD', 'FORM_CHECK', 'PROGRESS', 'INSTRUCTION');
+
+-- CreateEnum
+CREATE TYPE "MediaStatus" AS ENUM ('UPLOADING', 'PROCESSING', 'ACTIVE', 'SCHEDULED_DELETE', 'DELETED');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -23,9 +44,13 @@ CREATE TABLE "User" (
     "naverId" TEXT,
     "kakaoId" TEXT,
     "mobile" TEXT NOT NULL,
-    "avatar" TEXT,
+    "avatarMediaId" UUID,
+    "usernameChangeCount" INTEGER NOT NULL DEFAULT 0,
+    "lastUsernameChangeAt" TIMESTAMP(3),
     "role" "UserRole" NOT NULL DEFAULT 'MEMBER',
     "deletedAt" TIMESTAMP(3),
+    "isPremiumUser" BOOLEAN NOT NULL DEFAULT false,
+    "subscriptionExpiry" TIMESTAMP(3),
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -47,6 +72,7 @@ CREATE TABLE "Member" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" UUID NOT NULL,
     "fitnessCenterId" UUID,
+    "active" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Member_pkey" PRIMARY KEY ("id")
 );
@@ -57,10 +83,10 @@ CREATE TABLE "Trainer" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "userId" UUID NOT NULL,
-    "avatar" TEXT,
     "introduce" TEXT NOT NULL DEFAULT '안녕하세요',
     "groupId" UUID,
     "fitnessCenterId" UUID,
+    "working" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Trainer_pkey" PRIMARY KEY ("id")
 );
@@ -109,7 +135,7 @@ CREATE TABLE "PtProduct" (
     "price" INTEGER NOT NULL,
     "description" TEXT NOT NULL,
     "totalCount" INTEGER NOT NULL,
-    "time" INTEGER NOT NULL DEFAULT 1,
+    "time" INTEGER NOT NULL DEFAULT 60,
     "onSale" BOOLEAN NOT NULL DEFAULT true,
     "openedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "closedAt" TIMESTAMP(3) NOT NULL DEFAULT TIMESTAMP '2199-12-31 23:59:59',
@@ -125,12 +151,36 @@ CREATE TABLE "Pt" (
     "ptProductId" UUID NOT NULL,
     "memberId" UUID,
     "trainerId" UUID,
-    "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "state" "PtState" NOT NULL DEFAULT 'PENDING',
     "trainerConfirmed" BOOLEAN NOT NULL DEFAULT false,
+    "description" TEXT NOT NULL DEFAULT '',
     "startDate" TIMESTAMP(3) NOT NULL,
     "isRegular" BOOLEAN NOT NULL,
 
     CONSTRAINT "Pt_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PtScheduleChangeRequest" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "ptRecordId" UUID NOT NULL,
+    "requestorId" UUID NOT NULL,
+    "requestedDate" TIMESTAMP(3) NOT NULL,
+    "requestedStartTime" INTEGER NOT NULL,
+    "requestedEndTime" INTEGER NOT NULL,
+    "originalDate" TIMESTAMP(3) NOT NULL,
+    "originalStartTime" INTEGER NOT NULL,
+    "originalEndTime" INTEGER NOT NULL,
+    "state" "ScheduleChangeState" NOT NULL DEFAULT 'PENDING',
+    "reason" TEXT NOT NULL,
+    "responderId" UUID,
+    "responseMessage" TEXT,
+    "respondedAt" TIMESTAMP(3),
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PtScheduleChangeRequest_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -139,21 +189,24 @@ CREATE TABLE "PtRecord" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "ptId" UUID NOT NULL,
-    "attended" "AttendanceState" NOT NULL DEFAULT 'RESERVED',
     "ptScheduleId" UUID NOT NULL,
+    "fitnessCenterId" UUID NOT NULL,
+    "memo" TEXT NOT NULL DEFAULT '',
 
     CONSTRAINT "PtRecord_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "RecordItem" (
+CREATE TABLE "PtRecordItem" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
     "ptRecordId" UUID NOT NULL,
-    "procedure" INTEGER NOT NULL,
+    "entry" INTEGER NOT NULL,
+    "description" TEXT,
+    "type" "RecordType" NOT NULL,
+    "title" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
 
-    CONSTRAINT "RecordItem_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "PtRecordItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -185,68 +238,67 @@ CREATE TABLE "MachineSettingValue" (
 );
 
 -- CreateTable
-CREATE TABLE "MachineRecord" (
+CREATE TABLE "MachineSetRecord" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reps" INTEGER NOT NULL,
+    "set" INTEGER NOT NULL,
+    "ptRecordItemId" UUID NOT NULL,
+
+    CONSTRAINT "MachineSetRecord_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Equipment" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "machineId" UUID NOT NULL,
-    "memberId" UUID,
-    "recordItemId" UUID,
-    "freeToolId" UUID,
-    "memberRecordId" UUID,
-
-    CONSTRAINT "MachineRecord_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "MachineRecordValue" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "machineRecordId" UUID NOT NULL,
-    "machineSettingValueId" UUID NOT NULL,
-
-    CONSTRAINT "MachineRecordValue_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "FreeTool" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "title" TEXT NOT NULL,
-    "type" "ToolType" NOT NULL,
-    "hasFixedWeight" BOOLEAN NOT NULL,
-    "fixedWeight" DOUBLE PRECISION,
+    "category" "EquipmentCategory" NOT NULL,
+    "primaryValue" DOUBLE PRECISION,
+    "primaryUnit" TEXT,
+    "secondaryValue" DOUBLE PRECISION,
+    "secondaryUnit" TEXT,
+    "brand" TEXT,
+    "model" TEXT,
     "description" TEXT,
+    "quantity" INTEGER NOT NULL DEFAULT 1,
+    "location" TEXT,
     "fitnessCenterId" UUID,
 
-    CONSTRAINT "FreeTool_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Equipment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "FreeRecord" (
+CREATE TABLE "FreeSetRecord" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "toolId" UUID NOT NULL,
-    "title" TEXT NOT NULL,
-    "weight" DOUBLE PRECISION,
-    "sets" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "reps" INTEGER NOT NULL,
-    "details" TEXT,
-    "recordItemId" UUID,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "set" INTEGER NOT NULL,
+    "ptRecordItemId" UUID NOT NULL,
 
-    CONSTRAINT "FreeRecord_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "FreeSetRecord_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "StretchingRecord" (
+CREATE TABLE "StretchingExercise" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "name" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "recordItemId" UUID,
-    "freeToolId" UUID,
 
-    CONSTRAINT "StretchingRecord_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "StretchingExercise_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StretchingExerciseRecord" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "stretchingExerciseId" UUID NOT NULL,
+    "description" TEXT,
+    "ptRecordItemId" UUID NOT NULL,
+
+    CONSTRAINT "StretchingExerciseRecord_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -259,15 +311,6 @@ CREATE TABLE "PtSchedule" (
     "endTime" INTEGER NOT NULL,
 
     CONSTRAINT "PtSchedule_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "MemberRecord" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "memberId" UUID NOT NULL,
-
-    CONSTRAINT "MemberRecord_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -346,9 +389,9 @@ CREATE TABLE "PtPayment" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "ptId" UUID,
-    "nictTid" TEXT,
+    "type" "PaymentType" NOT NULL DEFAULT 'CASH',
     "paidAt" TIMESTAMP(3),
-    "price" INTEGER NOT NULL,
+    "amount" INTEGER NOT NULL,
 
     CONSTRAINT "PtPayment_pkey" PRIMARY KEY ("id")
 );
@@ -434,6 +477,7 @@ CREATE TABLE "FitnessCenter" (
     "description" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "inOperation" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "FitnessCenter_pkey" PRIMARY KEY ("id")
 );
@@ -475,6 +519,7 @@ CREATE TABLE "ChatRoomParticipant" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "chatRoomId" UUID NOT NULL,
     "userId" UUID NOT NULL,
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "ChatRoomParticipant_pkey" PRIMARY KEY ("id")
 );
@@ -486,19 +531,69 @@ CREATE TABLE "Message" (
     "roomId" UUID NOT NULL,
     "senderId" UUID,
     "content" TEXT NOT NULL,
+    "messageType" "MessageType" NOT NULL DEFAULT 'TEXT',
     "isRead" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Message_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "MessageReadStatus" (
+CREATE TABLE "MessageRead" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "messageId" UUID NOT NULL,
-    "userId" UUID,
-    "readAt" TIMESTAMP(3),
+    "userId" UUID NOT NULL,
+    "readAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "MessageReadStatus_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "MessageRead_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Media" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "filename" TEXT NOT NULL,
+    "originalName" TEXT NOT NULL,
+    "mimeType" TEXT NOT NULL,
+    "size" INTEGER NOT NULL,
+    "type" "PhotoType",
+    "videoType" "VideoType",
+    "status" "MediaStatus" NOT NULL DEFAULT 'UPLOADING',
+    "r2Key" TEXT,
+    "streamId" TEXT,
+    "publicUrl" TEXT NOT NULL,
+    "thumbnailUrl" TEXT,
+    "duration" INTEGER,
+    "resolution" TEXT,
+    "embedUrl" TEXT,
+    "scheduledDeleteAt" TIMESTAMP(3),
+    "autoDeleteEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "uploadedById" UUID NOT NULL,
+    "machineId" UUID,
+    "fitnessCenterId" UUID,
+    "ptRecordItemId" UUID,
+    "stretchingExerciseId" UUID,
+    "equipmentId" UUID,
+    "metadata" JSONB,
+
+    CONSTRAINT "Media_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "MediaUsage" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "userId" UUID NOT NULL,
+    "month" TEXT NOT NULL,
+    "imageCount" INTEGER NOT NULL DEFAULT 0,
+    "imageStorageBytes" INTEGER NOT NULL DEFAULT 0,
+    "videoCount" INTEGER NOT NULL DEFAULT 0,
+    "videoMinutes" INTEGER NOT NULL DEFAULT 0,
+    "videoStorageBytes" INTEGER NOT NULL DEFAULT 0,
+    "estimatedCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+
+    CONSTRAINT "MediaUsage_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -507,6 +602,30 @@ CREATE TABLE "_PtProductToTrainer" (
     "B" UUID NOT NULL,
 
     CONSTRAINT "_PtProductToTrainer_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_MachineSetRecordToMachineSettingValue" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_MachineSetRecordToMachineSettingValue_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_EquipmentToFreeSetRecord" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_EquipmentToFreeSetRecord_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_EquipmentToStretchingExerciseRecord" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_EquipmentToStretchingExerciseRecord_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateTable
@@ -530,6 +649,9 @@ CREATE UNIQUE INDEX "User_kakaoId_key" ON "User"("kakaoId");
 CREATE UNIQUE INDEX "User_mobile_key" ON "User"("mobile");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "User_avatarMediaId_key" ON "User"("avatarMediaId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "UserData_userId_key" ON "UserData"("userId");
 
 -- CreateIndex
@@ -540,6 +662,18 @@ CREATE UNIQUE INDEX "Trainer_userId_key" ON "Trainer"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Manager_userId_key" ON "Manager"("userId");
+
+-- CreateIndex
+CREATE INDEX "PtScheduleChangeRequest_ptRecordId_idx" ON "PtScheduleChangeRequest"("ptRecordId");
+
+-- CreateIndex
+CREATE INDEX "PtScheduleChangeRequest_state_idx" ON "PtScheduleChangeRequest"("state");
+
+-- CreateIndex
+CREATE INDEX "PtScheduleChangeRequest_expiresAt_idx" ON "PtScheduleChangeRequest"("expiresAt");
+
+-- CreateIndex
+CREATE INDEX "Equipment_fitnessCenterId_category_idx" ON "Equipment"("fitnessCenterId", "category");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PtSchedule_date_startTime_endTime_key" ON "PtSchedule"("date", "startTime", "endTime");
@@ -563,16 +697,67 @@ CREATE UNIQUE INDEX "PtCoupon_ptId_key" ON "PtCoupon"("ptId");
 CREATE UNIQUE INDEX "MembershipCoupon_membershipId_key" ON "MembershipCoupon"("membershipId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "OpeningHour_dayOfWeek_openTime_closeTime_key" ON "OpeningHour"("dayOfWeek", "openTime", "closeTime");
+CREATE UNIQUE INDEX "OpeningHour_dayOfWeek_openTime_closeTime_isClosed_key" ON "OpeningHour"("dayOfWeek", "openTime", "closeTime", "isClosed");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_ip_userId_key" ON "RateLimit"("ip", "userId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "ChatRoomParticipant_chatRoomId_userId_key" ON "ChatRoomParticipant"("chatRoomId", "userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MessageRead_messageId_userId_key" ON "MessageRead"("messageId", "userId");
+
+-- CreateIndex
+CREATE INDEX "Media_uploadedById_idx" ON "Media"("uploadedById");
+
+-- CreateIndex
+CREATE INDEX "Media_type_idx" ON "Media"("type");
+
+-- CreateIndex
+CREATE INDEX "Media_videoType_idx" ON "Media"("videoType");
+
+-- CreateIndex
+CREATE INDEX "Media_status_idx" ON "Media"("status");
+
+-- CreateIndex
+CREATE INDEX "Media_scheduledDeleteAt_idx" ON "Media"("scheduledDeleteAt");
+
+-- CreateIndex
+CREATE INDEX "Media_machineId_idx" ON "Media"("machineId");
+
+-- CreateIndex
+CREATE INDEX "Media_fitnessCenterId_idx" ON "Media"("fitnessCenterId");
+
+-- CreateIndex
+CREATE INDEX "Media_stretchingExerciseId_idx" ON "Media"("stretchingExerciseId");
+
+-- CreateIndex
+CREATE INDEX "MediaUsage_month_idx" ON "MediaUsage"("month");
+
+-- CreateIndex
+CREATE INDEX "MediaUsage_userId_idx" ON "MediaUsage"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MediaUsage_userId_month_key" ON "MediaUsage"("userId", "month");
+
+-- CreateIndex
 CREATE INDEX "_PtProductToTrainer_B_index" ON "_PtProductToTrainer"("B");
 
 -- CreateIndex
+CREATE INDEX "_MachineSetRecordToMachineSettingValue_B_index" ON "_MachineSetRecordToMachineSettingValue"("B");
+
+-- CreateIndex
+CREATE INDEX "_EquipmentToFreeSetRecord_B_index" ON "_EquipmentToFreeSetRecord"("B");
+
+-- CreateIndex
+CREATE INDEX "_EquipmentToStretchingExerciseRecord_B_index" ON "_EquipmentToStretchingExerciseRecord"("B");
+
+-- CreateIndex
 CREATE INDEX "_FitnessCenterToOpeningHour_B_index" ON "_FitnessCenterToOpeningHour"("B");
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_avatarMediaId_fkey" FOREIGN KEY ("avatarMediaId") REFERENCES "Media"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "UserData" ADD CONSTRAINT "UserData_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
@@ -611,13 +796,25 @@ ALTER TABLE "Pt" ADD CONSTRAINT "Pt_memberId_fkey" FOREIGN KEY ("memberId") REFE
 ALTER TABLE "Pt" ADD CONSTRAINT "Pt_trainerId_fkey" FOREIGN KEY ("trainerId") REFERENCES "Trainer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "PtScheduleChangeRequest" ADD CONSTRAINT "PtScheduleChangeRequest_ptRecordId_fkey" FOREIGN KEY ("ptRecordId") REFERENCES "PtRecord"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PtScheduleChangeRequest" ADD CONSTRAINT "PtScheduleChangeRequest_requestorId_fkey" FOREIGN KEY ("requestorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PtScheduleChangeRequest" ADD CONSTRAINT "PtScheduleChangeRequest_responderId_fkey" FOREIGN KEY ("responderId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "PtRecord" ADD CONSTRAINT "PtRecord_ptId_fkey" FOREIGN KEY ("ptId") REFERENCES "Pt"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PtRecord" ADD CONSTRAINT "PtRecord_ptScheduleId_fkey" FOREIGN KEY ("ptScheduleId") REFERENCES "PtSchedule"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RecordItem" ADD CONSTRAINT "RecordItem_ptRecordId_fkey" FOREIGN KEY ("ptRecordId") REFERENCES "PtRecord"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "PtRecord" ADD CONSTRAINT "PtRecord_fitnessCenterId_fkey" FOREIGN KEY ("fitnessCenterId") REFERENCES "FitnessCenter"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PtRecordItem" ADD CONSTRAINT "PtRecordItem_ptRecordId_fkey" FOREIGN KEY ("ptRecordId") REFERENCES "PtRecord"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Machine" ADD CONSTRAINT "Machine_fitnessCenterId_fkey" FOREIGN KEY ("fitnessCenterId") REFERENCES "FitnessCenter"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -629,43 +826,19 @@ ALTER TABLE "MachineSetting" ADD CONSTRAINT "MachineSetting_machineId_fkey" FORE
 ALTER TABLE "MachineSettingValue" ADD CONSTRAINT "MachineSettingValue_machineSettingId_fkey" FOREIGN KEY ("machineSettingId") REFERENCES "MachineSetting"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MachineRecord" ADD CONSTRAINT "MachineRecord_machineId_fkey" FOREIGN KEY ("machineId") REFERENCES "Machine"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MachineSetRecord" ADD CONSTRAINT "MachineSetRecord_ptRecordItemId_fkey" FOREIGN KEY ("ptRecordItemId") REFERENCES "PtRecordItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MachineRecord" ADD CONSTRAINT "MachineRecord_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Equipment" ADD CONSTRAINT "Equipment_fitnessCenterId_fkey" FOREIGN KEY ("fitnessCenterId") REFERENCES "FitnessCenter"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MachineRecord" ADD CONSTRAINT "MachineRecord_recordItemId_fkey" FOREIGN KEY ("recordItemId") REFERENCES "RecordItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "FreeSetRecord" ADD CONSTRAINT "FreeSetRecord_ptRecordItemId_fkey" FOREIGN KEY ("ptRecordItemId") REFERENCES "PtRecordItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MachineRecord" ADD CONSTRAINT "MachineRecord_freeToolId_fkey" FOREIGN KEY ("freeToolId") REFERENCES "FreeTool"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "StretchingExerciseRecord" ADD CONSTRAINT "StretchingExerciseRecord_stretchingExerciseId_fkey" FOREIGN KEY ("stretchingExerciseId") REFERENCES "StretchingExercise"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MachineRecord" ADD CONSTRAINT "MachineRecord_memberRecordId_fkey" FOREIGN KEY ("memberRecordId") REFERENCES "MemberRecord"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "MachineRecordValue" ADD CONSTRAINT "MachineRecordValue_machineRecordId_fkey" FOREIGN KEY ("machineRecordId") REFERENCES "MachineRecord"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "MachineRecordValue" ADD CONSTRAINT "MachineRecordValue_machineSettingValueId_fkey" FOREIGN KEY ("machineSettingValueId") REFERENCES "MachineSettingValue"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "FreeTool" ADD CONSTRAINT "FreeTool_fitnessCenterId_fkey" FOREIGN KEY ("fitnessCenterId") REFERENCES "FitnessCenter"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "FreeRecord" ADD CONSTRAINT "FreeRecord_toolId_fkey" FOREIGN KEY ("toolId") REFERENCES "FreeTool"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "FreeRecord" ADD CONSTRAINT "FreeRecord_recordItemId_fkey" FOREIGN KEY ("recordItemId") REFERENCES "RecordItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StretchingRecord" ADD CONSTRAINT "StretchingRecord_recordItemId_fkey" FOREIGN KEY ("recordItemId") REFERENCES "RecordItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StretchingRecord" ADD CONSTRAINT "StretchingRecord_freeToolId_fkey" FOREIGN KEY ("freeToolId") REFERENCES "FreeTool"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "MemberRecord" ADD CONSTRAINT "MemberRecord_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StretchingExerciseRecord" ADD CONSTRAINT "StretchingExerciseRecord_ptRecordItemId_fkey" FOREIGN KEY ("ptRecordItemId") REFERENCES "PtRecordItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WeekTime" ADD CONSTRAINT "WeekTime_ptId_fkey" FOREIGN KEY ("ptId") REFERENCES "Pt"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -737,16 +910,55 @@ ALTER TABLE "Message" ADD CONSTRAINT "Message_roomId_fkey" FOREIGN KEY ("roomId"
 ALTER TABLE "Message" ADD CONSTRAINT "Message_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MessageReadStatus" ADD CONSTRAINT "MessageReadStatus_messageId_fkey" FOREIGN KEY ("messageId") REFERENCES "Message"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MessageRead" ADD CONSTRAINT "MessageRead_messageId_fkey" FOREIGN KEY ("messageId") REFERENCES "Message"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "MessageReadStatus" ADD CONSTRAINT "MessageReadStatus_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "MessageRead" ADD CONSTRAINT "MessageRead_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Media" ADD CONSTRAINT "Media_uploadedById_fkey" FOREIGN KEY ("uploadedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Media" ADD CONSTRAINT "Media_machineId_fkey" FOREIGN KEY ("machineId") REFERENCES "Machine"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Media" ADD CONSTRAINT "Media_fitnessCenterId_fkey" FOREIGN KEY ("fitnessCenterId") REFERENCES "FitnessCenter"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Media" ADD CONSTRAINT "Media_ptRecordItemId_fkey" FOREIGN KEY ("ptRecordItemId") REFERENCES "PtRecordItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Media" ADD CONSTRAINT "Media_stretchingExerciseId_fkey" FOREIGN KEY ("stretchingExerciseId") REFERENCES "StretchingExercise"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Media" ADD CONSTRAINT "Media_equipmentId_fkey" FOREIGN KEY ("equipmentId") REFERENCES "Equipment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MediaUsage" ADD CONSTRAINT "MediaUsage_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_PtProductToTrainer" ADD CONSTRAINT "_PtProductToTrainer_A_fkey" FOREIGN KEY ("A") REFERENCES "PtProduct"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_PtProductToTrainer" ADD CONSTRAINT "_PtProductToTrainer_B_fkey" FOREIGN KEY ("B") REFERENCES "Trainer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_MachineSetRecordToMachineSettingValue" ADD CONSTRAINT "_MachineSetRecordToMachineSettingValue_A_fkey" FOREIGN KEY ("A") REFERENCES "MachineSetRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_MachineSetRecordToMachineSettingValue" ADD CONSTRAINT "_MachineSetRecordToMachineSettingValue_B_fkey" FOREIGN KEY ("B") REFERENCES "MachineSettingValue"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_EquipmentToFreeSetRecord" ADD CONSTRAINT "_EquipmentToFreeSetRecord_A_fkey" FOREIGN KEY ("A") REFERENCES "Equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_EquipmentToFreeSetRecord" ADD CONSTRAINT "_EquipmentToFreeSetRecord_B_fkey" FOREIGN KEY ("B") REFERENCES "FreeSetRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_EquipmentToStretchingExerciseRecord" ADD CONSTRAINT "_EquipmentToStretchingExerciseRecord_A_fkey" FOREIGN KEY ("A") REFERENCES "Equipment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_EquipmentToStretchingExerciseRecord" ADD CONSTRAINT "_EquipmentToStretchingExerciseRecord_B_fkey" FOREIGN KEY ("B") REFERENCES "StretchingExerciseRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_FitnessCenterToOpeningHour" ADD CONSTRAINT "_FitnessCenterToOpeningHour_A_fkey" FOREIGN KEY ("A") REFERENCES "FitnessCenter"("id") ON DELETE CASCADE ON UPDATE CASCADE;

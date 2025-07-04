@@ -94,10 +94,13 @@ export const getPtDetailAction = async (ptId: string) => {
                   id: true,
                   reps: true,
                   set: true,
-                  weights: {
+                  equipments: {
                     select: {
-                      weight: true,
-                      unit: true,
+                      id: true,
+                      title: true,
+                      category: true,
+                      primaryValue: true,
+                      primaryUnit: true,
                     },
                   },
                 },

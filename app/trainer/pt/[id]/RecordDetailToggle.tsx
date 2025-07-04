@@ -76,8 +76,8 @@ const RecordDetailToggle = ({
                     {item.freeSetRecords.map((record, idx) => (
                       <div key={record.id}>
                         {idx + 1}세트:{" "}
-                        {record.weights
-                          .map((w) => `${w.weight}${w.unit}`)
+                        {record.equipments
+                          .map((eq) => `${eq.primaryValue}${eq.primaryUnit}`)
                           .join(" + ")}{" "}
                         × {record.reps}회
                       </div>

@@ -363,13 +363,13 @@ export default async function CenterDetailPage({
                 <p className="text-gray-500 mb-4">등록된 기구가 없습니다.</p>
                 <div className="space-y-2">
                   <Link
-                    href={`/manager/centers/${id}/facilities/machine`}
+                    href={`/manager/centers/${id}/machines`}
                     className="inline-block text-sm text-blue-600 hover:text-blue-800 mr-4"
                   >
                     머신 등록하기
                   </Link>
                   <Link
-                    href={`/manager/centers/${id}/facilities/tool`}
+                    href={`/manager/centers/${id}/equipments`}
                     className="inline-block text-sm text-blue-600 hover:text-blue-800"
                   >
                     운동기구 등록하기
@@ -389,7 +389,7 @@ export default async function CenterDetailPage({
                       </p>
                     </div>
                     <Link
-                      href={`/manager/centers/${id}/facilities/machine/${machine.id}`}
+                      href={`/manager/centers/${id}/machines/${machine.id}`}
                       className="text-sm text-gray-600 hover:text-gray-900"
                     >
                       관리
@@ -399,7 +399,7 @@ export default async function CenterDetailPage({
                 {center.machines.length > 5 && (
                   <div className="text-center pt-3">
                     <Link
-                      href={`/manager/centers/${id}/facilities/machine`}
+                      href={`/manager/centers/${id}/machines`}
                       className="text-sm text-gray-600 hover:text-gray-900"
                     >
                       전체 기구 보기 ({center.machines.length - 5}개 더)
@@ -465,7 +465,7 @@ export default async function CenterDetailPage({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 머신 관리 카드 */}
               <Link
-                href={`/manager/centers/${id}/facilities/machine`}
+                href={`/manager/centers/${id}/machines`}
                 className="group block p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200 hover:shadow-md transition-all duration-200"
               >
                 <div className="flex items-center space-x-4">
@@ -513,7 +513,7 @@ export default async function CenterDetailPage({
 
               {/* 운동기구 관리 카드 */}
               <Link
-                href={`/manager/centers/${id}/facilities/tool`}
+                href={`/manager/centers/${id}/equipments`}
                 className="group block p-6 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200 hover:shadow-md transition-all duration-200"
               >
                 <div className="flex items-center space-x-4">

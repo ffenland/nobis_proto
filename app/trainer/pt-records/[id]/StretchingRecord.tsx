@@ -1,12 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  IEquipment,
+  IStretchingExercise,
+} from "@/app/lib/services/pt-record.service";
+import { matchSearch } from "@/app/components/common/matchSearch";
 import useSWR from "swr";
-import { IStretchingExercise } from "@/app/lib/services/pt-record.service";
 
 interface StretchingRecordProps {
   ptRecordId: string;
   onComplete: () => void;
+  equipmentList: IEquipment[];
+}
+
+interface StretchingRecordData {
+  stretchingExerciseId: string;
+  description: string;
+  selectedEquipments: IEquipment[];
 }
 
 // API fetcher 함수
@@ -21,117 +32,129 @@ const fetcher = (url: string) =>
 const StretchingRecord = ({
   ptRecordId,
   onComplete,
+  equipmentList,
 }: StretchingRecordProps) => {
   const [selectedExercise, setSelectedExercise] =
     useState<IStretchingExercise | null>(null);
-  const [customExerciseName, setCustomExerciseName] = useState("");
   const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState("");
+  const [selectedEquipments, setSelectedEquipments] = useState<IEquipment[]>(
+    []
+  );
   const [query, setQuery] = useState("");
-  const [isCustom, setIsCustom] = useState(false);
+  const [equipmentQuery, setEquipmentQuery] = useState("");
+  const [searchedExercises, setSearchedExercises] = useState<
+    IStretchingExercise[]
+  >([]);
+  const [searchedEquipments, setSearchedEquipments] = useState<IEquipment[]>(
+    []
+  );
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchResults, setSearchResults] = useState<IStretchingExercise[]>([]);
 
   // 스트레칭 운동 목록 조회
   const {
-    data: availableExercises,
+    data: stretchingExercises,
     error: exercisesError,
     isLoading: exercisesLoading,
-    mutate: mutateExercises,
   } = useSWR<IStretchingExercise[]>(
-    "/api/trainer/stretching-exercises",
+    `/api/trainer/stretching-exercises`,
     fetcher
   );
 
-  // 검색 기능
+  // 운동 검색
   useEffect(() => {
-    if (query.trim() && availableExercises) {
-      const filtered = availableExercises.filter(
-        (exercise) =>
-          exercise.title.toLowerCase().includes(query.toLowerCase()) ||
-          exercise.description.toLowerCase().includes(query.toLowerCase())
+    if (stretchingExercises) {
+      const results = matchSearch<IStretchingExercise>(
+        stretchingExercises,
+        "title",
+        query
       );
-      setSearchResults(filtered);
-    } else {
-      setSearchResults([]);
+      setSearchedExercises(results);
     }
-  }, [query, availableExercises]);
+  }, [query, stretchingExercises]);
+
+  // 기구 검색
+  useEffect(() => {
+    const results = matchSearch<IEquipment>(
+      equipmentList,
+      "title",
+      equipmentQuery
+    );
+    setSearchedEquipments(results);
+  }, [equipmentQuery, equipmentList]);
+
+  // 운동 선택
+  const selectExercise = (exercise: IStretchingExercise) => {
+    setSelectedExercise(exercise);
+    setQuery("");
+    setShowExerciseModal(false);
+  };
+
+  // 기구 추가
+  const addEquipment = (equipment: IEquipment) => {
+    if (!selectedEquipments.find((eq) => eq.id === equipment.id)) {
+      setSelectedEquipments([...selectedEquipments, equipment]);
+    }
+    setEquipmentQuery("");
+    setShowEquipmentModal(false);
+  };
+
+  // 기구 삭제
+  const removeEquipment = (equipmentId: string) => {
+    setSelectedEquipments(
+      selectedEquipments.filter((eq) => eq.id !== equipmentId)
+    );
+  };
+
+  // 기구 표시 텍스트 생성
+  const getEquipmentDisplayText = (equipment: IEquipment) => {
+    const value = equipment.primaryValue;
+    const unit = equipment.primaryUnit;
+
+    if (value && unit) {
+      return `${equipment.title} (${value}${unit})`;
+    }
+    return equipment.title;
+  };
 
   // 기록 완료 제출
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isCustom && !selectedExercise) {
+    if (!selectedExercise) {
       alert("스트레칭 운동을 선택해주세요");
-      return;
-    }
-
-    if (isCustom && !customExerciseName.trim()) {
-      alert("운동 이름을 입력해주세요");
-      return;
-    }
-
-    if (!duration) {
-      alert("시간을 입력해주세요");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      let stretchingExerciseId = selectedExercise?.id;
-
-      // 사용자 정의 운동인 경우 새로 생성
-      if (isCustom) {
-        const createExerciseResponse = await fetch(
-          "/api/trainer/stretching-exercises",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              title: customExerciseName,
-              description: description || customExerciseName,
-            }),
-          }
-        );
-
-        if (!createExerciseResponse.ok) {
-          throw new Error("스트레칭 운동 생성 실패");
-        }
-
-        const newExercise = await createExerciseResponse.json();
-        stretchingExerciseId = newExercise.id;
-
-        // 스트레칭 운동 목록 갱신
-        await mutateExercises();
-      }
-
-      // PtRecordItem 생성
-      const ptRecordItemResponse = await fetch("/api/trainer/pt-record-items", {
+      // PT Record Item 생성
+      const ptRecordItemResponse = await fetch(`/api/trainer/pt-record-items`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           ptRecordId,
+          title: selectedExercise.title,
+          description,
           type: "STRETCHING",
-          title: isCustom ? customExerciseName : selectedExercise?.title,
-          description: description,
-          entry: parseInt(duration), // 스트레칭 시간을 entry에 저장
         }),
       });
 
       if (!ptRecordItemResponse.ok) {
-        throw new Error("PtRecordItem 생성 실패");
+        throw new Error("PT Record Item 생성 실패");
       }
 
       const ptRecordItem = await ptRecordItemResponse.json();
 
       // StretchingExerciseRecord 생성
+      const equipmentIds = selectedEquipments.map((eq) => eq.id);
+
       const stretchingRecordResponse = await fetch(
-        "/api/trainer/stretching-exercise-records",
+        `/api/trainer/stretching-records`,
         {
           method: "POST",
           headers: {
@@ -139,8 +162,9 @@ const StretchingRecord = ({
           },
           body: JSON.stringify({
             ptRecordItemId: ptRecordItem.id,
-            stretchingExerciseId,
-            description: description,
+            stretchingExerciseId: selectedExercise.id,
+            description,
+            equipmentIds,
           }),
         }
       );
@@ -149,224 +173,236 @@ const StretchingRecord = ({
         throw new Error("스트레칭 기록 생성 실패");
       }
 
-      alert("스트레칭이 성공적으로 기록되었습니다!");
+      // 성공 후 초기화
+      setSelectedExercise(null);
+      setDescription("");
+      setSelectedEquipments([]);
       onComplete();
     } catch (error) {
-      console.error("Error creating stretching record:", error);
-      alert("스트레칭 기록 저장 중 오류가 발생했습니다.");
+      console.error("스트레칭 기록 생성 실패:", error);
+      alert("기록 생성 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 로딩 상태
   if (exercisesLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
-          <p className="text-gray-500 text-sm">로딩 중...</p>
-        </div>
+      <div className="flex justify-center items-center min-h-32">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
-  // 에러 상태
   if (exercisesError) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-5 h-5 text-red-500">⚠️</div>
-          <span className="text-red-800">
-            스트레칭 운동 목록을 불러오는 중 오류가 발생했습니다.
-          </span>
-        </div>
+      <div className="text-center text-red-500">
+        스트레칭 운동 목록을 불러오는 중 오류가 발생했습니다.
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-2">
-          🧘 스트레칭 기록
-        </h3>
-      </div>
+    <div className="bg-white p-6 rounded-lg shadow-sm border">
+      <h3 className="text-lg font-semibold mb-4">스트레칭 기록</h3>
 
-      {/* 운동 선택 방식 */}
-      <div className="space-y-3">
-        <label className="block text-sm font-medium text-gray-900">
-          운동 선택 방식
-        </label>
-        <div className="flex gap-6">
-          <label className="flex items-center space-x-3 cursor-pointer">
-            <input
-              type="radio"
-              name="exerciseType"
-              className="w-4 h-4 text-gray-600 border-gray-300 focus:ring-gray-500"
-              checked={!isCustom}
-              onChange={() => setIsCustom(false)}
-            />
-            <span className="text-gray-700">기본 운동에서 선택</span>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 스트레칭 운동 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            스트레칭 운동
           </label>
-          <label className="flex items-center space-x-3 cursor-pointer">
-            <input
-              type="radio"
-              name="exerciseType"
-              className="w-4 h-4 text-gray-600 border-gray-300 focus:ring-gray-500"
-              checked={isCustom}
-              onChange={() => setIsCustom(true)}
-            />
-            <span className="text-gray-700">직접 입력</span>
-          </label>
-        </div>
-      </div>
-
-      {/* 운동 선택/입력 */}
-      {!isCustom ? (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            스트레칭 운동 선택 *
-          </label>
-
-          {selectedExercise ? (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-medium text-gray-900">
+          <div className="flex items-center space-x-2">
+            <div className="flex-1">
+              {selectedExercise ? (
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="font-medium text-blue-900">
                     {selectedExercise.title}
-                  </h4>
-                  <p className="text-sm text-gray-600 mt-1">
+                  </div>
+                  <div className="text-sm text-blue-700">
                     {selectedExercise.description}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedExercise(null)}
-                  className="px-3 py-1 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  변경
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="스트레칭 운동을 검색하세요"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
-              />
-
-              {query && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {searchResults.map((exercise) => (
-                    <button
-                      key={exercise.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedExercise(exercise);
-                        setQuery("");
-                      }}
-                      className="w-full px-4 py-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                    >
-                      <div className="font-medium text-gray-900">
-                        {exercise.title}
-                      </div>
-                      <div className="text-sm text-gray-600 truncate mt-1">
-                        {exercise.description}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {query && searchResults.length === 0 && (
-                <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
-                  <div className="px-4 py-4 text-gray-500 text-sm">
-                    검색 결과가 없습니다
                   </div>
                 </div>
+              ) : (
+                <div className="p-2 border border-gray-300 rounded-md text-gray-500">
+                  스트레칭 운동을 선택해주세요
+                </div>
               )}
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => setShowExerciseModal(true)}
+              className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            >
+              선택
+            </button>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            운동 이름 *
+
+        {/* 설명 입력 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            설명 및 주의사항
           </label>
-          <input
-            type="text"
-            value={customExerciseName}
-            onChange={(e) => setCustomExerciseName(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
-            placeholder="예: 목 스트레칭, 어깨 돌리기"
-            required={isCustom}
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="스트레칭 시 주의사항이나 특이사항을 기록해주세요"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            rows={3}
           />
+        </div>
+
+        {/* 사용 기구 선택 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            사용 기구 (선택사항)
+          </label>
+          <div className="mb-3">
+            <div className="flex flex-wrap gap-2">
+              {selectedEquipments.map((equipment) => (
+                <span
+                  key={equipment.id}
+                  className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm"
+                >
+                  {getEquipmentDisplayText(equipment)}
+                  <button
+                    type="button"
+                    onClick={() => removeEquipment(equipment.id)}
+                    className="ml-1 text-green-600 hover:text-green-800"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowEquipmentModal(true)}
+            className="text-blue-500 hover:text-blue-700 text-sm"
+          >
+            + 기구 추가
+          </button>
+        </div>
+
+        {/* 제출 버튼 */}
+        <div className="flex justify-end space-x-2">
+          <button
+            type="button"
+            onClick={onComplete}
+            className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting || !selectedExercise}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+          >
+            {isSubmitting ? "저장 중..." : "기록 완료"}
+          </button>
+        </div>
+      </form>
+
+      {/* 스트레칭 운동 선택 모달 */}
+      {showExerciseModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full max-h-96 overflow-y-auto">
+            <h4 className="text-lg font-semibold mb-4">스트레칭 운동 선택</h4>
+
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="운동명 검색"
+              className="w-full p-2 border border-gray-300 rounded-md mb-4"
+              autoFocus
+            />
+
+            <div className="space-y-2">
+              {searchedExercises.map((exercise) => (
+                <button
+                  key={exercise.id}
+                  onClick={() => selectExercise(exercise)}
+                  className="w-full p-2 text-left border border-gray-200 rounded-md hover:bg-gray-50"
+                >
+                  <div className="font-medium">{exercise.title}</div>
+                  <div className="text-sm text-gray-600">
+                    {exercise.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => {
+                  setShowExerciseModal(false);
+                  setQuery("");
+                }}
+                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* 시간 입력 */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-900">
-          시간 (초) *
-        </label>
-        <input
-          type="number"
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
-          placeholder="30"
-          min="1"
-          required
-        />
-        <p className="text-sm text-gray-500">권장: 30-60초</p>
-      </div>
+      {/* 기구 선택 모달 */}
+      {showEquipmentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full max-h-96 overflow-y-auto">
+            <h4 className="text-lg font-semibold mb-4">기구 선택</h4>
 
-      {/* 추가 설명 */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-900">
-          메모 (선택사항)
-        </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all resize-none h-20"
-          placeholder="스트레칭에 대한 추가 설명을 입력하세요"
-        />
-      </div>
+            <input
+              type="text"
+              value={equipmentQuery}
+              onChange={(e) => setEquipmentQuery(e.target.value)}
+              placeholder="기구명 검색"
+              className="w-full p-2 border border-gray-300 rounded-md mb-4"
+              autoFocus
+            />
 
-      {/* 제출 버튼 */}
-      <button
-        type="submit"
-        disabled={
-          isSubmitting ||
-          (!isCustom && !selectedExercise) ||
-          (isCustom && !customExerciseName.trim()) ||
-          !duration
-        }
-        className={`w-full py-4 rounded-lg font-semibold transition-all ${
-          isSubmitting ||
-          (!isCustom && !selectedExercise) ||
-          (isCustom && !customExerciseName.trim()) ||
-          !duration
-            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-            : "bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-700"
-        }`}
-      >
-        {isSubmitting ? (
-          <div className="flex items-center justify-center space-x-2">
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-            <span>기록 저장 중...</span>
+            <div className="space-y-2">
+              {searchedEquipments.map((equipment) => (
+                <button
+                  key={equipment.id}
+                  onClick={() => addEquipment(equipment)}
+                  className="w-full p-2 text-left border border-gray-200 rounded-md hover:bg-gray-50"
+                >
+                  <div className="font-medium">{equipment.title}</div>
+                  <div className="text-sm text-gray-600">
+                    {equipment.primaryValue && equipment.primaryUnit && (
+                      <span>
+                        {equipment.primaryValue}
+                        {equipment.primaryUnit}
+                      </span>
+                    )}
+                    {equipment.description && (
+                      <span className="ml-2">- {equipment.description}</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => {
+                  setShowEquipmentModal(false);
+                  setEquipmentQuery("");
+                }}
+                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                닫기
+              </button>
+            </div>
           </div>
-        ) : (
-          "스트레칭 완료"
-        )}
-      </button>
-    </form>
+        </div>
+      )}
+    </div>
   );
 };
-
 export default StretchingRecord;

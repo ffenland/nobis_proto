@@ -135,8 +135,8 @@ const PtDetailPage = (props: { params: Params }) => {
         return item.freeSetRecords.map((record) => ({
           name: item.title || "프리웨이트",
           details: `${record.set}세트 × ${record.reps}회`,
-          settings: record.weights
-            .map((w) => `${w.title}: ${w.weight}${w.unit}`)
+          settings: record.equipments
+            .map((w) => `${w.title}: ${w.primaryValue}${w.primaryUnit}`)
             .join(", "),
         }));
 

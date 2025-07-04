@@ -98,8 +98,10 @@ const formatTime = (time: number) => {
     .padStart(2, "0")}`;
 };
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString("ko-KR", {
+// 날짜 포맷팅 함수 수정 (Date 객체 처리)
+const formatDate = (date: string | Date) => {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return dateObj.toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -107,13 +109,29 @@ const formatDate = (date: string) => {
   });
 };
 
-const formatDateTime = (date: string) => {
-  return new Date(date).toLocaleString("ko-KR", {
+const formatDateTime = (date: string | Date) => {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return dateObj.toLocaleString("ko-KR", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+// 기구 표시 헬퍼 함수
+const getEquipmentDisplayText = (equipment: {
+  title: string;
+  primaryValue: number | null;
+  primaryUnit: string | null;
+}) => {
+  const value = equipment.primaryValue;
+  const unit = equipment.primaryUnit;
+
+  if (value && unit) {
+    return `${value}${unit}`;
+  }
+  return equipment.title;
 };
 
 export default function PtRecordDetailPage() {
@@ -173,18 +191,15 @@ export default function PtRecordDetailPage() {
   if (records.length === 0) {
     return (
       <PageLayout maxWidth="lg">
-        <PageHeader
-          title={
-            <div className="flex items-center space-x-3">
-              <Link href={`/manager/trainers/${trainerId}`}>
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              </Link>
-              <span>수업 기록</span>
-            </div>
-          }
-        />
+        <PageHeader title="수업 기록" />
+        <div className="mb-4">
+          <Link href={`/manager/trainers/${trainerId}`}>
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              돌아가기
+            </Button>
+          </Link>
+        </div>
         <Card>
           <CardContent className="text-center py-12">
             <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -208,18 +223,18 @@ export default function PtRecordDetailPage() {
   return (
     <PageLayout maxWidth="lg">
       <PageHeader
-        title={
-          <div className="flex items-center space-x-3">
-            <Link href={`/manager/trainers/${trainerId}`}>
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </Link>
-            <span>수업 기록 상세</span>
-          </div>
-        }
+        title="수업 기록 상세"
         subtitle={`${ptInfo.member?.user.username}님의 ${ptInfo.ptProduct.title}`}
       />
+
+      <div className="mb-6">
+        <Link href={`/manager/trainers/${trainerId}`}>
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            돌아가기
+          </Button>
+        </Link>
+      </div>
 
       <div className="space-y-6">
         {/* PT 기본 정보 카드 */}
@@ -375,7 +390,7 @@ export default function PtRecordDetailPage() {
                     <div className="flex items-center space-x-4">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">
-                          {formatDate(record.ptSchedule.date)}
+                          {formatDate(sessionDate)}
                         </h3>
                         <p className="text-sm text-gray-600">
                           {startTime} - {endTime} ({ptInfo.ptProduct.time}분)
@@ -416,16 +431,14 @@ export default function PtRecordDetailPage() {
                           <p className="text-gray-600">수업 시작 시간</p>
                           <p className="font-medium text-gray-900">
                             {formatDateTime(
-                              record.timeAnalysis.sessionStartTime.toISOString()
+                              record.timeAnalysis.sessionStartTime
                             )}
                           </p>
                         </div>
                         <div>
                           <p className="text-gray-600">기록 작성 시간</p>
                           <p className="font-medium text-gray-900">
-                            {formatDateTime(
-                              record.timeAnalysis.recordedAt.toISOString()
-                            )}
+                            {formatDateTime(record.timeAnalysis.recordedAt)}
                           </p>
                         </div>
                         <div>
@@ -549,6 +562,7 @@ export default function PtRecordDetailPage() {
                                 </div>
                               )}
 
+                            {/* 프리웨이트 세트 - equipments로 수정 */}
                             {item.type === "FREE" &&
                               item.freeSetRecords.length > 0 && (
                                 <div className="mb-4">
@@ -567,13 +581,13 @@ export default function PtRecordDetailPage() {
                                           </span>
                                         </div>
                                         <div className="space-y-1 text-sm">
-                                          {set.weights.map((weight) => (
-                                            <p key={weight.id}>
+                                          {set.equipments.map((eq) => (
+                                            <p key={eq.id}>
                                               <span className="text-gray-600">
-                                                도구:
+                                                기구:
                                               </span>{" "}
-                                              {weight.title} ({weight.weight}
-                                              {weight.unit})
+                                              {eq.title} (
+                                              {getEquipmentDisplayText(eq)})
                                             </p>
                                           ))}
                                           <p>
@@ -589,6 +603,7 @@ export default function PtRecordDetailPage() {
                                 </div>
                               )}
 
+                            {/* 스트레칭 - equipments 지원 추가 */}
                             {item.type === "STRETCHING" &&
                               item.stretchingExerciseRecords.length > 0 && (
                                 <div className="mb-4">
@@ -624,14 +639,17 @@ export default function PtRecordDetailPage() {
                                                 }
                                               </p>
                                             )}
-                                            {stretch.description && (
-                                              <p>
-                                                <span className="text-gray-600">
-                                                  기록:
-                                                </span>{" "}
-                                                {stretch.description}
-                                              </p>
-                                            )}
+                                            {stretch.equipments &&
+                                              stretch.equipments.length > 0 && (
+                                                <p>
+                                                  <span className="text-gray-600">
+                                                    사용 기구:
+                                                  </span>{" "}
+                                                  {stretch.equipments
+                                                    .map((eq) => eq.title)
+                                                    .join(", ")}
+                                                </p>
+                                              )}
                                           </div>
                                         </div>
                                       )
@@ -712,14 +730,6 @@ export default function PtRecordDetailPage() {
           })}
         </div>
       </div>
-
-      {/* 새로고침 시간 표시 */}
-      {recordsData?.timestamp && (
-        <div className="text-center text-sm text-gray-500 mt-6">
-          마지막 업데이트:{" "}
-          {new Date(recordsData.timestamp).toLocaleString("ko-KR")}
-        </div>
-      )}
     </PageLayout>
   );
 }

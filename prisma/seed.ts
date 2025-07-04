@@ -1,5 +1,10 @@
 // prisma/seed.ts
-import { PrismaClient, UserRole, WeekDay } from "@prisma/client";
+import {
+  PrismaClient,
+  UserRole,
+  WeekDay,
+  EquipmentCategory,
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -28,7 +33,7 @@ async function main() {
     await createMachines();
 
     // 4. 웨이트 도구 생성
-    await createWeights();
+    await createAllEquipmentData();
 
     // 5. 스트레칭 운동 생성
     await createStretchingExercises();
@@ -632,212 +637,225 @@ async function createMachineData(fitnessCenterId: string) {
   }
 }
 
-async function createWeights() {
-  console.log("⚖️ 웨이트 도구 생성 중...");
-
+const createAllEquipmentData = async () => {
   const fitnessCenters = await prisma.fitnessCenter.findMany({
-    select: { id: true },
+    select: { id: true, title: true },
   });
 
-  for (const fitnessCenter of fitnessCenters) {
-    await createWeightData(fitnessCenter.id);
+  for (const center of fitnessCenters) {
+    console.log(`피트니스 센터 "${center.title}"에 기구 데이터 생성 중...`);
+    await createEquipmentData(center.id);
   }
+};
 
-  console.log("✅ 웨이트 도구 생성 완료");
-}
-
-async function createWeightData(fitnessCenterId: string) {
-  // 이미 존재하는 웨이트 도구 확인
-  const existingWeights = await prisma.weights.findMany({
+const createEquipmentData = async (fitnessCenterId: string) => {
+  // 이미 존재하는 기구 확인
+  const existingEquipment = await prisma.equipment.findMany({
     where: { fitnessCenterId },
     select: { title: true },
   });
-  const existingWeightTitles = new Set(existingWeights.map((w) => w.title));
+  const existingTitles = new Set(existingEquipment.map((e) => e.title));
 
-  const weights = [
-    // 덤벨 세트 (2kg부터 50kg까지)
+  const equipmentData = [
+    // 덤벨 세트
     ...Array.from({ length: 25 }, (_, i) => ({
       title: `덤벨 ${(i + 1) * 2}kg`,
-      weight: (i + 1) * 2,
-      unit: "kg",
+      category: EquipmentCategory.WEIGHT,
+      primaryValue: (i + 1) * 2,
+      primaryUnit: "kg",
       description: `${(i + 1) * 2}kg 고정식 덤벨`,
+      quantity: 2,
+      location: "덤벨 렉",
     })),
-    // 바벨
+
+    // 바벨류
     {
-      title: "올림픽 바벨 (20kg)",
-      weight: 20,
-      unit: "kg",
+      title: "올림픽 바벨 20kg",
+      category: EquipmentCategory.WEIGHT,
+      primaryValue: 20,
+      primaryUnit: "kg",
+      secondaryValue: 220,
+      secondaryUnit: "cm",
       description: "표준 올림픽 바벨",
+      quantity: 3,
+      location: "바벨 렉",
     },
     {
-      title: "EZ 바벨 (10kg)",
-      weight: 10,
-      unit: "kg",
+      title: "EZ 바벨 10kg",
+      category: EquipmentCategory.WEIGHT,
+      primaryValue: 10,
+      primaryUnit: "kg",
       description: "컬용 EZ 바벨",
+      quantity: 2,
+      location: "바벨 렉",
+    },
+
+    // 원판류
+    ...Array.from({ length: 7 }, (_, i) => {
+      const weights = [1.25, 2.5, 5, 10, 15, 20, 25];
+      const quantities = [8, 8, 6, 4, 4, 2, 2];
+      return {
+        title: `원판 ${weights[i]}kg`,
+        category: EquipmentCategory.WEIGHT,
+        primaryValue: weights[i],
+        primaryUnit: "kg",
+        description: `${weights[i]}kg 고무 원판`,
+        quantity: quantities[i],
+        location: "원판 렉",
+      };
+    }),
+
+    // 케틀벨
+    ...Array.from({ length: 6 }, (_, i) => {
+      const weights = [8, 12, 16, 20, 24, 28];
+      return {
+        title: `케틀벨 ${weights[i]}kg`,
+        category: EquipmentCategory.SPECIALTY,
+        primaryValue: weights[i],
+        primaryUnit: "kg",
+        description: `${weights[i]}kg 케틀벨`,
+        quantity: 1,
+        location: "케틀벨 존",
+      };
+    }),
+
+    // 고무밴드/저항밴드
+    {
+      title: "고무밴드 옐로우",
+      category: EquipmentCategory.RESISTANCE,
+      primaryValue: 15,
+      primaryUnit: "lbs",
+      description: "15파운드 저항력 고무밴드",
+      quantity: 15,
+      location: "밴드 보관함",
     },
     {
-      title: "스트레이트 바벨 (15kg)",
-      weight: 15,
-      unit: "kg",
-      description: "스트레이트 바벨",
-    },
-    // 원판들
-    {
-      title: "원판 1.25kg",
-      weight: 1.25,
-      unit: "kg",
-      description: "1.25kg 고무 원판",
+      title: "고무밴드 레드",
+      category: EquipmentCategory.RESISTANCE,
+      primaryValue: 20,
+      primaryUnit: "lbs",
+      description: "20파운드 저항력 고무밴드",
+      quantity: 12,
+      location: "밴드 보관함",
     },
     {
-      title: "원판 2.5kg",
-      weight: 2.5,
-      unit: "kg",
-      description: "2.5kg 고무 원판",
-    },
-    { title: "원판 5kg", weight: 5, unit: "kg", description: "5kg 고무 원판" },
-    {
-      title: "원판 10kg",
-      weight: 10,
-      unit: "kg",
-      description: "10kg 고무 원판",
+      title: "고무밴드 블루",
+      category: EquipmentCategory.RESISTANCE,
+      primaryValue: 25,
+      primaryUnit: "lbs",
+      description: "25파운드 저항력 고무밴드",
+      quantity: 10,
+      location: "밴드 보관함",
     },
     {
-      title: "원판 15kg",
-      weight: 15,
-      unit: "kg",
-      description: "15kg 고무 원판",
+      title: "루프밴드 라이트",
+      category: EquipmentCategory.RESISTANCE,
+      primaryValue: 1,
+      primaryUnit: "level",
+      description: "하체용 루프밴드 - 약한 강도",
+      quantity: 15,
+      location: "밴드 보관함",
     },
     {
-      title: "원판 20kg",
-      weight: 20,
-      unit: "kg",
-      description: "20kg 고무 원판",
+      title: "루프밴드 미디움",
+      category: EquipmentCategory.RESISTANCE,
+      primaryValue: 2,
+      primaryUnit: "level",
+      description: "하체용 루프밴드 - 보통 강도",
+      quantity: 15,
+      location: "밴드 보관함",
     },
+
+    // 기능성 도구
     {
-      title: "원판 25kg",
-      weight: 25,
-      unit: "kg",
-      description: "25kg 고무 원판",
-    },
-    // 케틀벨 (8kg부터 44kg까지)
-    ...Array.from({ length: 10 }, (_, i) => ({
-      title: `케틀벨 ${8 + i * 4}kg`,
-      weight: 8 + i * 4,
-      unit: "kg",
-      description: `${8 + i * 4}kg 케틀벨`,
-    })),
-    // 기타 도구들
-    {
-      title: "메디신볼 3kg",
-      weight: 3,
-      unit: "kg",
-      description: "3kg 메디신볼",
-    },
-    {
-      title: "메디신볼 5kg",
-      weight: 5,
-      unit: "kg",
-      description: "5kg 메디신볼",
-    },
-    {
-      title: "메디신볼 8kg",
-      weight: 8,
-      unit: "kg",
-      description: "8kg 메디신볼",
-    },
-    {
-      title: "메디신볼 10kg",
-      weight: 10,
-      unit: "kg",
-      description: "10kg 메디신볼",
-    },
-    {
-      title: "저항밴드 (약함)",
-      weight: 0,
-      unit: "개",
-      description: "노란색 저항밴드 - 약한 강도",
-    },
-    {
-      title: "저항밴드 (보통)",
-      weight: 0,
-      unit: "개",
-      description: "빨간색 저항밴드 - 보통 강도",
-    },
-    {
-      title: "저항밴드 (강함)",
-      weight: 0,
-      unit: "개",
-      description: "검정색 저항밴드 - 강한 강도",
-    },
-    {
-      title: "루프밴드",
-      weight: 0,
-      unit: "개",
-      description: "하체용 루프밴드",
-    },
-    {
-      title: "폼롤러",
-      weight: 0.5,
-      unit: "kg",
+      title: "폼롤러 60cm",
+      category: EquipmentCategory.FUNCTIONAL,
+      primaryValue: 60,
+      primaryUnit: "cm",
       description: "근막 이완용 폼롤러",
+      quantity: 8,
+      location: "스트레칭 존",
     },
     {
-      title: "밸런스볼",
-      weight: 1.2,
-      unit: "kg",
-      description: "65cm 밸런스볼",
+      title: "밸런스볼 65cm",
+      category: EquipmentCategory.FUNCTIONAL,
+      primaryValue: 65,
+      primaryUnit: "cm",
+      description: "밸런스 트레이닝용 짐볼",
+      quantity: 6,
+      location: "기능성 존",
     },
+
+    // 메디신볼
+    ...Array.from({ length: 4 }, (_, i) => {
+      const weights = [3, 5, 8, 10];
+      return {
+        title: `메디신볼 ${weights[i]}kg`,
+        category: EquipmentCategory.CORE,
+        primaryValue: weights[i],
+        primaryUnit: "kg",
+        description: `${weights[i]}kg 메디신볼`,
+        quantity: 2,
+        location: "메디신볼 렉",
+      };
+    }),
+
+    // 가동성 도구
     {
-      title: "보수볼",
-      weight: 2,
-      unit: "kg",
-      description: "밸런스 트레이닝용 보수볼",
+      title: "요가매트",
+      category: EquipmentCategory.MOBILITY,
+      primaryValue: 173,
+      primaryUnit: "cm",
+      secondaryValue: 61,
+      secondaryUnit: "cm",
+      description: "운동용 요가매트",
+      quantity: 20,
+      location: "매트 보관함",
     },
+
+    // 액세서리
     {
-      title: "스텝박스",
-      weight: 3,
-      unit: "kg",
-      description: "높이 조절 가능한 스텝박스",
+      title: "파워 리프팅 벨트",
+      category: EquipmentCategory.ACCESSORY,
+      primaryValue: 10,
+      primaryUnit: "cm",
+      description: "파워리프팅용 가죽 벨트",
+      quantity: 5,
+      location: "액세서리 보관함",
     },
+
+    // 유산소 도구
     {
-      title: "슬라이딩 디스크",
-      weight: 0.2,
-      unit: "kg",
-      description: "코어 운동용 슬라이딩 디스크",
+      title: "줄넘기",
+      category: EquipmentCategory.CARDIO,
+      primaryValue: 3,
+      primaryUnit: "m",
+      description: "조절 가능한 줄넘기",
+      quantity: 15,
+      location: "유산소 존",
     },
-    {
-      title: "헥스바",
-      weight: 18,
-      unit: "kg",
-      description: "데드리프트용 헥스바",
-    },
-    { title: "안전바", weight: 12, unit: "kg", description: "스쿼트용 안전바" },
-    { title: "체인", weight: 15, unit: "kg", description: "웨이트 체인" },
   ];
 
-  for (const weight of weights) {
-    // 중복 체크: 이미 존재하는 웨이트 도구면 건너뛰기
-    if (existingWeightTitles.has(weight.title)) {
-      console.log(`🔄 웨이트 도구 "${weight.title}" 이미 존재함 - 건너뛰기`);
+  // 기구 생성
+  for (const equipment of equipmentData) {
+    if (existingTitles.has(equipment.title)) {
+      console.log(`기구 "${equipment.title}" 이미 존재함 - 건너뛰기`);
       continue;
     }
 
     try {
-      await prisma.weights.create({
+      await prisma.equipment.create({
         data: {
-          title: weight.title,
-          weight: weight.weight,
-          unit: weight.unit,
-          description: weight.description,
+          ...equipment,
           fitnessCenterId,
         },
       });
-      console.log(`✅ 웨이트 도구 "${weight.title}" 생성 완료`);
+      console.log(`기구 "${equipment.title}" 생성 완료`);
     } catch (error) {
-      console.error(`❌ 웨이트 도구 "${weight.title}" 생성 실패:`, error);
+      console.error(`기구 "${equipment.title}" 생성 실패:`, error);
     }
   }
-}
+};
 
 async function createStretchingExercises() {
   console.log("🤸 스트레칭 운동 생성 중...");

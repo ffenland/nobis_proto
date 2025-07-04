@@ -1,83 +1,26 @@
 // app/lib/services/pt-record.service.ts
-import prisma from "@/app/lib/prisma";
 import { cache } from "react";
+import prisma from "@/app/lib/prisma";
+import { EquipmentCategory } from "@prisma/client";
 
-// PT Record 상세 정보 조회 서비스 (기록 여부와 상관없이 전체 정보)
+// PT Record 상세 정보 조회 서비스
 export const getPtRecordDetailService = async (ptRecordId: string) => {
   const ptRecord = await prisma.ptRecord.findUnique({
     where: { id: ptRecordId },
     select: {
       id: true,
-      memo: true,
-      createdAt: true,
-      updatedAt: true,
-      pt: {
-        select: {
-          id: true,
-          ptProduct: {
-            select: {
-              title: true,
-              totalCount: true,
-            },
-          },
-          member: {
-            select: {
-              user: {
-                select: {
-                  username: true,
-                },
-              },
-            },
-          },
-          trainer: {
-            select: {
-              fitnessCenterId: true,
-              fitnessCenter: {
-                select: {
-                  id: true,
-                  title: true,
-                },
-              },
-            },
-          },
-        },
-      },
-      ptSchedule: {
-        select: {
-          id: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-        },
-      },
-      fitnessCeneter: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
       items: {
         select: {
           id: true,
-          entry: true,
-          description: true,
-          type: true,
           title: true,
-          isActive: true,
-          photos: {
-            select: {
-              id: true,
-              publicUrl: true,
-              thumbnailUrl: true,
-              type: true,
-            },
-          },
+          description: true,
+          entry: true,
+          type: true,
           machineSetRecords: {
             select: {
               id: true,
               reps: true,
               set: true,
-              createdAt: true,
               settingValues: {
                 select: {
                   id: true,
@@ -107,13 +50,15 @@ export const getPtRecordDetailService = async (ptRecordId: string) => {
               id: true,
               reps: true,
               set: true,
-              createdAt: true,
-              weights: {
+              equipments: {
                 select: {
                   id: true,
                   title: true,
-                  weight: true,
-                  unit: true,
+                  category: true,
+                  primaryValue: true,
+                  primaryUnit: true,
+                  secondaryValue: true,
+                  secondaryUnit: true,
                 },
               },
             },
@@ -125,12 +70,20 @@ export const getPtRecordDetailService = async (ptRecordId: string) => {
             select: {
               id: true,
               description: true,
-              createdAt: true,
               stretchingExercise: {
                 select: {
                   id: true,
                   title: true,
                   description: true,
+                },
+              },
+              equipments: {
+                select: {
+                  id: true,
+                  title: true,
+                  category: true,
+                  primaryValue: true,
+                  primaryUnit: true,
                 },
               },
             },
@@ -150,7 +103,7 @@ export const getPtRecordDetailService = async (ptRecordId: string) => {
   return ptRecord;
 };
 
-// PT Record 기본 정보 조회 서비스 (기존 로직 유지)
+// PT Record 기본 정보 조회 서비스
 export const getPtRecordInfoService = async (ptRecordId: string) => {
   const ptRecord = await prisma.ptRecord.findUnique({
     where: { id: ptRecordId },
@@ -174,6 +127,7 @@ export const getPtRecordInfoService = async (ptRecordId: string) => {
               fitnessCenter: {
                 select: {
                   title: true,
+                  id: true,
                 },
               },
             },
@@ -202,7 +156,7 @@ export const getPtRecordInfoService = async (ptRecordId: string) => {
   return ptRecord;
 };
 
-// PT Record Items 조회 서비스 (기존 로직 유지)
+// PT Record Items 조회 서비스
 export const getPtRecordItemsService = async (ptRecordId: string) => {
   const ptRecordItems = await prisma.ptRecord.findUnique({
     where: { id: ptRecordId },
@@ -216,7 +170,15 @@ export const getPtRecordItemsService = async (ptRecordId: string) => {
           type: true,
           freeSetRecords: {
             select: {
-              weights: true,
+              equipments: {
+                select: {
+                  id: true,
+                  title: true,
+                  category: true,
+                  primaryValue: true,
+                  primaryUnit: true,
+                },
+              },
               id: true,
               reps: true,
               set: true,
@@ -251,6 +213,15 @@ export const getPtRecordItemsService = async (ptRecordId: string) => {
           stretchingExerciseRecords: {
             select: {
               id: true,
+              equipments: {
+                select: {
+                  id: true,
+                  title: true,
+                  category: true,
+                  primaryValue: true,
+                  primaryUnit: true,
+                },
+              },
               stretchingExercise: {
                 select: {
                   id: true,
@@ -267,7 +238,7 @@ export const getPtRecordItemsService = async (ptRecordId: string) => {
   return ptRecordItems;
 };
 
-// 머신 목록 조회 서비스 (기존 로직 유지)
+// 머신 목록 조회 서비스
 export const getMachinesService = cache(async (centerId: string) => {
   const machines = await prisma.machine.findMany({
     where: {
@@ -294,24 +265,44 @@ export const getMachinesService = cache(async (centerId: string) => {
   return machines;
 });
 
-// 도구 목록 조회 서비스 (기존 로직 유지)
-export const getWeightsListService = cache(async (centerId: string) => {
-  const weights = await prisma.weights.findMany({
-    where: {
+// 운동기구 목록 조회 서비스
+export const getEquipmentListService = cache(
+  async (centerId: string, category?: EquipmentCategory) => {
+    const whereCondition: {
+      fitnessCenterId: string;
+      category?: EquipmentCategory;
+    } = {
       fitnessCenterId: centerId,
-    },
-    select: {
-      id: true,
-      title: true,
-      weight: true,
-      description: true,
-    },
-  });
+    };
 
-  return weights;
-});
+    if (category) {
+      whereCondition.category = category;
+    }
 
-// 피트니스 센터 목록 조회 서비스 (기존 로직 유지)
+    const equipment = await prisma.equipment.findMany({
+      where: whereCondition,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        primaryValue: true,
+        primaryUnit: true,
+        secondaryValue: true,
+        secondaryUnit: true,
+        description: true,
+        quantity: true,
+        location: true,
+      },
+      orderBy: {
+        title: "asc",
+      },
+    });
+
+    return equipment;
+  }
+);
+
+// 피트니스 센터 목록 조회 서비스
 export const getFitnessCentersService = async () => {
   const centers = await prisma.fitnessCenter.findMany({
     select: {
@@ -322,7 +313,7 @@ export const getFitnessCentersService = async () => {
   return centers;
 };
 
-// 스트레칭 운동 목록 조회 서비스 (기존 로직 유지)
+// 스트레칭 운동 목록 조회 서비스
 export const getStretchingExercisesService = async () => {
   const exercises = await prisma.stretchingExercise.findMany({
     select: {
@@ -345,14 +336,12 @@ export const checkTimeLimit = (
   const now = new Date();
   const classDate = new Date(scheduleDate);
 
-  // 시간 변환 (예: 1430 -> 14시 30분)
   const hour = Math.floor(startTime / 100);
   const minute = startTime % 100;
 
   const classStart = new Date(classDate);
   classStart.setHours(hour, minute, 0, 0);
 
-  // 90분 후 시간 계산
   const timeLimit = new Date(classStart);
   timeLimit.setMinutes(timeLimit.getMinutes() + 90);
 
@@ -363,22 +352,29 @@ export const checkTimeLimit = (
 export type IPtRecordDetail = NonNullable<
   Awaited<ReturnType<typeof getPtRecordDetailService>>
 >;
+
 export type IPtRecordInfo = NonNullable<
   Awaited<ReturnType<typeof getPtRecordInfoService>>
 >;
+
 export type IPtRecordItems = NonNullable<
   Awaited<ReturnType<typeof getPtRecordItemsService>>
 >;
+
 export type IPtRecordItem = NonNullable<
   Awaited<ReturnType<typeof getPtRecordItemsService>>
 >["items"][number];
+
 export type IMachine = Awaited<ReturnType<typeof getMachinesService>>[number];
-export type IWeights = Awaited<
-  ReturnType<typeof getWeightsListService>
+
+export type IEquipment = Awaited<
+  ReturnType<typeof getEquipmentListService>
 >[number];
+
 export type IFitnessCenter = Awaited<
   ReturnType<typeof getFitnessCentersService>
 >[number];
+
 export type IStretchingExercise = Awaited<
   ReturnType<typeof getStretchingExercisesService>
 >[number];

@@ -5,10 +5,11 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import {
   IMachine,
-  IWeights,
+  IEquipment,
   IPtRecordItem,
   IFitnessCenter,
 } from "@/app/lib/services/pt-record.service";
+import { EquipmentCategory } from "@prisma/client";
 import MachineRecord from "./MachineRecord";
 import FreeRecord from "./FreeRecord";
 import StretchingRecord from "./StretchingRecord";
@@ -54,12 +55,25 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
     fetcher
   );
 
-  // 도구 목록 조회
+  // 웨이트 기구 목록 조회 (WEIGHT 카테고리만)
   const {
-    data: weightsList,
-    error: weightsError,
-    isLoading: weightsLoading,
-  } = useSWR<IWeights[]>(`/api/trainer/weights?centerId=${center.id}`, fetcher);
+    data: weightEquipmentList,
+    error: weightEquipmentError,
+    isLoading: weightEquipmentLoading,
+  } = useSWR<IEquipment[]>(
+    `/api/trainer/equipment?centerId=${center.id}&category=${EquipmentCategory.WEIGHT}`,
+    fetcher
+  );
+
+  // 모든 기구 목록 조회 (스트레칭용)
+  const {
+    data: allEquipmentList,
+    error: allEquipmentError,
+    isLoading: allEquipmentLoading,
+  } = useSWR<IEquipment[]>(
+    `/api/trainer/equipment?centerId=${center.id}`,
+    fetcher
+  );
 
   // 운동 기록 완료 후 콜백
   const handleRecordComplete = async () => {
@@ -101,181 +115,198 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
         return item.title || "프리웨이트";
       case "STRETCHING":
         const firstStretchingRecord = item.stretchingExerciseRecords?.[0];
-        if (firstStretchingRecord?.stretchingExercise?.title) {
-          return firstStretchingRecord.stretchingExercise.title;
-        }
-        return item.title || "스트레칭";
+        return (
+          firstStretchingRecord?.stretchingExercise?.title ||
+          item.title ||
+          "스트레칭"
+        );
       default:
         return item.title || "운동";
     }
   };
 
+  // 기구 표시 텍스트 생성 (타입 오류 수정)
+  const getEquipmentDisplayText = (equipment: {
+    primaryValue: number | null;
+    primaryUnit: string | null;
+    title: string;
+  }) => {
+    const value = equipment.primaryValue;
+    const unit = equipment.primaryUnit;
+
+    if (value && unit) {
+      return `${value}${unit}`;
+    }
+    return equipment.title;
+  };
+
+  // 세트 정보 포맷팅
+  const formatSetInfo = (item: IPtRecordItem) => {
+    switch (item.type) {
+      case "MACHINE":
+        return item.machineSetRecords?.map((record, idx) => (
+          <div key={record.id} className="text-sm text-gray-600">
+            {record.set}세트: {record.reps}회 -{" "}
+            {record.settingValues
+              ?.map(
+                (sv) =>
+                  `${sv.machineSetting.title} ${sv.value}${sv.machineSetting.unit}`
+              )
+              .join(", ")}
+          </div>
+        ));
+      case "FREE":
+        return item.freeSetRecords?.map((record, idx) => (
+          <div key={record.id} className="text-sm text-gray-600">
+            {record.set}세트: {record.reps}회 -{" "}
+            {record.equipments
+              ?.map((eq) => `${eq.title} ${getEquipmentDisplayText(eq)}`)
+              .join(", ")}
+          </div>
+        ));
+      case "STRETCHING":
+        return item.stretchingExerciseRecords?.map((record, idx) => (
+          <div key={record.id} className="text-sm text-gray-600">
+            {record.stretchingExercise.title}
+            {record.equipments && record.equipments.length > 0 && (
+              <span>
+                {" "}
+                - {record.equipments.map((eq) => eq.title).join(", ")}
+              </span>
+            )}
+          </div>
+        ));
+      default:
+        return <div className="text-sm text-gray-600">{item.description}</div>;
+    }
+  };
+
   // 로딩 상태
-  if (recordItemsLoading || machinesLoading || weightsLoading) {
+  if (recordItemsLoading || machinesLoading || weightEquipmentLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-8 h-8 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
-          <p className="text-gray-500 text-sm">로딩 중...</p>
-        </div>
+      <div className="flex justify-center items-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   // 에러 상태
-  if (recordItemsError || machinesError || weightsError) {
+  if (recordItemsError || machinesError || weightEquipmentError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white border border-red-200 rounded-lg p-6 max-w-md mx-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-6 h-6 text-red-500">⚠️</div>
-            <p className="text-gray-800">
-              데이터를 불러오는 중 오류가 발생했습니다.
-            </p>
-          </div>
-        </div>
+      <div className="text-center text-red-500">
+        데이터를 불러오는 중 오류가 발생했습니다.
       </div>
     );
   }
 
-  const recordItems = ptRecordItemsData?.items || [];
+  const ptRecordItems = ptRecordItemsData?.items || [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">운동 기록</h1>
-            <p className="text-gray-600 mt-1">{center.title}</p>
-          </div>
-          <button
-            onClick={() => {
-              if (selectedType === null) {
-                router.back();
-              } else {
-                setSelectedType(null);
-              }
-            }}
-            className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            {selectedType === null ? "뒤로가기" : "운동 선택으로"}
-          </button>
-        </div>
-
-        {/* 기존 운동 기록 목록 */}
-        {recordItems.length > 0 && selectedType === null && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              오늘의 운동 기록
-            </h2>
-            <div className="space-y-3">
-              {recordItems.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg"
-                >
-                  <span className="text-2xl">{getTypeIcon(item.type)}</span>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">
+    <div className="space-y-6">
+      {/* 기존 기록 목록 */}
+      {ptRecordItems.length > 0 && (
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <h3 className="text-lg font-semibold mb-4">운동 기록</h3>
+          <div className="space-y-4">
+            {ptRecordItems.map((item) => (
+              <div
+                key={item.id}
+                className="p-4 border border-gray-200 rounded-md"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">{getTypeIcon(item.type)}</span>
+                    <span className="font-medium text-gray-900">
                       {getRecordTitle(item)}
-                    </p>
-                    {item.description && (
-                      <p className="text-sm text-gray-600 truncate mt-1">
-                        {item.description}
-                      </p>
-                    )}
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
-                    {item.type === "MACHINE"
-                      ? `${item.machineSetRecords?.length || 0}세트`
-                      : item.type === "FREE"
-                      ? `${item.freeSetRecords?.length || 0}세트`
-                      : "완료"}
+                  <span className="text-sm text-gray-500">
+                    {item.entry}번째 운동
                   </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 운동 타입 선택 또는 운동 기록 폼 */}
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="p-6">
-            {selectedType === null ? (
-              <>
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                  운동 추가하기
-                </h2>
-                <div className="grid grid-cols-1 gap-4">
-                  <button
-                    onClick={() => setSelectedType("machine")}
-                    className="p-6 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all group"
-                  >
-                    <div className="flex flex-col items-center space-y-3">
-                      <span className="text-3xl group-hover:scale-110 transition-transform">
-                        🏋️
-                      </span>
-                      <span className="font-medium text-gray-900">
-                        머신 운동
-                      </span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setSelectedType("free")}
-                    className="p-6 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all group"
-                  >
-                    <div className="flex flex-col items-center space-y-3">
-                      <span className="text-3xl group-hover:scale-110 transition-transform">
-                        💪
-                      </span>
-                      <span className="font-medium text-gray-900">
-                        프리웨이트
-                      </span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setSelectedType("stretching")}
-                    className="p-6 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all group"
-                  >
-                    <div className="flex flex-col items-center space-y-3">
-                      <span className="text-3xl group-hover:scale-110 transition-transform">
-                        🧘
-                      </span>
-                      <span className="font-medium text-gray-900">
-                        스트레칭
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div>
-                {selectedType === "machine" && machineList && (
-                  <MachineRecord
-                    ptRecordId={ptRecordId}
-                    onComplete={handleRecordComplete}
-                    machineList={machineList}
-                  />
-                )}
-                {selectedType === "free" && weightsList && (
-                  <FreeRecord
-                    ptRecordId={ptRecordId}
-                    onComplete={handleRecordComplete}
-                    weightsList={weightsList}
-                  />
-                )}
-                {selectedType === "stretching" && (
-                  <StretchingRecord
-                    ptRecordId={ptRecordId}
-                    onComplete={handleRecordComplete}
-                  />
+                <div className="space-y-1">{formatSetInfo(item)}</div>
+                {item.description && (
+                  <div className="text-sm text-gray-600 mt-2">
+                    {item.description}
+                  </div>
                 )}
               </div>
-            )}
+            ))}
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 운동 기록 추가 */}
+      {selectedType === null && (
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <h3 className="text-lg font-semibold mb-4">운동 기록 추가</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button
+              onClick={() => setSelectedType("machine")}
+              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-2">🏋️</div>
+                <div className="font-medium">머신 운동</div>
+                <div className="text-sm text-gray-600">
+                  머신을 사용한 운동 기록
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setSelectedType("free")}
+              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-2">💪</div>
+                <div className="font-medium">프리웨이트</div>
+                <div className="text-sm text-gray-600">
+                  덤벨, 바벨 등을 사용한 운동
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setSelectedType("stretching")}
+              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-2">🧘</div>
+                <div className="font-medium">스트레칭</div>
+                <div className="text-sm text-gray-600">
+                  스트레칭 및 유연성 운동
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 선택된 타입에 따른 기록 컴포넌트 */}
+      {selectedType === "machine" && (
+        <MachineRecord
+          ptRecordId={ptRecordId}
+          onComplete={handleRecordComplete}
+          machineList={machineList || []}
+        />
+      )}
+
+      {selectedType === "free" && (
+        <FreeRecord
+          ptRecordId={ptRecordId}
+          onComplete={handleRecordComplete}
+          equipmentList={weightEquipmentList || []}
+        />
+      )}
+
+      {selectedType === "stretching" && (
+        <StretchingRecord
+          ptRecordId={ptRecordId}
+          onComplete={handleRecordComplete}
+          equipmentList={allEquipmentList || []}
+        />
+      )}
     </div>
   );
 };

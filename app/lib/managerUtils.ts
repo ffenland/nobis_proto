@@ -2,8 +2,8 @@ import {
   IMachineDetail,
   IMachineSetting,
   IMachineSettingValue,
-} from "@/app/manager/centers/[id]/facilities/machine/[machineId]/page";
-import { ChangeSummary } from "@/app/manager/centers/[id]/facilities/machine/[machineId]/MachineChangeConfirm";
+} from "@/app/manager/centers/[id]/machines/[machineId]/page";
+import { ChangeSummary } from "@/app/manager/centers/[id]/machines/[machineId]/MachineChangeConfirm";
 
 // 변경사항 요약 타입
 export type DetailedChangeSummary = {

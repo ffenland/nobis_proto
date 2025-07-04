@@ -59,8 +59,8 @@ export default async function PtRecordEditPage(props: { params: Params }) {
         return item.freeSetRecords.map((record) => ({
           set: record.set,
           reps: record.reps,
-          settings: record.weights
-            .map((w) => `${w.title}: ${w.weight}${w.unit}`)
+          settings: record.equipments
+            .map((eq) => `${eq.title}: ${eq.primaryValue}${eq.primaryUnit}`)
             .join(", "),
         }));
 

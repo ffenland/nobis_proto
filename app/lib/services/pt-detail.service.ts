@@ -74,12 +74,31 @@ export const getPtDetailForMemberService = async (
                 },
               },
               freeSetRecords: {
-                include: {
-                  weights: true,
+                select: {
+                  set: true,
+                  reps: true,
+                  equipments: {
+                    select: {
+                      id: true,
+                      title: true,
+                      category: true,
+                      primaryValue: true,
+                      primaryUnit: true,
+                    },
+                  },
                 },
               },
               stretchingExerciseRecords: {
-                include: {
+                select: {
+                  equipments: {
+                    select: {
+                      id: true,
+                      title: true,
+                      category: true,
+                      primaryValue: true,
+                      primaryUnit: true,
+                    },
+                  },
                   stretchingExercise: {
                     select: {
                       title: true,

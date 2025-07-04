@@ -463,12 +463,13 @@ export class TrainerManagementService {
                 id: true,
                 set: true,
                 reps: true,
-                weights: {
+                equipments: {
                   select: {
                     id: true,
                     title: true,
-                    weight: true,
-                    unit: true,
+                    category: true,
+                    primaryValue: true,
+                    primaryUnit: true,
                   },
                 },
               },
@@ -477,6 +478,15 @@ export class TrainerManagementService {
               select: {
                 id: true,
                 description: true,
+                equipments: {
+                  select: {
+                    id: true,
+                    title: true,
+                    category: true,
+                    primaryValue: true,
+                    primaryUnit: true,
+                  },
+                },
                 stretchingExercise: {
                   select: {
                     title: true,

@@ -1,32 +1,34 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { IWeights } from "@/app/lib/services/pt-record.service";
+import { IEquipment } from "@/app/lib/services/pt-record.service";
 import { matchSearch } from "@/app/components/common/matchSearch";
 
 interface FreeRecordProps {
   ptRecordId: string;
   onComplete: () => void;
-  weightsList: IWeights[];
+  equipmentList: IEquipment[];
 }
 
 interface SetRecord {
   reps: string;
-  selectedWeights: IWeights[];
+  selectedEquipments: IEquipment[];
 }
 
-export const FreeRecord = ({
+const FreeRecord = ({
   ptRecordId,
   onComplete,
-  weightsList,
+  equipmentList,
 }: FreeRecordProps) => {
   const [exerciseName, setExerciseName] = useState("");
   const [description, setDescription] = useState("");
   const [sets, setSets] = useState<SetRecord[]>([
-    { reps: "", selectedWeights: [] },
+    { reps: "", selectedEquipments: [] },
   ]);
   const [query, setQuery] = useState("");
-  const [searchedWeights, setSearchedWeights] = useState<IWeights[]>([]);
+  const [searchedEquipments, setSearchedEquipments] = useState<IEquipment[]>(
+    []
+  );
   const [selectedSetIndex, setSelectedSetIndex] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -45,7 +47,7 @@ export const FreeRecord = ({
 
     setSets([
       ...sets,
-      { reps: "", selectedWeights: [...lastSet.selectedWeights] },
+      { reps: "", selectedEquipments: [...lastSet.selectedEquipments] },
     ]);
   };
 
@@ -63,31 +65,44 @@ export const FreeRecord = ({
     setSets(newSets);
   };
 
-  // 도구 추가
-  const addWeightToSet = (setIndex: number, weight: IWeights) => {
+  // 기구 추가
+  const addEquipmentToSet = (setIndex: number, equipment: IEquipment) => {
     const newSets = [...sets];
-    if (!newSets[setIndex].selectedWeights.find((w) => w.id === weight.id)) {
-      newSets[setIndex].selectedWeights.push(weight);
+    if (
+      !newSets[setIndex].selectedEquipments.find((eq) => eq.id === equipment.id)
+    ) {
+      newSets[setIndex].selectedEquipments.push(equipment);
       setSets(newSets);
     }
     setQuery("");
     setSelectedSetIndex(null);
   };
 
-  // 도구 삭제
-  const removeWeightFromSet = (setIndex: number, weightId: string) => {
+  // 기구 삭제
+  const removeEquipmentFromSet = (setIndex: number, equipmentId: string) => {
     const newSets = [...sets];
-    newSets[setIndex].selectedWeights = newSets[
+    newSets[setIndex].selectedEquipments = newSets[
       setIndex
-    ].selectedWeights.filter((weight) => weight.id !== weightId);
+    ].selectedEquipments.filter((equipment) => equipment.id !== equipmentId);
     setSets(newSets);
   };
 
   // 검색어가 변경될 때마다 검색 실행
   useEffect(() => {
-    const results = matchSearch<IWeights>(weightsList, "title", query);
-    setSearchedWeights(results);
-  }, [query, weightsList]);
+    const results = matchSearch<IEquipment>(equipmentList, "title", query);
+    setSearchedEquipments(results);
+  }, [query, equipmentList]);
+
+  // 기구 표시 텍스트 생성
+  const getEquipmentDisplayText = (equipment: IEquipment) => {
+    const value = equipment.primaryValue;
+    const unit = equipment.primaryUnit;
+
+    if (value && unit) {
+      return `${equipment.title} (${value}${unit})`;
+    }
+    return equipment.title;
+  };
 
   // 기록 완료 제출
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,23 +122,22 @@ export const FreeRecord = ({
     setIsSubmitting(true);
 
     try {
-      // PtRecordItem 생성
-      const ptRecordItemResponse = await fetch("/api/trainer/pt-record-items", {
+      // PT Record Item 생성
+      const ptRecordItemResponse = await fetch(`/api/trainer/pt-record-items`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           ptRecordId,
-          type: "FREE",
           title: exerciseName,
           description,
-          entry: 0,
+          type: "FREE",
         }),
       });
 
       if (!ptRecordItemResponse.ok) {
-        throw new Error("PtRecordItem 생성 실패");
+        throw new Error("PT Record Item 생성 실패");
       }
 
       const ptRecordItem = await ptRecordItemResponse.json();
@@ -131,8 +145,10 @@ export const FreeRecord = ({
       // 각 세트별로 FreeSetRecord 생성
       for (let i = 0; i < sets.length; i++) {
         const set = sets[i];
+        const equipmentIds = set.selectedEquipments.map((eq) => eq.id);
+
         const freeSetRecordResponse = await fetch(
-          "/api/trainer/free-set-records",
+          `/api/trainer/free-set-records`,
           {
             method: "POST",
             headers: {
@@ -142,215 +158,221 @@ export const FreeRecord = ({
               ptRecordItemId: ptRecordItem.id,
               reps: parseInt(set.reps),
               set: i + 1,
-              weightIds: set.selectedWeights.map((w) => w.id),
+              equipmentIds,
             }),
           }
         );
 
         if (!freeSetRecordResponse.ok) {
-          throw new Error(`세트 ${i + 1} 기록 생성 실패`);
+          throw new Error(`${i + 1}번째 세트 기록 생성 실패`);
         }
       }
 
-      alert("프리웨이트 운동이 성공적으로 기록되었습니다!");
+      // 성공 후 초기화
+      setExerciseName("");
+      setDescription("");
+      setSets([{ reps: "", selectedEquipments: [] }]);
       onComplete();
     } catch (error) {
-      console.error("Error creating free record:", error);
-      alert("운동 기록 저장 중 오류가 발생했습니다.");
+      console.error("프리웨이트 기록 생성 실패:", error);
+      alert("기록 생성 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-2">
-          💪 프리웨이트 기록
-        </h3>
-      </div>
+    <div className="bg-white p-6 rounded-lg shadow-sm border">
+      <h3 className="text-lg font-semibold mb-4">프리웨이트 기록</h3>
 
-      {/* 운동 이름 입력 */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-900">
-          운동 이름 *
-        </label>
-        <input
-          type="text"
-          value={exerciseName}
-          onChange={(e) => setExerciseName(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
-          placeholder="예: 덤벨 프레스, 바벨 컬"
-          required
-        />
-      </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* 운동 이름 입력 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            운동 이름
+          </label>
+          <input
+            type="text"
+            value={exerciseName}
+            onChange={(e) => setExerciseName(e.target.value)}
+            placeholder="예: 벤치프레스, 데드리프트"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+          />
+        </div>
 
-      {/* 추가 설명 */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-900">
-          메모 (선택사항)
-        </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all resize-none h-20"
-          placeholder="운동에 대한 추가 설명을 입력하세요"
-        />
-      </div>
+        {/* 설명 입력 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            설명 (선택사항)
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="운동에 대한 추가 설명이나 주의사항"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            rows={3}
+          />
+        </div>
 
-      {/* 세트 목록 */}
-      <div className="space-y-4">
-        <h4 className="text-sm font-medium text-gray-900">세트 기록</h4>
-
-        {sets.map((set, index) => (
-          <div key={index} className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-gray-900">
-                세트 {index + 1}
-              </span>
-              {sets.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeSet(index)}
-                  className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors"
-                >
-                  삭제
-                </button>
-              )}
-            </div>
-
-            {/* 도구 선택 */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                사용 도구 (선택사항)
-              </label>
-
-              {/* 선택된 도구들 표시 */}
-              {set.selectedWeights.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {set.selectedWeights.map((weight) => (
-                    <div
-                      key={weight.id}
-                      className="inline-flex items-center gap-2 px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm"
-                    >
-                      <span>
-                        {weight.title} ({weight.weight}kg)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeWeightFromSet(index, weight.id)}
-                        className="text-gray-500 hover:text-gray-700 transition-colors"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* 도구 검색 */}
-              <div className="relative">
-                <input
-                  type="text"
-                  value={selectedSetIndex === index ? query : ""}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="도구 이름을 입력하세요"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
-                  onFocus={() => setSelectedSetIndex(index)}
-                  onBlur={() => {
-                    setTimeout(() => {
-                      if (selectedSetIndex === index) {
-                        setSelectedSetIndex(null);
-                        setQuery("");
-                      }
-                    }, 200);
-                  }}
-                />
-
-                {selectedSetIndex === index && query && (
-                  <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                    {searchedWeights.length > 0 ? (
-                      searchedWeights.map((weight) => (
-                        <button
-                          key={weight.id}
-                          type="button"
-                          onClick={() => addWeightToSet(index, weight)}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-900">
-                              {weight.title}
-                            </span>
-                            <span className="text-gray-500 text-sm">
-                              {weight.weight}kg
-                            </span>
-                          </div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-gray-500 text-sm">
-                        검색 결과가 없습니다
-                      </div>
-                    )}
-                  </div>
+        {/* 세트 입력 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            세트 기록
+          </label>
+          {sets.map((set, index) => (
+            <div
+              key={index}
+              className="mb-4 p-4 border border-gray-200 rounded-md"
+            >
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium">{index + 1}세트</span>
+                {sets.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeSet(index)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    삭제
+                  </button>
                 )}
               </div>
-            </div>
 
-            {/* 횟수 입력 */}
+              {/* 횟수 입력 */}
+              <div className="mb-3">
+                <label className="block text-sm text-gray-600 mb-1">횟수</label>
+                <input
+                  type="number"
+                  value={set.reps}
+                  onChange={(e) => updateSetReps(index, e.target.value)}
+                  placeholder="횟수"
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  min="1"
+                  required
+                />
+              </div>
+
+              {/* 선택된 기구들 */}
+              <div className="mb-3">
+                <label className="block text-sm text-gray-600 mb-1">
+                  선택된 기구
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {set.selectedEquipments.map((equipment) => (
+                    <span
+                      key={equipment.id}
+                      className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                    >
+                      {getEquipmentDisplayText(equipment)}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeEquipmentFromSet(index, equipment.id)
+                        }
+                        className="ml-1 text-blue-600 hover:text-blue-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* 기구 추가 */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSetIndex(index)}
+                  className="text-blue-500 hover:text-blue-700 text-sm"
+                >
+                  + 기구 추가
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* 세트 추가 버튼 */}
+          <button
+            type="button"
+            onClick={addSet}
+            className="w-full p-2 border-2 border-dashed border-gray-300 rounded-md text-gray-600 hover:border-gray-400 hover:text-gray-800"
+          >
+            + 세트 추가
+          </button>
+        </div>
+
+        {/* 제출 버튼 */}
+        <div className="flex justify-end space-x-2">
+          <button
+            type="button"
+            onClick={onComplete}
+            className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+          >
+            {isSubmitting ? "저장 중..." : "기록 완료"}
+          </button>
+        </div>
+      </form>
+
+      {/* 기구 검색 모달 */}
+      {selectedSetIndex !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full max-h-96 overflow-y-auto">
+            <h4 className="text-lg font-semibold mb-4">기구 선택</h4>
+
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="기구명 검색"
+              className="w-full p-2 border border-gray-300 rounded-md mb-4"
+              autoFocus
+            />
+
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                횟수 *
-              </label>
-              <input
-                type="number"
-                value={set.reps}
-                onChange={(e) => updateSetReps(index, e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
-                placeholder="횟수"
-                min="1"
-                required
-              />
+              {searchedEquipments.map((equipment) => (
+                <button
+                  key={equipment.id}
+                  onClick={() => addEquipmentToSet(selectedSetIndex, equipment)}
+                  className="w-full p-2 text-left border border-gray-200 rounded-md hover:bg-gray-50"
+                >
+                  <div className="font-medium">{equipment.title}</div>
+                  <div className="text-sm text-gray-600">
+                    {equipment.primaryValue && equipment.primaryUnit && (
+                      <span>
+                        {equipment.primaryValue}
+                        {equipment.primaryUnit}
+                      </span>
+                    )}
+                    {equipment.description && (
+                      <span className="ml-2">- {equipment.description}</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => {
+                  setSelectedSetIndex(null);
+                  setQuery("");
+                }}
+                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                닫기
+              </button>
             </div>
           </div>
-        ))}
-
-        {/* 세트 추가 버튼 */}
-        <button
-          type="button"
-          onClick={addSet}
-          disabled={!exerciseName.trim()}
-          className={`w-full py-3 rounded-lg font-medium transition-all ${
-            exerciseName.trim()
-              ? "bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-dashed border-gray-300"
-              : "bg-gray-50 text-gray-400 cursor-not-allowed border-2 border-dashed border-gray-200"
-          }`}
-        >
-          + 세트 추가
-        </button>
-      </div>
-
-      {/* 제출 버튼 */}
-      <button
-        type="submit"
-        disabled={isSubmitting || !exerciseName.trim()}
-        className={`w-full py-4 rounded-lg font-semibold transition-all ${
-          isSubmitting || !exerciseName.trim()
-            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-            : "bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-700"
-        }`}
-      >
-        {isSubmitting ? (
-          <div className="flex items-center justify-center space-x-2">
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-            <span>기록 저장 중...</span>
-          </div>
-        ) : (
-          "운동 완료"
-        )}
-      </button>
-    </form>
+        </div>
+      )}
+    </div>
   );
 };
-
 export default FreeRecord;
