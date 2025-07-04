@@ -632,10 +632,10 @@ export default function MemberDetailPage(props: { params: Params }) {
                                                   >
                                                     {set.set}세트: {set.reps}회
                                                     x{" "}
-                                                    {set.weights
+                                                    {set.equipments
                                                       .map(
-                                                        (w) =>
-                                                          `${w.weight}${w.unit}`
+                                                        (eq) =>
+                                                          `${eq.primaryValue}${eq.primaryUnit}`
                                                       )
                                                       .join("+")}
                                                   </span>

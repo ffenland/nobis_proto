@@ -49,7 +49,7 @@ export async function createMachine(
       },
     });
 
-    revalidatePath(`/manager/centers/${centerId}/facilities/}`);
+    revalidatePath(`/manager/centers/${centerId}/machines/}`);
     return { ok: true, data: { machineId: machine.id } };
   } catch (error) {
     console.error("Error creating machine:", error);

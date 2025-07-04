@@ -179,7 +179,7 @@ export const CenterMachineNew = (props: { params: IParams }) => {
     const result = await createMachine(centerId, machine);
     if (result.ok && result.data?.machineId) {
       router.push(
-        `/manager/centers/${centerId}/facilities/machine/${result.data.machineId}`
+        `/manager/centers/${centerId}/machines/${result.data.machineId}`
       );
     } else {
       alert(result.error?.message || "머신 생성 중 오류가 발생했습니다.");

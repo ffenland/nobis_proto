@@ -1,4 +1,4 @@
-// app/manager/centers/[id]/facilities/machine/[machineId]/page.tsx - Part 1
+// app/manager/centers/[id]/machines/[machineId]/page.tsx - Part 1
 "use client";
 
 import { use, useEffect, useState, useCallback } from "react";
@@ -306,7 +306,7 @@ export default function MachineDetailPage({
       if (result.success) {
         alert("머신이 성공적으로 수정되었습니다.");
         await mutate(); // SWR 캐시 갱신
-        router.push(`/manager/centers/${centerId}/facilities/machine`);
+        router.push(`/manager/centers/${centerId}/machines`);
       } else {
         alert(result.error || "저장에 실패했습니다.");
       }
@@ -333,7 +333,7 @@ export default function MachineDetailPage({
 
       if (result.success) {
         alert("머신이 성공적으로 삭제되었습니다.");
-        router.push(`/manager/centers/${centerId}/facilities/machine`);
+        router.push(`/manager/centers/${centerId}/machines`);
       } else {
         alert(result.error || "삭제에 실패했습니다.");
       }
@@ -417,7 +417,7 @@ export default function MachineDetailPage({
         </div>
         <div className="flex space-x-3">
           <Link
-            href={`/manager/centers/${centerId}/facilities/machine`}
+            href={`/manager/centers/${centerId}/machines`}
             className="bg-gray-100 text-gray-900 px-6 py-3 rounded-md hover:bg-gray-200 transition-colors font-medium"
           >
             목록으로

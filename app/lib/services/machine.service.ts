@@ -186,7 +186,7 @@ export const updateMachineDetail = async (
   });
 
   // 캐시 재검증
-  revalidatePath(`/manager/centers/*/facilities/machine/${machineId}`);
+  revalidatePath(`/manager/centers/*/machines/${machineId}`);
 
   return result;
 };
@@ -241,9 +241,7 @@ export const deleteMachine = async (machineId: string) => {
 
   // 캐시 재검증
   if (machine.fitnessCenterId) {
-    revalidatePath(
-      `/manager/centers/${machine.fitnessCenterId}/facilities/machine`
-    );
+    revalidatePath(`/manager/centers/${machine.fitnessCenterId}/machines`);
   }
 
   return { success: true };
@@ -290,7 +288,7 @@ export const deleteMachineSetting = async (settingId: string) => {
   // 캐시 재검증
   if (setting.machine.fitnessCenterId) {
     revalidatePath(
-      `/manager/centers/${setting.machine.fitnessCenterId}/facilities/machine/${setting.machineId}`
+      `/manager/centers/${setting.machine.fitnessCenterId}/machines/${setting.machineId}`
     );
   }
 

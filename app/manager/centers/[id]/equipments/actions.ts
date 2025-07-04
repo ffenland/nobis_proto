@@ -1,16 +1,18 @@
-// app/manager/centers/[id]/machines/actions.ts
 "use server";
+// app/manager/centers/[id]/equipments/actions.ts
 
 import prisma from "@/app/lib/prisma";
 import { getSessionOrRedirect } from "@/app/lib/session";
 import { Prisma } from "@prisma/client";
 
-export type ICenterMachines = Prisma.PromiseReturnType<
-  typeof getCenterMachines
+export type ICenterEquipments = Prisma.PromiseReturnType<
+  typeof getCenterEquipments
 >;
 
-// 센터의 머신 목록 조회
-export const getCenterMachines = async (centerId: string) => {
+export type IEquipmentListItem = ICenterEquipments["equipments"][number];
+
+// 센터의 장비 목록 조회
+export const getCenterEquipments = async (centerId: string) => {
   const session = await getSessionOrRedirect();
 
   if (session.role !== "MANAGER") {
@@ -27,27 +29,19 @@ export const getCenterMachines = async (centerId: string) => {
     throw new Error("센터를 찾을 수 없습니다.");
   }
 
-  // 머신 목록 조회
-  const machines = await prisma.machine.findMany({
+  // 장비 목록 조회
+  const equipments = await prisma.equipment.findMany({
     where: {
       fitnessCenterId: centerId,
     },
     select: {
       id: true,
       title: true,
-      machineSetting: {
-        select: {
-          id: true,
-          title: true,
-          unit: true,
-          values: {
-            select: {
-              id: true,
-              value: true,
-            },
-          },
-        },
-      },
+      category: true,
+      primaryValue: true,
+      primaryUnit: true,
+      quantity: true,
+      description: true,
       photos: {
         select: {
           id: true,
@@ -56,13 +50,11 @@ export const getCenterMachines = async (centerId: string) => {
         take: 1,
       },
     },
-    orderBy: {
-      title: "asc",
-    },
+    orderBy: [{ category: "asc" }, { primaryValue: "asc" }, { title: "asc" }],
   });
 
   return {
     center,
-    machines,
+    equipments,
   };
 };

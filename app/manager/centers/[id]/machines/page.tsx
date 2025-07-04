@@ -1,4 +1,4 @@
-// app/manager/centers/[id]/facilities/machine/page.tsx
+// app/manager/centers/[id]/machines/page.tsx
 import Link from "next/link";
 import { getCenterMachines } from "./actions";
 
@@ -26,7 +26,7 @@ const CenterMachinesPage = async ({ params }: PageProps) => {
           </div>
           <div className="flex space-x-3">
             <Link
-              href={`/manager/centers/${id}/facilities/machine/new`}
+              href={`/manager/centers/${id}/machines/new`}
               className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium"
             >
               새 머신 등록
@@ -66,7 +66,7 @@ const CenterMachinesPage = async ({ params }: PageProps) => {
               첫 번째 머신을 등록해서 센터 장비 관리를 시작해보세요.
             </p>
             <Link
-              href={`/manager/centers/${id}/facilities/machine/new`}
+              href={`/manager/centers/${id}/machines/new`}
               className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium"
             >
               <svg
@@ -91,7 +91,7 @@ const CenterMachinesPage = async ({ params }: PageProps) => {
             {machines.map((machine) => (
               <Link
                 key={machine.id}
-                href={`/manager/centers/${id}/facilities/machine/${machine.id}`}
+                href={`/manager/centers/${id}/machines/${machine.id}`}
                 className="group block bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden"
               >
                 {/* 머신 이미지 */}
@@ -197,7 +197,7 @@ const CenterMachinesPage = async ({ params }: PageProps) => {
         {machines.length > 0 && (
           <div className="mt-12 text-center">
             <Link
-              href={`/manager/centers/${id}/facilities/machine/new`}
+              href={`/manager/centers/${id}/machines/new`}
               className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium"
             >
               <svg
