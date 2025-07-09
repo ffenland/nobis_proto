@@ -1,11 +1,12 @@
-// components/ptNew/StepIndicator.tsx
+"use client";
+
 interface StepIndicatorProps {
   currentStep: number;
   totalSteps: number;
   stepTitles: string[];
 }
 
-export const StepIndicator = ({
+const StepIndicator = ({
   currentStep,
   totalSteps,
   stepTitles,
@@ -49,3 +50,5 @@ export const StepIndicator = ({
     </div>
   );
 };
+
+export default StepIndicator;

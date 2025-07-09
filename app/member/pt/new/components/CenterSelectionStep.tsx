@@ -19,7 +19,8 @@ interface CenterSelectionStepProps {
   onNext: () => void;
 }
 
-export const CenterSelectionStep = ({
+// 운동을 할 센터 목록을 보여주고 유저가 선택하면, onNext 버튼이 활성화 된다.
+const CenterSelectionStep = ({
   selectedCenter,
   onSelectCenter,
   onNext,
@@ -82,3 +83,5 @@ export const CenterSelectionStep = ({
     </div>
   );
 };
+
+export default CenterSelectionStep;

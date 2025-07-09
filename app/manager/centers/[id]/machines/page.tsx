@@ -17,26 +17,28 @@ const CenterMachinesPage = async ({ params }: PageProps) => {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">머신 관리</h1>
-            <p className="text-gray-600 mt-2">
-              {center.title} - 총 {machines.length}개의 머신
-            </p>
-          </div>
-          <div className="flex space-x-3">
+        <div className="flex flex-col  mb-8">
+          <div className="flex justify-between items-center space-x-3">
+            <div className="whitespace-nowrap">
+              <h1 className="text-3xl font-bold text-gray-900">머신 관리</h1>
+            </div>
             <Link
               href={`/manager/centers/${id}/machines/new`}
-              className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium"
+              className="bg-blue-600 text-white p-2 text-sm flex justify-center items-center rounded-md hover:bg-blue-700 transition-colors font-medium"
             >
               새 머신 등록
             </Link>
             <Link
               href={`/manager/centers/${id}`}
-              className="bg-gray-100 text-gray-900 px-6 py-3 rounded-md hover:bg-gray-200 transition-colors font-medium"
+              className="bg-gray-100 text-gray-900 p-2 text-sm flex justify-center items-center rounded-md hover:bg-gray-200 transition-colors font-medium"
             >
               센터로 돌아가기
             </Link>
+          </div>
+          <div>
+            <p className="text-gray-600 mt-2">
+              {center.title} - 총 {machines.length}개의 머신
+            </p>
           </div>
         </div>
 

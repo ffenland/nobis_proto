@@ -158,7 +158,7 @@ export default async function CentersPage() {
         </div>
         <Link
           href="/manager/centers/new"
-          className="bg-gray-900 text-white px-6 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium"
+          className="bg-gray-900 text-white px-3 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium"
         >
           새 센터 등록
         </Link>

@@ -24,7 +24,7 @@ interface PtSelectionStepProps {
   onNext: () => void;
 }
 
-export const PtSelectionStep = ({
+const PtSelectionStep = ({
   centerId,
   selectedPt,
   selectedTrainer,
@@ -77,14 +77,14 @@ export const PtSelectionStep = ({
               className="w-full p-4 text-left"
             >
               <div className="flex items-start justify-between mb-3">
-                <div>
+                <div className="w-full">
                   <h3 className="font-semibold text-gray-900 mb-1">
                     {pt.title}
                   </h3>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="w-full flex items-center justify-between text-sm text-gray-600">
                     <span>총 {pt.totalCount}회</span>
                     <span>•</span>
-                    <span>회당 {pt.time}시간</span>
+                    <span>회당 {pt.time}분</span>
                     <span>•</span>
                     <span>{pt.price.toLocaleString()}원</span>
                   </div>
@@ -144,3 +144,5 @@ export const PtSelectionStep = ({
     </div>
   );
 };
+
+export default PtSelectionStep;

@@ -6,6 +6,7 @@ import { getSessionOrRedirect } from "@/app/lib/session";
 import { Prisma, EquipmentCategory } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { normalizeUnit } from "@/app/lib/utils/equipment.utils";
 
 export type IEquipmentDetail = Prisma.PromiseReturnType<
   typeof getEquipmentDetail
@@ -122,9 +123,9 @@ export const updateEquipment = async (
         title: title.trim(),
         category,
         primaryValue: primaryValue ? parseFloat(primaryValue) : null,
-        primaryUnit: primaryUnit?.trim() || null,
+        primaryUnit: normalizeUnit(primaryUnit),
         secondaryValue: secondaryValue ? parseFloat(secondaryValue) : null,
-        secondaryUnit: secondaryUnit?.trim() || null,
+        secondaryUnit: normalizeUnit(secondaryUnit),
         brand: brand?.trim() || null,
         model: model?.trim() || null,
         description: description?.trim() || null,

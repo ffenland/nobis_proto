@@ -35,7 +35,7 @@ const EquipmentEditPage = async ({ params }: PageProps) => {
     };
 
     // 삭제 액션
-    const handleDelete = async () => {
+    const handleDelete = async (formData: FormData) => {
       "use server";
 
       try {
@@ -50,20 +50,22 @@ const EquipmentEditPage = async ({ params }: PageProps) => {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">장비 수정</h1>
-            <p className="text-gray-600 mt-2">
-              {equipment.fitnessCenter?.title} - {equipment.title}
-            </p>
-          </div>
-          <div className="flex space-x-3">
+        <div className="flex flex-col items-start gap-3 mb-2">
+          <div className="flex w-full justify-between items-center space-x-3">
+            <div className="flex justify-center items-center">
+              <h1 className="text-3xl font-bold text-gray-900">새 장비 등록</h1>
+            </div>
             <Link
               href={`/manager/centers/${centerId}/equipments`}
               className="bg-gray-100 text-gray-900 px-6 py-3 rounded-md hover:bg-gray-200 transition-colors font-medium"
             >
               목록으로
             </Link>
+          </div>
+          <div>
+            <p className="text-gray-600 mt-2">
+              {equipment.fitnessCenter?.title} - {equipment.title}
+            </p>
           </div>
         </div>
 
@@ -165,7 +167,7 @@ const EquipmentEditPage = async ({ params }: PageProps) => {
                     type="text"
                     name="primaryUnit"
                     defaultValue={equipment.primaryUnit || ""}
-                    className="w-24 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-16 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="단위"
                   />
                 </div>
@@ -189,7 +191,7 @@ const EquipmentEditPage = async ({ params }: PageProps) => {
                     type="text"
                     name="secondaryUnit"
                     defaultValue={equipment.secondaryUnit || ""}
-                    className="w-24 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-16 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="단위"
                   />
                 </div>
@@ -248,44 +250,15 @@ const EquipmentEditPage = async ({ params }: PageProps) => {
             </div>
           </div>
 
-          {/* 현재 카테고리 표시 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              현재 카테고리
-            </h3>
-            <div className="flex items-center space-x-2">
-              <span
-                className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                  categoryColors[equipment.category]
-                }`}
-              >
-                {categoryLabels[equipment.category]}
-              </span>
-              <span className="text-gray-500">
-                → 위에서 카테고리를 변경할 수 있습니다
-              </span>
-            </div>
-          </div>
-
           {/* 버튼 영역 */}
           <div className="flex justify-between">
-            <form action={handleDelete}>
-              <button
-                type="submit"
-                className="bg-red-600 text-white px-6 py-3 rounded-md hover:bg-red-700 transition-colors font-medium"
-                onClick={(e) => {
-                  if (
-                    !confirm(
-                      "정말로 이 장비를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
-                    )
-                  ) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                장비 삭제
-              </button>
-            </form>
+            <button
+              type="submit"
+              formAction={handleDelete}
+              className="bg-red-600 text-white px-6 py-3 rounded-md hover:bg-red-700 transition-colors font-medium"
+            >
+              장비 삭제
+            </button>
 
             <div className="flex space-x-3">
               <Link

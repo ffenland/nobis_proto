@@ -1,9 +1,8 @@
 // app/manager/centers/[id]/edit/CenterEditForm.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useActionState } from "react";
 import { useRouter } from "next/navigation";
-import { useFormState } from "react-dom";
 import { updateCenterAction, type IServerActionResponse } from "../../actions";
 import type { ICenterDetail, IAvailableTrainer } from "../../actions";
 
@@ -54,7 +53,7 @@ export default function CenterEditForm({
 }: CenterEditFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [state, formAction] = useFormState(
+  const [state, formAction] = useActionState(
     updateCenterAction.bind(null, center.id),
     initialState
   );

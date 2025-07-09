@@ -2,6 +2,7 @@
 import prisma from "@/app/lib/prisma";
 import { PtState, WeekDay } from "@prisma/client";
 import { cache } from "react";
+import { getEndTime } from "@/app/lib/utils/time.utils";
 
 // ===== 스케줄링 관련 타입들 =====
 export interface IScheduleSlot {
@@ -33,6 +34,7 @@ export interface IPtApplicationData {
   isRegular: boolean;
   chosenSchedule: IDaySchedule;
   fitnessCenterId: string; // 헬스장 ID 추가
+  duration: number; // 수업 시간 (분 단위)
   message?: string;
 }
 
@@ -49,7 +51,9 @@ const weekdaysEnum = [
 
 // ===== 헬스장 및 PT 프로그램 조회 =====
 
-// 헬스장 목록 조회
+// 헬스장 목록 조회 (영업시간 정보 포함)
+// 처음 PT 등록시 1단계에 사용됨 전체 center에 대한 정보 불러오기 !
+
 export const getFitnessCentersService = cache(async () => {
   const centers = await prisma.fitnessCenter.findMany({
     select: {
@@ -57,7 +61,6 @@ export const getFitnessCentersService = cache(async () => {
       title: true,
       address: true,
       phone: true,
-      description: true,
     },
     orderBy: {
       title: "asc",
@@ -67,7 +70,8 @@ export const getFitnessCentersService = cache(async () => {
   return centers;
 });
 
-// 센터별 PT 프로그램과 트레이너 조회 - 수정된 버전
+// 센터를 선택한 후 이루어지는 로직
+// 센터에 소속된 트레이너들이 수업할 수 있는 PTproduct만 불러오기
 export const getPtProgramsByCenterService = cache(async (centerId: string) => {
   const ptPrograms = await prisma.ptProduct.findMany({
     where: {
@@ -99,7 +103,6 @@ export const getPtProgramsByCenterService = cache(async (centerId: string) => {
             select: {
               id: true,
               username: true,
-              // 🔧 수정: avatarMedia 관계를 적절히 조회하거나 제거
               avatarMedia: {
                 select: {
                   id: true,
@@ -114,7 +117,7 @@ export const getPtProgramsByCenterService = cache(async (centerId: string) => {
       },
     },
     orderBy: {
-      createdAt: "desc",
+      title: "asc",
     },
   });
 
@@ -254,14 +257,16 @@ export const applyPtService = async (data: IPtApplicationData) => {
       },
     });
 
-    // 2. 스케줄 생성
+    // 2. 스케줄 생성 - 연속된 시간대를 하나의 스케줄로 합치기
     const scheduleData = [];
 
     for (const [dateStr, times] of Object.entries(data.chosenSchedule)) {
       const date = new Date(dateStr);
 
-      for (const startTime of times) {
-        const endTime = startTime + 100; // 1시간 후
+      if (times.length > 0) {
+        // 첫 번째 시간을 시작 시간으로, 마지막 시간에 30분을 더한 값을 종료 시간으로 설정
+        const startTime = times[0];
+        const endTime = getEndTime(times); // 마지막 슬롯에 30분 추가
 
         scheduleData.push({
           date,
@@ -292,7 +297,7 @@ export const applyPtService = async (data: IPtApplicationData) => {
       });
     }
 
-    // 4. WeekTime 생성 (정기 수업인 경우)
+    // 4. WeekTime 생성 (정기 수업인 경우) - 연속된 시간대를 하나의 WeekTime으로 합치기
     if (data.isRegular) {
       const weekTimesData = [];
 
@@ -300,8 +305,10 @@ export const applyPtService = async (data: IPtApplicationData) => {
         const date = new Date(dateStr);
         const weekDay = weekdaysEnum[date.getDay()].enum;
 
-        for (const startTime of times) {
-          const endTime = startTime + 100;
+        if (times.length > 0) {
+          // 첫 번째 시간을 시작 시간으로, 마지막 시간에 30분을 더한 값을 종료 시간으로 설정
+          const startTime = times[0];
+          const endTime = getEndTime(times); // 마지막 슬롯에 30분 추가
 
           weekTimesData.push({
             weekDay,
@@ -323,34 +330,6 @@ export const applyPtService = async (data: IPtApplicationData) => {
 
 // ===== 유틸리티 함수들 =====
 
-// 같은 날인지 확인
-const isSameDay = (date1: Date, date2: Date): boolean => {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-};
-
-// 시간 겹침 확인
-const isTimeOverlapping = (
-  start1: number,
-  end1: number,
-  start2: number,
-  end2: number
-): boolean => {
-  return start1 < end2 && start2 < end1;
-};
-
-// 시간 포맷팅 (900 -> "09:00")
-const formatTime = (time: number): string => {
-  const hour = Math.floor(time / 100);
-  const minute = time % 100;
-  return `${hour.toString().padStart(2, "0")}:${minute
-    .toString()
-    .padStart(2, "0")}`;
-};
-
 // ===== 타입 정의 =====
 export type IFitnessCenters = Awaited<
   ReturnType<typeof getFitnessCentersService>
@@ -365,6 +344,15 @@ export type IPtApplication = Awaited<ReturnType<typeof applyPtService>>;
 export type IPendingPtDetails = Awaited<ReturnType<typeof getPendingPtDetails>>;
 
 // API response type for pending PT check
+
+export interface IPendingPt {
+  id: string;
+  ptTitle: string;
+  trainerName: string;
+  appliedDate: string;
+  price: number;
+  totalCount: number;
+}
 export interface IPendingPtCheck {
   hasPending: boolean;
   pendingPt?: {

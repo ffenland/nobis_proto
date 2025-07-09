@@ -6,6 +6,7 @@ import { getSessionOrRedirect } from "@/app/lib/session";
 import { EquipmentCategory } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { normalizeUnit } from "@/app/lib/utils/equipment.utils";
 
 // 센터 정보 조회 (권한 확인용)
 export const getCenterInfo = async (centerId: string) => {
@@ -77,9 +78,9 @@ export const createEquipment = async (centerId: string, formData: FormData) => {
         title: title.trim(),
         category,
         primaryValue: primaryValue ? parseFloat(primaryValue) : null,
-        primaryUnit: primaryUnit?.trim() || null,
+        primaryUnit: normalizeUnit(primaryUnit),
         secondaryValue: secondaryValue ? parseFloat(secondaryValue) : null,
-        secondaryUnit: secondaryUnit?.trim() || null,
+        secondaryUnit: normalizeUnit(secondaryUnit),
         brand: brand?.trim() || null,
         model: model?.trim() || null,
         description: description?.trim() || null,

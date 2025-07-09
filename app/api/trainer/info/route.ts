@@ -1,13 +1,13 @@
-// app/api/member/info/route.ts
+// app/api/trainer/info/route.ts
 import { NextResponse } from "next/server";
-import { getMemberUserInfo } from "@/app/lib/services/user-info.service";
+import { getTrainerUserInfo } from "@/app/lib/services/user-info.service";
 
 export async function GET() {
   try {
-    const userInfo = await getMemberUserInfo();
+    const userInfo = await getTrainerUserInfo();
     return NextResponse.json(userInfo);
   } catch (error) {
-    console.error("Member info 조회 실패:", error);
+    console.error("Trainer info 조회 실패:", error);
     
     if (error instanceof Error) {
       if (error.message.includes("권한이 필요합니다")) {

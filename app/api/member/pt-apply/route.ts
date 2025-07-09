@@ -41,17 +41,20 @@ export async function POST(request: NextRequest) {
       isRegular,
       chosenSchedule,
       fitnessCenterId, // totalCount 대신 fitnessCenterId 추가
+      duration, // 수업 시간 (분 단위)
       message,
     } = body;
 
-    // 필수 필드 검증 (totalCount 제거, fitnessCenterId 추가)
+    // 필수 필드 검증 (duration 추가)
     if (
       !ptProductId ||
       !trainerId ||
       !startDate ||
       typeof isRegular !== "boolean" ||
       !chosenSchedule ||
-      !fitnessCenterId
+      !fitnessCenterId ||
+      !duration ||
+      typeof duration !== "number"
     ) {
       return NextResponse.json(
         { error: "필수 정보가 누락되었습니다." },
@@ -116,7 +119,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // PT 신청 데이터 구성 (totalCount 제거, fitnessCenterId 추가)
+    // PT 신청 데이터 구성 (duration 추가)
     const applicationData: IPtApplicationData = {
       memberId: session.roleId,
       ptProductId,
@@ -125,6 +128,7 @@ export async function POST(request: NextRequest) {
       isRegular,
       chosenSchedule,
       fitnessCenterId,
+      duration,
       message: message || "",
     };
 

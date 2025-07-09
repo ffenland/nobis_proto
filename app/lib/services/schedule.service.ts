@@ -1,17 +1,8 @@
 // app/lib/services/schedule.service.ts
 import prisma from "@/app/lib/prisma";
-import { WeekDay } from "@prisma/client";
+import { WeekDay, PtState } from "@prisma/client";
+import { convertKSTtoUTC } from "@/app/lib/utils";
 
-// 요일 매핑
-const weekdaysEnum = [
-  { key: 0, enum: WeekDay.SUN },
-  { key: 1, enum: WeekDay.MON },
-  { key: 2, enum: WeekDay.TUE },
-  { key: 3, enum: WeekDay.WED },
-  { key: 4, enum: WeekDay.THU },
-  { key: 5, enum: WeekDay.FRI },
-  { key: 6, enum: WeekDay.SAT },
-];
 
 // 스케줄 관련 타입들
 export interface IScheduleSlot {
@@ -95,7 +86,11 @@ export const getTrainerScheduleService = async (
   return {
     existingSchedules,
     trainerOffs,
-    repeatOffs,
+    repeatOffs: repeatOffs as Array<{
+      weekDay: WeekDay;
+      startTime: number;
+      endTime: number;
+    }>,
     dateRange: {
       start: firstDateOfMonth,
       end: threeMonthsLater,
@@ -154,7 +149,7 @@ export const validateScheduleService = async (data: {
 };
 
 // 정기 스케줄을 슬롯 배열로 변환
-const convertRegularScheduleToSlots = (
+export const convertRegularScheduleToSlots = (
   chosenSchedule: IDaySchedule,
   totalCount: number
 ): IScheduleSlot[] => {
@@ -164,6 +159,7 @@ const convertRegularScheduleToSlots = (
   if (dates.length === 0) return schedules;
 
   const firstDate = new Date(dates[0]);
+
   const weekPattern = Object.keys(chosenSchedule).map((dateKey) => {
     const date = new Date(dateKey);
     const times = chosenSchedule[dateKey];
@@ -174,7 +170,6 @@ const convertRegularScheduleToSlots = (
     };
   });
 
-  // totalCount만큼 주간 반복으로 스케줄 생성
   let currentWeek = 0;
   let generatedCount = 0;
 
@@ -182,11 +177,12 @@ const convertRegularScheduleToSlots = (
     weekPattern.forEach((pattern) => {
       if (generatedCount >= totalCount) return;
 
+      // ✅ 새로운 Date 객체 생성 및 안전한 날짜 계산
       const scheduleDate = new Date(firstDate);
-      scheduleDate.setDate(
-        firstDate.getDate() +
-          currentWeek * 7 +
-          (pattern.dayOfWeek - firstDate.getDay())
+      const daysToAdd =
+        currentWeek * 7 + (pattern.dayOfWeek - firstDate.getDay());
+      scheduleDate.setTime(
+        scheduleDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000
       );
 
       schedules.push({
@@ -241,7 +237,7 @@ const addThirtyMinutes = (time: number): number => {
   }
 };
 
-// 트레이너 가용성 검사
+// 트레이너 가용성 검사 - 간단하고 직관적인 버전
 const checkTrainerAvailability = async (
   trainerId: string,
   schedules: IScheduleSlot[]
@@ -249,88 +245,60 @@ const checkTrainerAvailability = async (
   const success: IScheduleSlot[] = [];
   const fail: IScheduleSlot[] = [];
 
-  // 트레이너 스케줄 조회
-  const trainerSchedule = await getTrainerScheduleService(
-    trainerId,
-    new Date()
-  );
-
-  for (const schedule of schedules) {
-    const isAvailable = await isTimeSlotAvailable(
-      schedule,
-      trainerSchedule.existingSchedules,
-      trainerSchedule.trainerOffs,
-      trainerSchedule.repeatOffs
-    );
-
-    if (isAvailable) {
-      success.push(schedule);
-    } else {
-      fail.push(schedule);
-    }
+  if (schedules.length === 0) {
+    return { success, fail };
   }
 
+  // 신청할 날짜들을 UTC로 변환
+  const targetDates = schedules.map(s => convertKSTtoUTC(s.date));
+
+  // 해당 날짜들의 기존 PT 스케줄 조회 (OR 조건 사용)
+  const existingPtSchedules = await prisma.ptSchedule.findMany({
+    where: {
+      OR: targetDates.map(date => ({ date })),
+      ptRecord: {
+        some: {
+          pt: {
+            trainerId,
+            state: {
+              in: [PtState.PENDING, PtState.CONFIRMED],
+            },
+          },
+        },
+      },
+    },
+    select: {
+      date: true,
+      startTime: true,
+      endTime: true,
+    },
+  });
+
+  // 각 신청 스케줄에 대해 충돌 검사
+  schedules.forEach((schedule) => {
+    const scheduleDate = convertKSTtoUTC(schedule.date);
+    
+    // 같은 날짜의 기존 스케줄과 시간 겹침 검사
+    const hasConflict = existingPtSchedules.some((existing) => {
+      return (
+        existing.date.getTime() === scheduleDate.getTime() &&
+        timeRangesOverlap(
+          schedule.startTime,
+          schedule.endTime,
+          existing.startTime,
+          existing.endTime
+        )
+      );
+    });
+
+    if (hasConflict) {
+      fail.push(schedule);
+    } else {
+      success.push(schedule);
+    }
+  });
+
   return { success, fail };
-};
-
-// 특정 시간대 가용성 확인
-const isTimeSlotAvailable = async (
-  slot: IScheduleSlot,
-  existingSchedules: any[],
-  trainerOffs: any[],
-  repeatOffs: any[]
-): Promise<boolean> => {
-  const slotDate = slot.date.toISOString().split("T")[0];
-  const slotDayOfWeek = slot.date.getDay();
-
-  // 기존 스케줄과 충돌 체크
-  const hasConflict = existingSchedules.some((existing) => {
-    const existingDate = existing.date.toISOString().split("T")[0];
-    return (
-      existingDate === slotDate &&
-      timeRangesOverlap(
-        slot.startTime,
-        slot.endTime,
-        existing.startTime,
-        existing.endTime
-      )
-    );
-  });
-
-  if (hasConflict) return false;
-
-  // 특정 날짜 OFF와 충돌 체크
-  const hasOffConflict = trainerOffs.some((off) => {
-    if (!off.date) return false;
-    const offDate = off.date.toISOString().split("T")[0];
-    return (
-      offDate === slotDate &&
-      timeRangesOverlap(
-        slot.startTime,
-        slot.endTime,
-        off.startTime,
-        off.endTime
-      )
-    );
-  });
-
-  if (hasOffConflict) return false;
-
-  // 반복 OFF와 충돌 체크
-  const weekDayEnum = weekdaysEnum.find((w) => w.key === slotDayOfWeek)?.enum;
-  const hasRepeatOffConflict = repeatOffs.some((off) => {
-    return (
-      off.weekDay === weekDayEnum &&
-      timeRangesOverlap(
-        slot.startTime,
-        slot.endTime,
-        off.startTime,
-        off.endTime
-      )
-    );
-  });
-
-  return !hasRepeatOffConflict;
 };
 
 // 시간 범위 겹침 확인

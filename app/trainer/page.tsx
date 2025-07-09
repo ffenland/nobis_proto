@@ -13,6 +13,7 @@ import { formatTime } from "@/app/lib/utils/time.utils";
 import { formatDate } from "@/app/lib/utils";
 import ScheduleChangeNotifications from "@/app/components/notifications/ScheduleChangeNotifications";
 import { type ITrainerDashboardStats } from "@/app/lib/services/trainer.service";
+import ClientLogoutButton from "@/app/components/base/c_logout_button";
 
 // API 호출 함수
 const fetcher = (url: string) =>
@@ -52,11 +53,16 @@ const TrainerDashboardPage = () => {
 
   return (
     <PageLayout maxWidth="lg">
-      {/* 헤더 */}
-      <PageHeader
-        title="트레이너 대시보드"
-        subtitle="PT 관리 및 수업 현황을 확인하세요"
-      />
+      {/* 헤더 영역 - 사용자명과 로그아웃 버튼 */}
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <PageHeader
+            title="트레이너 대시보드"
+            subtitle="PT 관리 및 수업 현황을 확인하세요"
+          />
+        </div>
+        <ClientLogoutButton userType="trainer" />
+      </div>
 
       {/* 일정 변경 알림 */}
       <div className="mb-6">

@@ -35,20 +35,22 @@ const EquipmentNewPage = async ({ params }: PageProps) => {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">새 장비 등록</h1>
-            <p className="text-gray-600 mt-2">
-              {center.title} - 새로운 운동기구를 등록합니다
-            </p>
-          </div>
-          <div className="flex space-x-3">
+        <div className="flex flex-col items-start gap-3 mb-2">
+          <div className="flex w-full justify-between items-center space-x-3">
+            <div className="flex justify-center items-center">
+              <h1 className="text-3xl font-bold text-gray-900">새 장비 등록</h1>
+            </div>
             <Link
               href={`/manager/centers/${centerId}/equipments`}
               className="bg-gray-100 text-gray-900 px-6 py-3 rounded-md hover:bg-gray-200 transition-colors font-medium"
             >
               목록으로
             </Link>
+          </div>
+          <div>
+            <p className="text-gray-600 ">
+              {center.title} - 새로운 운동기구를 등록합니다
+            </p>
           </div>
         </div>
 
@@ -149,7 +151,7 @@ const EquipmentNewPage = async ({ params }: PageProps) => {
                   <input
                     type="text"
                     name="primaryUnit"
-                    className="w-24 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-16 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="단위"
                   />
                 </div>
@@ -174,7 +176,7 @@ const EquipmentNewPage = async ({ params }: PageProps) => {
                   <input
                     type="text"
                     name="secondaryUnit"
-                    className="w-24 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-16 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="단위"
                   />
                 </div>

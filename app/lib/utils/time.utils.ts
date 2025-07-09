@@ -21,6 +21,13 @@ export const formatTime = (time: number): string => {
     .padStart(2, "0")}`;
 };
 
+// 간단한 시간 표시 함수 (HHMM -> H, 30분은 빈칸)
+export const formatTimeSimple = (time: number): string => {
+  const hour = Math.floor(time / 100);
+  const minute = time % 100;
+  return minute === 0 ? hour.toString() : "";
+};
+
 // 시간 파싱 함수 (HH:MM -> HHMM)
 export const parseTime = (timeStr: string): number => {
   const [hour, minute] = timeStr.split(":").map(Number);
@@ -36,10 +43,10 @@ export const isValidTimeSlot = (time: number): boolean => {
 // 시간 범위 계산 (시작 시간과 수업 시간으로 종료 시간 계산)
 export const calculateEndTime = (
   startTime: number,
-  durationHours: number
+  durationMinutes: number
 ): number => {
   let currentTime = startTime;
-  const thirtyMinuteSlots = Math.floor(durationHours * 2); // 0.5시간씩 계산
+  const thirtyMinuteSlots = Math.floor(durationMinutes / 30);
 
   for (let i = 0; i < thirtyMinuteSlots; i++) {
     currentTime = addThirtyMinutes(currentTime);
@@ -109,13 +116,13 @@ export const validateTimeRange = (
 // 수업 시간 길이 배열 생성 (30분 단위 슬롯들)
 export const generateClassTimeSlots = (
   startTime: number,
-  durationHours: number,
+  durationMinutes: number,
   openTime: number = 600,
-  closeTime: number = 2200
+  closeTime: number = 2400
 ): number[] => {
   const timeSlots: number[] = [];
   let currentTime = startTime;
-  const thirtyMinuteSlots = Math.floor(durationHours * 2);
+  const thirtyMinuteSlots = Math.floor(durationMinutes / 30);
 
   for (let i = 0; i < thirtyMinuteSlots; i++) {
     if (currentTime >= closeTime || currentTime < openTime) {
@@ -126,4 +133,27 @@ export const generateClassTimeSlots = (
   }
 
   return timeSlots;
+};
+// 시간 배열에서 종료 시간 계산
+export const getEndTime = (times: number[]): number => {
+  const lastTime = times[times.length - 1];
+  return addThirtyMinutes(lastTime);
+};
+
+export const isSameDate = (date1: Date, date2: Date): boolean => {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+};
+
+// 날짜를 한글 형식으로 포맷하는 함수
+export const formatDateWithWeekday = (date: Date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const weekday = date.toLocaleDateString("ko-KR", { weekday: "long" });
+
+  return `${year}년 ${month}월 ${day}일 ${weekday}`;
 };

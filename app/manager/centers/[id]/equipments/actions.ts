@@ -50,7 +50,7 @@ export const getCenterEquipments = async (centerId: string) => {
         take: 1,
       },
     },
-    orderBy: [{ category: "asc" }, { primaryValue: "asc" }, { title: "asc" }],
+    orderBy: [{ title: "asc" }],
   });
 
   return {

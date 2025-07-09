@@ -6,139 +6,161 @@ import {
   getManagerDashboardStats,
   getCenterOverviewStats,
   getRecentActivities,
+  getManagerInfo,
 } from "./actions";
 import { PageHeader, PageLayout } from "../components/ui/Dropdown";
+import LogoutButton from "../components/base/s_logout_button";
 
 const ManagerMainPage = async () => {
   try {
     // 병렬로 데이터 조회
-    const [dashboardStats, centerOverviews, recentActivities] =
+    const [dashboardStats, centerOverviews, recentActivities, managerInfo] =
       await Promise.all([
         getManagerDashboardStats(),
         getCenterOverviewStats(),
         getRecentActivities(),
+        getManagerInfo(),
       ]);
 
     return (
       <PageLayout maxWidth="xl">
-        <PageHeader
-          title="매니저 대시보드"
-          subtitle="헬스장 운영 현황을 한눈에 확인하세요"
-        />
+        {/* 헤더 영역 - 사용자명과 로그아웃 버튼 */}
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <PageHeader
+              title="매니저 대시보드"
+              subtitle="헬스장 운영 현황을 한눈에 확인하세요"
+            />
+          </div>
+          <div className="flex flex-col items-end space-y-2">
+            <div className="text-sm text-gray-600">
+              <span className="font-medium text-gray-900">{managerInfo.username}</span>님 안녕하세요
+            </div>
+            <LogoutButton variant="manager" size="sm" />
+          </div>
+        </div>
 
         {/* 주요 지표 카드들 */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">총 센터</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {dashboardStats.totalCenters}개
-                  </p>
+          <Link href="/manager/centers" className="group">
+            <Card className="transition-all duration-200 hover:shadow-lg hover:border-blue-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">센터</p>
+                    <p className="text-2xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                      {dashboardStats.totalCenters}개
+                    </p>
+                  </div>
+                  <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                    <svg
+                      className="w-6 h-6 text-blue-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                      />
+                    </svg>
+                  </div>
                 </div>
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <svg
-                    className="w-6 h-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">총 트레이너</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {dashboardStats.totalTrainers}명
-                  </p>
+          <Link href="/manager/trainers" className="group">
+            <Card className="transition-all duration-200 hover:shadow-lg hover:border-green-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">트레이너</p>
+                    <p className="text-2xl font-bold text-gray-900 group-hover:text-green-600 transition-colors">
+                      {dashboardStats.totalTrainers}명
+                    </p>
+                  </div>
+                  <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                    <svg
+                      className="w-6 h-6 text-green-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                      />
+                    </svg>
+                  </div>
                 </div>
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <svg
-                    className="w-6 h-6 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">총 회원</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {dashboardStats.totalMembers}명
-                  </p>
+          <Link href="/manager/members" className="group">
+            <Card className="transition-all duration-200 hover:shadow-lg hover:border-purple-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">회원</p>
+                    <p className="text-2xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
+                      {dashboardStats.totalMembers}명
+                    </p>
+                  </div>
+                  <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                    <svg
+                      className="w-6 h-6 text-purple-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                  </div>
                 </div>
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <svg
-                    className="w-6 h-6 text-purple-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">활성 PT</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {dashboardStats.totalActivePt}건
-                  </p>
+          <Link href="/manager/product" className="group">
+            <Card className="transition-all duration-200 hover:shadow-lg hover:border-orange-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">활성 PT</p>
+                    <p className="text-2xl font-bold text-gray-900 group-hover:text-orange-600 transition-colors">
+                      {dashboardStats.totalActivePt}건
+                    </p>
+                  </div>
+                  <div className="p-3 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                    <svg
+                      className="w-6 h-6 text-orange-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                  </div>
                 </div>
-                <div className="p-3 bg-orange-100 rounded-lg">
-                  <svg
-                    className="w-6 h-6 text-orange-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* 이번 달 활동 및 7일간 세션 통계 */}
@@ -529,113 +551,6 @@ const ManagerMainPage = async () => {
           </Card>
         </div>
 
-        {/* 빠른 액션 버튼들 */}
-        <div className="mt-8">
-          <Card>
-            <CardHeader>
-              <h3 className="text-lg font-semibold text-gray-900">빠른 작업</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <Link
-                  href="/manager/centers"
-                  className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="p-3 bg-blue-100 rounded-lg mb-3">
-                    <svg
-                      className="w-6 h-6 text-blue-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">
-                    센터 관리
-                  </span>
-                </Link>
-
-                <Link
-                  href="/manager/trainers"
-                  className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="p-3 bg-green-100 rounded-lg mb-3">
-                    <svg
-                      className="w-6 h-6 text-green-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">
-                    트레이너 관리
-                  </span>
-                </Link>
-
-                <Link
-                  href="/manager/members"
-                  className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="p-3 bg-purple-100 rounded-lg mb-3">
-                    <svg
-                      className="w-6 h-6 text-purple-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">
-                    회원 관리
-                  </span>
-                </Link>
-
-                <Link
-                  href="/manager/product"
-                  className="flex flex-col items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="p-3 bg-orange-100 rounded-lg mb-3">
-                    <svg
-                      className="w-6 h-6 text-orange-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900">
-                    상품 관리
-                  </span>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </PageLayout>
     );
   } catch (error) {
@@ -673,12 +588,12 @@ const ManagerMainPage = async () => {
                 ? error.message
                 : "알 수 없는 오류가 발생했습니다."}
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+            <Link
+              href="/manager"
+              className="inline-block bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
             >
               다시 시도
-            </button>
+            </Link>
           </CardContent>
         </Card>
       </PageLayout>

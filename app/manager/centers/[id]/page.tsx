@@ -93,34 +93,40 @@ export default async function CenterDetailPage({
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{center.title}</h1>
+        <div className="flex flex-col mb-2">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {center.title}
+              </h1>
+            </div>
+            <div className="flex space-x-3 flex-nowrap">
+              <div
+                className={`flex items-center justify-center px-3 rounded-full text-sm font-medium whitespace-nowrap ${
+                  center.inOperation
+                    ? "bg-green-100 text-green-800"
+                    : "bg-red-100 text-red-800"
+                }`}
+              >
+                {center.inOperation ? "운영중" : "운영중단"}
+              </div>
+              <Link
+                href={`/manager/centers/${id}/edit`}
+                className="bg-gray-100 text-gray-900 text-center py-2 px-4 rounded-md hover:bg-gray-200 transition-colors text-sm"
+              >
+                수정
+              </Link>
+              <Link
+                href="/manager/centers"
+                className="bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800 transition-colors text-sm"
+              >
+                목록으로
+              </Link>
+            </div>
+          </div>
+          <div className="flex flex-col">
             <p className="text-gray-600 mt-2">{center.address}</p>
             <p className="text-gray-600">{center.phone}</p>
-          </div>
-          <div className="flex space-x-3">
-            <div
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                center.inOperation
-                  ? "bg-green-100 text-green-800"
-                  : "bg-red-100 text-red-800"
-              }`}
-            >
-              {center.inOperation ? "운영중" : "운영중단"}
-            </div>
-            <Link
-              href={`/manager/centers/${id}/edit`}
-              className="bg-gray-100 text-gray-900 text-center py-2 px-4 rounded-md hover:bg-gray-200 transition-colors text-sm"
-            >
-              수정
-            </Link>
-            <Link
-              href="/manager/centers"
-              className="bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-800 transition-colors text-sm"
-            >
-              목록으로
-            </Link>
           </div>
         </div>
 

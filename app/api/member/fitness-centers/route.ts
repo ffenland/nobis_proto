@@ -1,11 +1,11 @@
 // app/api/member/fitness-centers/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
 import { getFitnessCentersService } from "@/app/lib/services/pt-apply.service";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSessionOrRedirect();
+    const session = await getSession();
     if (session.role !== "MEMBER") {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }

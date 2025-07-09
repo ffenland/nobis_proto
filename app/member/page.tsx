@@ -13,6 +13,7 @@ import { formatTime } from "@/app/lib/utils/time.utils";
 import { formatDate } from "@/app/lib/utils";
 import ScheduleChangeNotifications from "@/app/components/notifications/ScheduleChangeNotifications";
 import { type IMemberDashboardStats } from "@/app/lib/services/member.service";
+import ClientLogoutButton from "@/app/components/base/c_logout_button";
 
 // API 호출 함수 (타입 추론 사용)
 const fetcher = (url: string) =>
@@ -53,8 +54,13 @@ const MemberDashboardPage = () => {
   // 간단한 통계만 표시 (실제 서비스 함수 구조에 맞춤)
   return (
     <PageLayout maxWidth="md">
-      {/* 헤더 */}
-      <PageHeader title="대시보드" subtitle="나의 PT 현황을 확인하세요" />
+      {/* 헤더 영역 - 사용자명과 로그아웃 버튼 */}
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <PageHeader title="대시보드" subtitle="나의 PT 현황을 확인하세요" />
+        </div>
+        <ClientLogoutButton userType="member" />
+      </div>
 
       {/* 일정 변경 알림 */}
       <div className="mb-6">
