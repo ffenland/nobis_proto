@@ -1,4 +1,4 @@
-// app/lib/services/chat-simple.service.ts
+// app/lib/services/chat.service.ts
 import prisma from "@/app/lib/prisma";
 
 // 입력 타입 정의
@@ -13,6 +13,10 @@ export interface ICreateChatRoomRequest {
 
 export interface IMarkAsReadRequest {
   roomId: string;
+}
+
+export interface IChatConnectRequest {
+  trainerUserId: string;
 }
 
 export interface IGetMessagesRequest {
@@ -37,32 +41,41 @@ export class ChatService {
     return ChatService.instance;
   }
 
-  // 사용자의 채팅방 목록 조회 (간단한 버전)
+  // 사용자의 채팅방 목록 조회 (새로운 스키마 방식)
   async getChatRooms(userId: string) {
     const chatRooms = await prisma.chatRoom.findMany({
       where: {
-        participants: {
-          some: { userId },
-        },
+        OR: [
+          { userOneId: userId },
+          { userTwoId: userId },
+        ],
       },
       orderBy: { lastMessageAt: "desc" },
       select: {
         id: true,
         lastMessageAt: true,
-        participants: {
+        userOne: {
           select: {
-            userId: true,
-            user: {
+            id: true,
+            username: true,
+            role: true,
+            avatarMedia: {
               select: {
-                id: true,
-                username: true,
-                role: true,
-                avatarMedia: {
-                  select: {
-                    thumbnailUrl: true,
-                    publicUrl: true,
-                  },
-                },
+                thumbnailUrl: true,
+                publicUrl: true,
+              },
+            },
+          },
+        },
+        userTwo: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+            avatarMedia: {
+              select: {
+                thumbnailUrl: true,
+                publicUrl: true,
               },
             },
           },
@@ -82,12 +95,11 @@ export class ChatService {
       },
     });
 
-    // 각 채팅방의 안읽은 메시지 수 계산 (훨씬 간단!)
+    // 각 채팅방의 안읽은 메시지 수 계산
     const roomsWithUnreadCount = await Promise.all(
       chatRooms.map(async (room) => {
-        const otherParticipant = room.participants.find(
-          (p) => p.userId !== userId
-        );
+        // 상대방 정보 확인
+        const otherUser = room.userOne.id === userId ? room.userTwo : room.userOne;
         const lastMessage = room.messages[0];
 
         // 간단한 안읽은 메시지 수 계산
@@ -102,16 +114,14 @@ export class ChatService {
         return {
           id: room.id,
           lastMessageAt: room.lastMessageAt,
-          otherUser: otherParticipant
-            ? {
-                id: otherParticipant.user.id,
-                username: otherParticipant.user.username,
-                role: otherParticipant.user.role,
-                avatar:
-                  otherParticipant.user.avatarMedia?.thumbnailUrl ||
-                  otherParticipant.user.avatarMedia?.publicUrl,
-              }
-            : null,
+          otherUser: {
+            id: otherUser.id,
+            username: otherUser.username,
+            role: otherUser.role,
+            avatar:
+              otherUser.avatarMedia?.thumbnailUrl ||
+              otherUser.avatarMedia?.publicUrl,
+          },
           lastMessage: lastMessage
             ? {
                 content: lastMessage.content,
@@ -133,13 +143,16 @@ export class ChatService {
   async getMessages(userId: string, request: IGetMessagesRequest) {
     const { roomId, cursor, limit = 50 } = request;
 
-    // 채팅방 참여자 확인
-    const isParticipant = await prisma.chatRoomParticipant.findFirst({
-      where: { chatRoomId: roomId, userId },
-      select: { id: true },
+    // 채팅방 참여자 확인 (새로운 스키마 방식)
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      select: { 
+        userOneId: true, 
+        userTwoId: true 
+      },
     });
 
-    if (!isParticipant) {
+    if (!chatRoom || (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
@@ -179,13 +192,16 @@ export class ChatService {
   async sendMessage(userId: string, request: ISendMessageRequest) {
     const { roomId, content } = request;
 
-    // 채팅방 참여자 확인
-    const participant = await prisma.chatRoomParticipant.findFirst({
-      where: { chatRoomId: roomId, userId },
-      select: { id: true },
+    // 채팅방 참여자 확인 (새로운 스키마 방식)
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      select: { 
+        userOneId: true, 
+        userTwoId: true 
+      },
     });
 
-    if (!participant) {
+    if (!chatRoom || (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
@@ -238,13 +254,16 @@ export class ChatService {
   async markAsRead(userId: string, request: IMarkAsReadRequest) {
     const { roomId } = request;
 
-    // 채팅방 참여자 확인
-    const participant = await prisma.chatRoomParticipant.findFirst({
-      where: { chatRoomId: roomId, userId },
-      select: { id: true },
+    // 채팅방 참여자 확인 (새로운 스키마 방식)
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      select: { 
+        userOneId: true, 
+        userTwoId: true 
+      },
     });
 
-    if (!participant) {
+    if (!chatRoom || (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
@@ -263,14 +282,17 @@ export class ChatService {
     return { success: true };
   }
 
-  // 사용자의 총 안읽은 메시지 수 (간단한 쿼리!)
+  // 사용자의 총 안읽은 메시지 수 (새로운 스키마 방식)
   async getTotalUnreadCount(userId: string) {
     const unreadCount = await prisma.message.count({
       where: {
         senderId: { not: userId }, // 내가 보낸 게 아닌
         isRead: false, // 읽지 않은
         room: {
-          participants: { some: { userId } }, // 내가 참여한 채팅방의
+          OR: [
+            { userOneId: userId },
+            { userTwoId: userId },
+          ],
         },
       },
     });
@@ -278,18 +300,102 @@ export class ChatService {
     return { unreadCount };
   }
 
-  // 나머지 메서드들 (getOrCreateChatRoom, getChatRoomInfo)은 동일...
-  async getOrCreateChatRoom(userId: string, otherUserId: string) {
-    // 기존과 동일한 로직
-    const existingRoom = await prisma.chatRoom.findFirst({
+  // 트레이너와 채팅방 연결 (멤버 전용)
+  async connectToChatRoom(memberId: string, request: IChatConnectRequest) {
+    const { trainerUserId } = request;
+
+    // 1. 트레이너 존재 확인
+    const trainer = await prisma.user.findFirst({
       where: {
-        AND: [
-          { participants: { some: { userId } } },
-          { participants: { some: { userId: otherUserId } } },
-          {
-            participants: { every: { userId: { in: [userId, otherUserId] } } },
+        id: trainerUserId,
+        role: "TRAINER",
+      },
+      select: {
+        id: true,
+        username: true,
+        trainerProfile: {
+          select: {
+            id: true,
           },
-        ],
+        },
+      },
+    });
+
+    if (!trainer || !trainer.trainerProfile) {
+      throw new Error("해당 트레이너를 찾을 수 없습니다.");
+    }
+
+    // 2. 멤버 정보 확인
+    const member = await prisma.user.findFirst({
+      where: {
+        id: memberId,
+        role: "MEMBER",
+      },
+      select: {
+        id: true,
+        memberProfile: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!member || !member.memberProfile) {
+      throw new Error("멤버 정보를 찾을 수 없습니다.");
+    }
+
+    // 3. 기존 채팅방 조회 (새로운 스키마 방식)
+    const [userOneId, userTwoId] = [memberId, trainerUserId].sort();
+    
+    const existingRoom = await prisma.chatRoom.findUnique({
+      where: {
+        unique_chat_participants: {
+          userOneId,
+          userTwoId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingRoom) {
+      return {
+        roomId: existingRoom.id,
+        created: false,
+        trainerName: trainer.username,
+      };
+    }
+
+    // 4. 새 채팅방 생성
+    const newRoom = await prisma.chatRoom.create({
+      data: {
+        userOneId,
+        userTwoId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return {
+      roomId: newRoom.id,
+      created: true,
+      trainerName: trainer.username,
+    };
+  }
+
+  async getOrCreateChatRoom(userId: string, otherUserId: string) {
+    // 새로운 스키마 방식으로 수정
+    const [userOneId, userTwoId] = [userId, otherUserId].sort();
+    
+    const existingRoom = await prisma.chatRoom.findUnique({
+      where: {
+        unique_chat_participants: {
+          userOneId,
+          userTwoId,
+        },
       },
       select: { id: true },
     });
@@ -300,9 +406,8 @@ export class ChatService {
 
     const newRoom = await prisma.chatRoom.create({
       data: {
-        participants: {
-          create: [{ userId }, { userId: otherUserId }],
-        },
+        userOneId,
+        userTwoId,
       },
       select: { id: true },
     });
@@ -311,26 +416,37 @@ export class ChatService {
   }
 
   async getChatRoomInfo(userId: string, roomId: string) {
-    // 기존과 거의 동일한 로직 (MessageRead 관련 부분만 제거)
+    // 새로운 스키마 방식으로 수정
     const chatRoom = await prisma.chatRoom.findUnique({
       where: { id: roomId },
       select: {
         id: true,
-        participants: {
+        userOne: {
           select: {
-            user: {
+            id: true,
+            username: true,
+            role: true,
+            memberProfile: { select: { id: true } },
+            trainerProfile: { select: { id: true } },
+            avatarMedia: {
               select: {
-                id: true,
-                username: true,
-                role: true,
-                memberProfile: { select: { id: true } },
-                trainerProfile: { select: { id: true } },
-                avatarMedia: {
-                  select: {
-                    thumbnailUrl: true,
-                    publicUrl: true,
-                  },
-                },
+                thumbnailUrl: true,
+                publicUrl: true,
+              },
+            },
+          },
+        },
+        userTwo: {
+          select: {
+            id: true,
+            username: true,
+            role: true,
+            memberProfile: { select: { id: true } },
+            trainerProfile: { select: { id: true } },
+            avatarMedia: {
+              select: {
+                thumbnailUrl: true,
+                publicUrl: true,
               },
             },
           },
@@ -342,88 +458,80 @@ export class ChatService {
       throw new Error("채팅방을 찾을 수 없습니다.");
     }
 
-    const isParticipant = chatRoom.participants.some(
-      (p) => p.user.id === userId
-    );
+    // 참여자 확인
+    const isParticipant = chatRoom.userOne.id === userId || chatRoom.userTwo.id === userId;
     if (!isParticipant) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
-    // PT 정보 조회 (최신 스키마 기준)
-    let ptInfo = null;
-    if (chatRoom.participants.length === 2) {
-      const member = chatRoom.participants.find(
-        (p) => p.user.role === "MEMBER"
-      );
-      const trainer = chatRoom.participants.find(
-        (p) => p.user.role === "TRAINER"
-      );
+    // 상대방 정보 확인
+    const otherUser = chatRoom.userOne.id === userId ? chatRoom.userTwo : chatRoom.userOne;
 
-      if (member?.user.memberProfile?.id && trainer?.user.trainerProfile?.id) {
-        const pt = await prisma.pt.findFirst({
-          where: {
-            memberId: member.user.memberProfile.id,
-            trainerId: trainer.user.trainerProfile.id,
-          },
-          select: {
-            id: true,
-            state: true,
-            startDate: true,
-            ptProduct: {
-              select: {
-                title: true,
-                totalCount: true,
-              },
+    // PT 정보 조회
+    let ptInfo = null;
+    const member = chatRoom.userOne.role === "MEMBER" ? chatRoom.userOne : 
+                  chatRoom.userTwo.role === "MEMBER" ? chatRoom.userTwo : null;
+    const trainer = chatRoom.userOne.role === "TRAINER" ? chatRoom.userOne : 
+                   chatRoom.userTwo.role === "TRAINER" ? chatRoom.userTwo : null;
+
+    if (member?.memberProfile?.id && trainer?.trainerProfile?.id) {
+      const pt = await prisma.pt.findFirst({
+        where: {
+          memberId: member.memberProfile.id,
+          trainerId: trainer.trainerProfile.id,
+        },
+        select: {
+          id: true,
+          state: true,
+          startDate: true,
+          ptProduct: {
+            select: {
+              title: true,
+              totalCount: true,
             },
-            ptRecord: {
-              select: {
-                items: {
-                  select: {
-                    id: true,
-                  },
+          },
+          ptRecord: {
+            select: {
+              items: {
+                select: {
+                  id: true,
                 },
               },
             },
           },
-        });
+        },
+      });
 
-        if (pt) {
-          // PT 상태 결정 로직
-          let state: string;
+      if (pt) {
+        // PT 상태 결정 로직
+        let state: string;
 
-          if (pt.state === "PENDING") {
-            state = "승인대기";
-          } else if (pt.state === "REJECTED") {
-            state = "거절됨";
-          } else {
-            state = "승인됨";
-          }
-
-          ptInfo = {
-            id: pt.id,
-            title: pt.ptProduct.title,
-            state,
-          };
+        if (pt.state === "PENDING") {
+          state = "승인대기";
+        } else if (pt.state === "REJECTED") {
+          state = "거절됨";
+        } else {
+          state = "승인됨";
         }
+
+        ptInfo = {
+          id: pt.id,
+          title: pt.ptProduct.title,
+          state,
+        };
       }
     }
 
-    const otherParticipant = chatRoom.participants.find(
-      (p) => p.user.id !== userId
-    );
-
     return {
       id: chatRoom.id,
-      otherUser: otherParticipant
-        ? {
-            id: otherParticipant.user.id,
-            username: otherParticipant.user.username,
-            role: otherParticipant.user.role,
-            avatar:
-              otherParticipant.user.avatarMedia?.thumbnailUrl ||
-              otherParticipant.user.avatarMedia?.publicUrl,
-          }
-        : null,
+      otherUser: {
+        id: otherUser.id,
+        username: otherUser.username,
+        role: otherUser.role,
+        avatar:
+          otherUser.avatarMedia?.thumbnailUrl ||
+          otherUser.avatarMedia?.publicUrl,
+      },
       ptInfo,
     };
   }

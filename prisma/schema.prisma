@@ -50,7 +50,8 @@ model User {
   userData                 UserData?
   deletedAt                DateTime?
   rateLimit                RateLimit[]
-  chatRoomParticipants     ChatRoomParticipant[]
+  chatRoomsAsUserOne       ChatRoom[]                @relation("ChatRoomUserOne")
+  chatRoomsAsUserTwo       ChatRoom[]                @relation("ChatRoomUserTwo")
   sentMessages             Message[]
   requestedScheduleChanges PtScheduleChangeRequest[] @relation("ScheduleChangeRequestor")
   respondedScheduleChanges PtScheduleChangeRequest[] @relation("ScheduleChangeResponder")
@@ -592,22 +593,22 @@ model RateLimit {
 
 // SUPABASE REALTIME DATABASE
 model ChatRoom {
-  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt     DateTime              @default(now())
-  lastMessageAt DateTime              @default(now())
-  messages      Message[]
-  participants  ChatRoomParticipant[]
-}
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt     DateTime @default(now())
+  lastMessageAt DateTime @default(now())
 
-model ChatRoomParticipant {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id])
-  chatRoomId String   @db.Uuid
-  user       User     @relation(fields: [userId], references: [id])
-  userId     String   @db.Uuid
-  joinedAt   DateTime @default(now())
+  // 1:1 채팅방 참여자 직접 관리
+  userOne   User   @relation("ChatRoomUserOne", fields: [userOneId], references: [id])
+  userOneId String @db.Uuid
+  userTwo   User   @relation("ChatRoomUserTwo", fields: [userTwoId], references: [id])
+  userTwoId String @db.Uuid
 
-  @@unique([chatRoomId, userId])
+  messages Message[]
+
+  // 핵심: 두 유저 조합의 유니크 제약
+  @@unique([userOneId, userTwoId], name: "unique_chat_participants")
+  @@index([userOneId])
+  @@index([userTwoId])
 }
 
 enum MessageType {

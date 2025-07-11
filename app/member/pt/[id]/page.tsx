@@ -315,7 +315,7 @@ const PtDetailPage = (props: { params: Params }) => {
                 </span>
               </div>
               {pt.trainer && (
-                <Link href={`/member/chat/${pt.trainer.user.id}`}>
+                <Link href={`/member/chat/connect?opp=${pt.trainer.user.id}`}>
                   <Button variant="outline" size="sm">
                     메시지
                   </Button>
@@ -475,9 +475,7 @@ const PtDetailPage = (props: { params: Params }) => {
 
       {/* 삭제 확인 모달 */}
       <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
-        <ModalHeader>
-          PT 삭제 확인
-        </ModalHeader>
+        <ModalHeader>PT 삭제 확인</ModalHeader>
         <ModalContent>
           <div className="space-y-4">
             <p className="text-gray-700">정말로 이 PT를 삭제하시겠습니까?</p>

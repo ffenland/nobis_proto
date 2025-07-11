@@ -171,8 +171,20 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
       if (!result.success) {
         throw new Error("메시지 전송에 실패했습니다.");
       }
-      // 실시간 구독으로 메시지가 추가되므로 여기서는 별도 처리 불필요
-      // 스크롤은 실시간 메시지 구독에서 처리됨
+      
+      // 즉시 로컬 상태 업데이트 (실시간 구독 전에 UI 반영)
+      setMessages((prev) => {
+        // 이미 존재하는 메시지인지 확인
+        if (prev.some((msg) => msg.id === result.data.id)) {
+          return prev;
+        }
+        return [...prev, result.data];
+      });
+
+      // 메시지 전송 후 스크롤
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     },
     [roomId]
   );

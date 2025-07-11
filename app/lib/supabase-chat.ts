@@ -65,21 +65,23 @@ export function subscribeToMessages(
             const latestMessage = result.data[result.data.length - 1];
             if (latestMessage.id === newMessage.id) {
               onMessage(latestMessage);
+              return; // 성공 시 더 이상 진행하지 않음
             }
           }
         } catch (error) {
           console.error("Error fetching latest message:", error);
-          // 기본 메시지 형태로 폴백 (타입 안전하게)
-          onMessage({
-            id: newMessage.id,
-            content: newMessage.content,
-            createdAt: new Date(newMessage.createdAt), // string을 Date로 변환
-            senderId: newMessage.senderId,
-            messageType: newMessage.messageType as "TEXT" | "IMAGE" | "SYSTEM",
-            isRead: false,
-            sender: null,
-          });
         }
+
+        // API 호출이 실패하거나 메시지를 찾지 못한 경우 기본 메시지 형태로 폴백
+        onMessage({
+          id: newMessage.id,
+          content: newMessage.content,
+          createdAt: new Date(newMessage.createdAt), // string을 Date로 변환
+          senderId: newMessage.senderId,
+          messageType: newMessage.messageType as "TEXT" | "IMAGE" | "SYSTEM",
+          isRead: false,
+          sender: null,
+        });
       }
     )
     .subscribe((status, err) => {

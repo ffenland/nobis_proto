@@ -17,9 +17,20 @@ export const getPtDetailForMemberService = async (
         in: [PtState.PENDING, PtState.CONFIRMED],
       },
     },
-    include: {
+    select: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      memberId: true,
+      trainerId: true,
+      state: true,
+      trainerConfirmed: true,
+      description: true,
+      startDate: true,
+      isRegular: true,
       trainer: {
-        include: {
+        select: {
+          id: true,
           user: {
             select: {
               id: true,
@@ -29,7 +40,8 @@ export const getPtDetailForMemberService = async (
         },
       },
       member: {
-        include: {
+        select: {
+          id: true,
           user: {
             select: {
               username: true,
@@ -58,11 +70,20 @@ export const getPtDetailForMemberService = async (
           },
           memo: true,
           items: {
-            include: {
+            select: {
+              id: true,
+              type: true,
+              title: true,
+              description: true,
               machineSetRecords: {
-                include: {
+                select: {
+                  id: true,
+                  set: true,
+                  reps: true,
                   settingValues: {
-                    include: {
+                    select: {
+                      id: true,
+                      value: true,
                       machineSetting: {
                         select: {
                           title: true,
@@ -75,6 +96,7 @@ export const getPtDetailForMemberService = async (
               },
               freeSetRecords: {
                 select: {
+                  id: true,
                   set: true,
                   reps: true,
                   equipments: {
@@ -90,6 +112,8 @@ export const getPtDetailForMemberService = async (
               },
               stretchingExerciseRecords: {
                 select: {
+                  id: true,
+                  description: true,
                   equipments: {
                     select: {
                       id: true,
@@ -114,14 +138,6 @@ export const getPtDetailForMemberService = async (
           ptSchedule: {
             date: "asc",
           },
-        },
-      },
-      weekTimes: {
-        select: {
-          endTime: true,
-          startTime: true,
-          id: true,
-          weekDay: true,
         },
       },
     },
