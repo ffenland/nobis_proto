@@ -12,6 +12,27 @@ export const addThirtyMinutes = (time: number): number => {
   return minute === 30 ? (hour + 1) * 100 : time + 30;
 };
 
+// n분 빼기 함수
+export const subtractMinutes = (time: number, minutes: number): number => {
+  const hour = Math.floor(time / 100);
+  const minute = time % 100;
+  
+  // 총 분으로 변환
+  const totalMinutes = hour * 60 + minute;
+  const newTotalMinutes = totalMinutes - minutes;
+  
+  // 음수가 되면 0시 0분으로 처리
+  if (newTotalMinutes < 0) {
+    return 0;
+  }
+  
+  // 다시 HHMM 형식으로 변환
+  const newHour = Math.floor(newTotalMinutes / 60);
+  const newMinute = newTotalMinutes % 60;
+  
+  return newHour * 100 + newMinute;
+};
+
 // 시간 포맷 함수 (HHMM -> HH:MM)
 export const formatTime = (time: number): string => {
   const hour = Math.floor(time / 100);

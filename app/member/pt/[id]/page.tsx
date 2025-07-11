@@ -476,7 +476,7 @@ const PtDetailPage = (props: { params: Params }) => {
       {/* 삭제 확인 모달 */}
       <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
         <ModalHeader>
-          <h3 className="text-lg font-semibold text-gray-900">PT 삭제 확인</h3>
+          PT 삭제 확인
         </ModalHeader>
         <ModalContent>
           <div className="space-y-4">

@@ -2,10 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrRedirect } from "@/app/lib/session";
 import { getPtDetailForMemberService } from "@/app/lib/services/pt-detail.service";
-import {
-  deletePendingPtService,
-  canDeletePtService,
-} from "@/app/lib/services/pt-delete.service";
+import { cancelPtService } from "@/app/lib/services/pt-apply.service";
+import prisma from "@/app/lib/prisma";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -48,6 +46,50 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 // DELETE - PENDING 상태 PT 삭제
+// PATCH - PT 메시지 업데이트
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  try {
+    const session = await getSessionOrRedirect();
+    if (session.role !== "MEMBER") {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    }
+
+    const { id: ptId } = await params;
+
+    if (!ptId) {
+      return NextResponse.json(
+        { error: "PT ID가 필요합니다." },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { description } = body;
+
+    // PT 메시지 업데이트
+    await prisma.pt.update({
+      where: {
+        id: ptId,
+        memberId: session.roleId, // 본인 PT만 수정 가능
+      },
+      data: {
+        description: description || "",
+      },
+    });
+
+    return NextResponse.json({
+      message: "PT 메시지가 성공적으로 업데이트되었습니다.",
+    });
+  } catch (error) {
+    console.error("PT 메시지 업데이트 실패:", error);
+
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getSessionOrRedirect();
@@ -64,27 +106,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // 삭제 가능 여부 확인
-    const canDelete = await canDeletePtService({
-      ptId,
-      memberId: session.roleId,
-    });
-
-    if (!canDelete) {
-      return NextResponse.json(
-        {
-          error:
-            "삭제할 수 없는 PT입니다. PENDING 상태이고 트레이너 승인 전인 PT만 삭제 가능합니다.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // PT 삭제 실행
-    await deletePendingPtService({
-      ptId,
-      memberId: session.roleId,
-    });
+    // PT 삭제 실행 (cancelPtService에서 권한 확인도 포함)
+    await cancelPtService(ptId, session.roleId);
 
     return NextResponse.json({
       message: "PT가 성공적으로 삭제되었습니다.",

@@ -184,7 +184,6 @@ model Pt {
   ptPayment        PtPayment?
   startDate        DateTime
   isRegular        Boolean
-  weekTimes        WeekTime[]
 }
 
 enum ScheduleChangeState {
@@ -404,19 +403,6 @@ enum ScheduleState {
   PENDING
   CONFIRMED
   CANCELED
-}
-
-model WeekTime {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  weekDay   WeekDay
-  startTime Int
-  endTime   Int
-  pt        Pt?      @relation(fields: [ptId], references: [id])
-  ptId      String?  @db.Uuid
-
-  @@unique([weekDay, startTime, endTime])
 }
 
 model MembershipProduct {

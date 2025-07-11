@@ -4,6 +4,17 @@ import { PtState, WeekDay } from "@prisma/client";
 import { cache } from "react";
 import { getEndTime } from "@/app/lib/utils/time.utils";
 
+// 요일 매핑 (트레이너 OFF 체크용)
+const weekdaysEnum = [
+  { key: 0, enum: WeekDay.SUN },
+  { key: 1, enum: WeekDay.MON },
+  { key: 2, enum: WeekDay.TUE },
+  { key: 3, enum: WeekDay.WED },
+  { key: 4, enum: WeekDay.THU },
+  { key: 5, enum: WeekDay.FRI },
+  { key: 6, enum: WeekDay.SAT },
+];
+
 // ===== 스케줄링 관련 타입들 =====
 export interface IScheduleSlot {
   date: Date;
@@ -15,16 +26,18 @@ export interface IDaySchedule {
   [dateKey: string]: number[]; // "2024-12-01": [900, 930, 1000] 형태
 }
 
+export interface IPtSchedule {
+  date: Date;
+  startTime: number;
+  endTime: number;
+  possible: boolean; // validation 결과
+}
+
 export interface ISchedulePattern {
   regular: boolean;
   count: number;
 }
 
-export interface IWeekTimeData {
-  weekDay: WeekDay;
-  startTime: number;
-  endTime: number;
-}
 
 export interface IPtApplicationData {
   memberId: string;
@@ -38,16 +51,6 @@ export interface IPtApplicationData {
   message?: string;
 }
 
-// 요일 매핑
-const weekdaysEnum = [
-  { key: 0, enum: WeekDay.SUN },
-  { key: 1, enum: WeekDay.MON },
-  { key: 2, enum: WeekDay.TUE },
-  { key: 3, enum: WeekDay.WED },
-  { key: 4, enum: WeekDay.THU },
-  { key: 5, enum: WeekDay.FRI },
-  { key: 6, enum: WeekDay.SAT },
-];
 
 // ===== 헬스장 및 PT 프로그램 조회 =====
 
@@ -297,33 +300,6 @@ export const applyPtService = async (data: IPtApplicationData) => {
       });
     }
 
-    // 4. WeekTime 생성 (정기 수업인 경우) - 연속된 시간대를 하나의 WeekTime으로 합치기
-    if (data.isRegular) {
-      const weekTimesData = [];
-
-      for (const [dateStr, times] of Object.entries(data.chosenSchedule)) {
-        const date = new Date(dateStr);
-        const weekDay = weekdaysEnum[date.getDay()].enum;
-
-        if (times.length > 0) {
-          // 첫 번째 시간을 시작 시간으로, 마지막 시간에 30분을 더한 값을 종료 시간으로 설정
-          const startTime = times[0];
-          const endTime = getEndTime(times); // 마지막 슬롯에 30분 추가
-
-          weekTimesData.push({
-            weekDay,
-            startTime,
-            endTime,
-            ptId: newPt.id,
-          });
-        }
-      }
-
-      await tx.weekTime.createMany({
-        data: weekTimesData,
-      });
-    }
-
     return newPt;
   });
 };
@@ -364,3 +340,556 @@ export interface IPendingPtCheck {
     totalCount: number;
   } | null;
 }
+
+// preschedulePT 서비스 함수 파라미터 타입
+export interface IPreschedulePtData {
+  memberId: string;
+  chosenSchedule: IDaySchedule;
+  centerId: string;
+  ptProductId: string;
+  pattern: ISchedulePattern;
+  trainerId: string;
+}
+
+// preschedulePT 결과 타입
+export interface IPreschedulePtResult {
+  ptId: string;
+  schedules: (IPtSchedule & { ptScheduleId?: string; ptRecordId?: string })[];
+  successCount: number;
+  failCount: number;
+}
+
+// ===== PRESCHEDULE PT 서비스 =====
+
+export const preschedulePtService = async (
+  data: IPreschedulePtData
+): Promise<IPreschedulePtResult> => {
+  return await prisma.$transaction(async (tx) => {
+    // 1. PT 기본 정보 조회
+    const ptProduct = await tx.ptProduct.findUniqueOrThrow({
+      where: { id: data.ptProductId },
+      select: { time: true, totalCount: true },
+    });
+
+    // 2. 스케줄 데이터를 IPtSchedule 형식으로 변환
+    let ptSchedules: IPtSchedule[] = [];
+
+    if (data.pattern.regular) {
+      // 정기 수업: convertRegularScheduleToSlots 로직 사용
+      ptSchedules = convertChosenScheduleToRegularSlots(
+        data.chosenSchedule,
+        ptProduct.totalCount
+      );
+    } else {
+      // 비정기 수업: chosenSchedule 직접 변환
+      ptSchedules = convertChosenScheduleToTempSlots(data.chosenSchedule);
+    }
+
+    // 디버깅용 로그
+    console.log("=== 변환된 ptSchedules ===");
+    console.log("ptSchedules 개수:", ptSchedules.length);
+    ptSchedules.forEach((schedule, index) => {
+      console.log(`Schedule ${index}:`, {
+        date: schedule.date.toISOString(),
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        possible: schedule.possible
+      });
+    });
+
+    // 3. 각 스케줄에 대해 validation 수행 (멤버 충돌 체크 포함)
+    await validatePtSchedules(ptSchedules, data.trainerId, data.centerId, data.memberId);
+
+    // 4. possible: true인 스케줄들로 Pt, PtRecord 생성
+    const possibleSchedules = ptSchedules
+      .filter((s) => s.possible)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    if (possibleSchedules.length === 0) {
+      throw new Error("선택 가능한 일정이 없습니다.");
+    }
+
+    // 5. PT 생성
+    const pt = await tx.pt.create({
+      data: {
+        memberId: data.memberId,
+        ptProductId: data.ptProductId,
+        trainerId: data.trainerId,
+        startDate: possibleSchedules[0].date,
+        isRegular: data.pattern.regular,
+        state: PtState.PENDING,
+        trainerConfirmed: false,
+      },
+    });
+
+    // 6. PtSchedule 및 PtRecord 생성
+    const scheduleResults = [];
+
+    for (const schedule of possibleSchedules) {
+      // PtSchedule 찾기 또는 생성
+      let ptSchedule = await tx.ptSchedule.findFirst({
+        where: {
+          date: schedule.date,
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+        },
+      });
+
+      if (!ptSchedule) {
+        try {
+          ptSchedule = await tx.ptSchedule.create({
+            data: {
+              date: schedule.date,
+              startTime: schedule.startTime,
+              endTime: schedule.endTime,
+            },
+          });
+        } catch (error: any) {
+          // 중복 요청으로 인한 유니크 제약 조건 오류 처리
+          if (error.code === 'P2002') {
+            // 다시 조회하여 기존 레코드 사용
+            ptSchedule = await tx.ptSchedule.findFirst({
+              where: {
+                date: schedule.date,
+                startTime: schedule.startTime,
+                endTime: schedule.endTime,
+              },
+            });
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // ptSchedule이 null이면 에러 발생
+      if (!ptSchedule) {
+        throw new Error("PtSchedule 생성 또는 조회 실패");
+      }
+
+      // PtRecord 생성
+      const ptRecord = await tx.ptRecord.create({
+        data: {
+          ptId: pt.id,
+          ptScheduleId: ptSchedule.id,
+          fitnessCenterId: data.centerId,
+          memo: "",
+        },
+      });
+
+      scheduleResults.push({
+        ...schedule,
+        ptScheduleId: ptSchedule.id,
+        ptRecordId: ptRecord.id,
+      });
+    }
+
+    return {
+      ptId: pt.id,
+      schedules: scheduleResults,
+      successCount: possibleSchedules.length,
+      failCount: ptSchedules.length - possibleSchedules.length,
+    };
+  });
+};
+
+// ===== 헬퍼 함수들 =====
+
+// 정기 스케줄을 IPtSchedule 배열로 변환 (convertRegularScheduleToSlots 로직 기반)
+const convertChosenScheduleToRegularSlots = (
+  chosenSchedule: IDaySchedule,
+  totalCount: number
+): IPtSchedule[] => {
+  const schedules: IPtSchedule[] = [];
+  const dates = Object.keys(chosenSchedule).sort();
+
+  if (dates.length === 0) return schedules;
+
+  const firstDate = new Date(dates[0]);
+
+  const weekPattern = Object.keys(chosenSchedule).map((dateKey) => {
+    const date = new Date(dateKey);
+    const times = chosenSchedule[dateKey];
+    return {
+      dayOfWeek: date.getDay(),
+      startTime: times[0],
+      endTime: getEndTime(times),
+    };
+  });
+
+  let currentWeek = 0;
+  let generatedCount = 0;
+
+  while (generatedCount < totalCount) {
+    weekPattern.forEach((pattern) => {
+      if (generatedCount >= totalCount) return;
+
+      // 새로운 Date 객체 생성 및 안전한 날짜 계산
+      const scheduleDate = new Date(firstDate);
+      const daysToAdd =
+        currentWeek * 7 + (pattern.dayOfWeek - firstDate.getDay());
+      scheduleDate.setTime(
+        scheduleDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000
+      );
+
+      schedules.push({
+        date: scheduleDate,
+        startTime: pattern.startTime,
+        endTime: pattern.endTime,
+        possible: false, // 기본값
+      });
+
+      generatedCount++;
+    });
+    currentWeek++;
+  }
+
+  return schedules;
+};
+
+// 비정기 스케줄을 IPtSchedule 배열로 변환
+const convertChosenScheduleToTempSlots = (
+  chosenSchedule: IDaySchedule
+): IPtSchedule[] => {
+  const schedules: IPtSchedule[] = [];
+
+  Object.keys(chosenSchedule).forEach((dateKey) => {
+    const times = chosenSchedule[dateKey];
+    if (times.length > 0) {
+      schedules.push({
+        date: new Date(dateKey),
+        startTime: times[0],
+        endTime: getEndTime(times),
+        possible: false, // 기본값
+      });
+    }
+  });
+
+  return schedules;
+};
+
+// PT 스케줄 validation 수행
+const validatePtSchedules = async (
+  ptSchedules: IPtSchedule[],
+  trainerId: string,
+  centerId: string,
+  memberId?: string // 옵셔널 파라미터로 멤버 ID 추가
+): Promise<void> => {
+  // 1. 트레이너 기존 스케줄과 충돌 체크
+  const trainerConflicts = await checkTrainerConflicts(ptSchedules, trainerId);
+
+  // 2. 트레이너 OFF 일정과 충돌 체크
+  const trainerOffConflicts = await checkTrainerOffConflicts(
+    ptSchedules,
+    trainerId
+  );
+
+  // 3. 센터 휴무일과 충돌 체크
+  const centerOffConflicts = await checkCenterOffConflicts(
+    ptSchedules,
+    centerId
+  );
+
+  // 4. 멤버 기존 스케줄과 충돌 체크 (memberId가 제공된 경우)
+  let memberConflicts: number[] = [];
+  if (memberId) {
+    memberConflicts = await checkMemberConflicts(ptSchedules, memberId);
+  }
+
+  // 5. 각 스케줄의 possible 값 설정
+  ptSchedules.forEach((schedule, index) => {
+    const hasConflict =
+      trainerConflicts.includes(index) ||
+      trainerOffConflicts.includes(index) ||
+      centerOffConflicts.includes(index) ||
+      memberConflicts.includes(index);
+
+    schedule.possible = !hasConflict;
+  });
+};
+
+// 트레이너 기존 스케줄과 충돌 체크
+const checkTrainerConflicts = async (
+  ptSchedules: IPtSchedule[],
+  trainerId: string
+): Promise<number[]> => {
+  const conflictIndexes: number[] = [];
+
+  if (ptSchedules.length === 0) return conflictIndexes;
+
+  // 대상 날짜들 추출
+  const targetDates = ptSchedules.map((s) => s.date);
+
+  // 기존 PT 스케줄 조회
+  const existingPtSchedules = await prisma.ptSchedule.findMany({
+    where: {
+      OR: targetDates.map((date) => ({ date })),
+      ptRecord: {
+        some: {
+          pt: {
+            trainerId,
+            state: {
+              in: [PtState.PENDING, PtState.CONFIRMED],
+            },
+          },
+        },
+      },
+    },
+    select: {
+      date: true,
+      startTime: true,
+      endTime: true,
+    },
+  });
+
+  // 각 스케줄과 기존 스케줄 충돌 검사
+  ptSchedules.forEach((schedule, index) => {
+    const hasConflict = existingPtSchedules.some((existing) => {
+      return (
+        existing.date.getTime() === schedule.date.getTime() &&
+        timeRangesOverlap(
+          schedule.startTime,
+          schedule.endTime,
+          existing.startTime,
+          existing.endTime
+        )
+      );
+    });
+
+    if (hasConflict) {
+      conflictIndexes.push(index);
+    }
+  });
+
+  return conflictIndexes;
+};
+
+// 트레이너 OFF 일정과 충돌 체크
+const checkTrainerOffConflicts = async (
+  ptSchedules: IPtSchedule[],
+  trainerId: string
+): Promise<number[]> => {
+  const conflictIndexes: number[] = [];
+
+  if (ptSchedules.length === 0) return conflictIndexes;
+
+  // 트레이너 OFF 일정 조회
+  const trainerOffs = await prisma.trainerOff.findMany({
+    where: {
+      trainerId,
+      OR: [
+        // 특정 날짜 OFF
+        {
+          date: {
+            in: ptSchedules.map((s) => s.date),
+          },
+        },
+        // 반복 OFF (요일별)
+        {
+          weekDay: { not: null },
+        },
+      ],
+    },
+    select: {
+      date: true,
+      weekDay: true,
+      startTime: true,
+      endTime: true,
+    },
+  });
+
+  // 각 스케줄과 OFF 일정 충돌 검사
+  ptSchedules.forEach((schedule, index) => {
+    const hasConflict = trainerOffs.some((off) => {
+      // 특정 날짜 OFF 체크
+      if (off.date && off.date.getTime() === schedule.date.getTime()) {
+        return timeRangesOverlap(
+          schedule.startTime,
+          schedule.endTime,
+          off.startTime,
+          off.endTime
+        );
+      }
+
+      // 반복 OFF (요일별) 체크
+      if (off.weekDay) {
+        const scheduleDayOfWeek = weekdaysEnum[schedule.date.getDay()].enum;
+        if (off.weekDay === scheduleDayOfWeek) {
+          return timeRangesOverlap(
+            schedule.startTime,
+            schedule.endTime,
+            off.startTime,
+            off.endTime
+          );
+        }
+      }
+
+      return false;
+    });
+
+    if (hasConflict) {
+      conflictIndexes.push(index);
+    }
+  });
+
+  return conflictIndexes;
+};
+
+// 센터 휴무일과 충돌 체크
+const checkCenterOffConflicts = async (
+  ptSchedules: IPtSchedule[],
+  centerId: string
+): Promise<number[]> => {
+  const conflictIndexes: number[] = [];
+
+  if (ptSchedules.length === 0) return conflictIndexes;
+
+  // 센터 휴무일 조회
+  const centerOffDays = await prisma.offDay.findMany({
+    where: {
+      fitnessCenterId: centerId,
+      date: {
+        in: ptSchedules.map((s) => s.date),
+      },
+    },
+    select: {
+      date: true,
+    },
+  });
+
+  const offDayTimes = new Set(centerOffDays.map((off) => off.date.getTime()));
+
+  // 각 스케줄과 센터 휴무일 충돌 검사
+  ptSchedules.forEach((schedule, index) => {
+    if (offDayTimes.has(schedule.date.getTime())) {
+      conflictIndexes.push(index);
+    }
+  });
+
+  return conflictIndexes;
+};
+
+// 멤버 기존 스케줄과 충돌 체크
+const checkMemberConflicts = async (
+  ptSchedules: IPtSchedule[],
+  memberId: string
+): Promise<number[]> => {
+  const conflictIndexes: number[] = [];
+
+  if (ptSchedules.length === 0) return conflictIndexes;
+
+  // 대상 날짜들 추출
+  const targetDates = ptSchedules.map((s) => s.date);
+
+  // 기존 멤버 PT 스케줄 조회
+  const existingMemberSchedules = await prisma.ptSchedule.findMany({
+    where: {
+      OR: targetDates.map((date) => ({ date })),
+      ptRecord: {
+        some: {
+          pt: {
+            memberId,
+            state: {
+              in: [PtState.PENDING, PtState.CONFIRMED],
+            },
+          },
+        },
+      },
+    },
+    select: {
+      date: true,
+      startTime: true,
+      endTime: true,
+    },
+  });
+
+  // 각 스케줄과 기존 멤버 스케줄 충돌 검사
+  ptSchedules.forEach((schedule, index) => {
+    const hasConflict = existingMemberSchedules.some((existing) => {
+      return (
+        existing.date.getTime() === schedule.date.getTime() &&
+        timeRangesOverlap(
+          schedule.startTime,
+          schedule.endTime,
+          existing.startTime,
+          existing.endTime
+        )
+      );
+    });
+
+    if (hasConflict) {
+      conflictIndexes.push(index);
+    }
+  });
+
+  return conflictIndexes;
+};
+
+// 시간 범위 겹침 확인
+const timeRangesOverlap = (
+  start1: number,
+  end1: number,
+  start2: number,
+  end2: number
+): boolean => {
+  return start1 < end2 && start2 < end1;
+};
+
+// ===== PT 취소 서비스 =====
+
+export const cancelPtService = async (
+  ptId: string,
+  memberId: string
+): Promise<void> => {
+  return await prisma.$transaction(async (tx) => {
+    // 1. PT 존재 및 권한 확인
+    const pt = await tx.pt.findFirst({
+      where: {
+        id: ptId,
+        memberId,
+        state: PtState.PENDING, // PENDING 상태만 취소 가능
+      },
+      include: {
+        ptRecord: {
+          include: {
+            ptSchedule: true,
+          },
+        },
+      },
+    });
+
+    if (!pt) {
+      throw new Error("취소할 수 있는 PT를 찾을 수 없습니다.");
+    }
+
+    // 2. PtRecord 삭제
+    await tx.ptRecord.deleteMany({
+      where: {
+        ptId: pt.id,
+      },
+    });
+
+    // 3. PT 삭제
+    await tx.pt.delete({
+      where: {
+        id: pt.id,
+      },
+    });
+
+    // 5. PtSchedule 정리 (다른 PtRecord가 없는 경우에만 삭제)
+    // 이 부분은 성능을 고려해 생략 (사용자 요구사항에 따라)
+    // for (const record of pt.ptRecord) {
+    //   const otherRecords = await tx.ptRecord.findMany({
+    //     where: {
+    //       ptScheduleId: record.ptScheduleId,
+    //       id: { not: record.id },
+    //     },
+    //   });
+    //
+    //   if (otherRecords.length === 0) {
+    //     await tx.ptSchedule.delete({
+    //       where: { id: record.ptScheduleId },
+    //     });
+    //   }
+    // }
+  });
+};

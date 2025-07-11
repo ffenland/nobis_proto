@@ -79,17 +79,17 @@ const PendingPt = ({ pendingPt }: { pendingPt: IPendingPt }) => {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button
                 variant="outline"
-                onClick={() => router.push("/member/pt/requests")}
+                onClick={() => router.push("/member/pt/")}
                 className="flex-1 sm:flex-none"
               >
                 신청 현황 관리
               </Button>
               <Button
                 variant="primary"
-                onClick={() => router.push("/member/dashboard")}
+                onClick={() => router.push("/member/")}
                 className="flex-1 sm:flex-none"
               >
-                대시보드로 이동
+                메인페이지로 이동
               </Button>
             </div>
 

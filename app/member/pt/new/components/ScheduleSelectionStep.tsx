@@ -396,7 +396,10 @@ const ScheduleSelectionStep = ({
             setShowConfirmModal(false);
             onNext();
           }}
-          onCancel={() => setShowConfirmModal(false)}
+          onCancel={() => {
+            setShowConfirmModal(false);
+            setChosenSchedule({});
+          }}
         />
       )}
     </div>

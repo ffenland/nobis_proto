@@ -15,6 +15,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   IDaySchedule,
   IFitnessCenters,
+  ITrainerSchedule,
 } from "@/app/lib/services/pt-apply.service";
 import {
   addThirtyMinutes,
@@ -23,6 +24,7 @@ import {
   generateTimeSlots,
   generateClassTimeSlots,
   timeRangesOverlap,
+  subtractMinutes,
 } from "@/app/lib/utils/time.utils";
 import { WeekDay } from "@prisma/client";
 
@@ -58,15 +60,18 @@ const ScheduleSelector = ({
   setChosenSchedule,
   openingHours,
 }: IScheduleSelectorProps) => {
+  console.log(chosenSchedule, "CHOSENSCHEDULE");
+
   const today = useRef(dayjs());
   const [currentWeek, setCurrentWeek] = useState(today.current);
   const [timeError, setTimeError] = useState<string>();
 
   // 트레이너 스케줄 조회
-  const { data: trainerSchedule, error: scheduleError } = useSWR<IDaySchedule>(
-    `/api/member/trainer-schedule?trainerId=${trainerId}`,
-    fetcher
-  );
+  const { data: trainerSchedule, error: scheduleError } =
+    useSWR<ITrainerSchedule>(
+      `/api/member/trainer-schedule?trainerId=${trainerId}`,
+      fetcher
+    );
 
   // 요일별 영업시간 확인 함수
   const getOpeningHoursForDay = (dayOfWeek: number) => {
@@ -119,77 +124,20 @@ const ScheduleSelector = ({
     return dates.length > 0 ? dayjs(dates[0]) : null;
   };
 
-  // 주어진 시간에 대해 가능한 최신 시작 시간 계산
-  const getLatestPossibleStartTime = (date: dayjs.Dayjs, clickedTime: number): number | null => {
-    const dayOpeningHours = getOpeningHoursForDay(date.day());
-    if (!dayOpeningHours || dayOpeningHours.isClosed) return null;
-
-    // 영업 종료 시간에서 duration만큼 뺀 시간이 최대 시작 가능 시간
-    const maxStartTime = dayOpeningHours.closeTime - (duration / 30) * 30;
-    
-    // 클릭된 시간이 영업시간 범위를 벗어나면 null 반환
-    if (clickedTime < dayOpeningHours.openTime || clickedTime >= dayOpeningHours.closeTime) {
-      return null;
-    }
-    
-    // 클릭된 시간이 이미 가능한 시작 시간이면 그대로 반환
-    if (clickedTime <= maxStartTime) {
-      const testSlots = getClassTimeSlots(clickedTime);
-      if (testSlots.length > 0) return clickedTime;
-    }
-
-    // 클릭된 시간에서 역산하여 가능한 최신 시작 시간 찾기
-    // maxStartTime부터 거꾸로 가면서 해당 시간이 포함되는 수업 시간대 찾기
-    for (let startTime = maxStartTime; startTime >= dayOpeningHours.openTime; startTime -= 30) {
-      const testSlots = getClassTimeSlots(startTime);
-      if (testSlots.length > 0) {
-        // 클릭된 시간이 이 시작 시간으로 시작하는 수업 시간대에 포함되는지 확인
-        const endTime = addThirtyMinutes(testSlots[testSlots.length - 1]);
-        if (clickedTime >= startTime && clickedTime < endTime) {
-          return startTime;
-        }
-      }
-    }
-
-    return null;
-  };
-
   // 시간 클릭 핸들러
   const handleTimeClick = (date: dayjs.Dayjs, time: number) => {
     setTimeError(undefined);
     const dateKey = date.format("YYYY-MM-DD");
 
-    // 1. 최적 시작 시간 계산 (역산 포함)
-    const actualStartTime = getLatestPossibleStartTime(date, time);
-    if (!actualStartTime) {
+    // 1. 시간 슬롯 상태 확인
+    const status = getTimeSlotStatus(date, time);
+    if (status !== "available" && status !== "selected") {
       setTimeError("해당 시간은 선택할 수 없습니다.");
       return;
     }
 
-    // 2. 실제 수업 시간 슬롯 계산
-    const classTimeSlots = getClassTimeSlots(actualStartTime);
-    if (classTimeSlots.length === 0) {
-      setTimeError("해당 시간은 선택할 수 없습니다.");
-      return;
-    }
-
-    // 3. 트레이너 스케줄과 충돌 확인 (실제 시작 시간 기준)
-    const occupiedTimes = trainerSchedule?.[dateKey] || [];
-    const endTime = addThirtyMinutes(classTimeSlots[classTimeSlots.length - 1]);
-    const hasConflict = occupiedTimes.some((occupied) =>
-      timeRangesOverlap(actualStartTime, endTime, occupied, addThirtyMinutes(occupied))
-    );
-
-    if (hasConflict) {
-      setTimeError("해당 시간은 이미 예약되어 있습니다.");
-      return;
-    }
-
-    // 4. 현재 첫 수업일 계산
-    const currentFirstDate = getFirstScheduleDate(chosenSchedule);
-
-    // 5. 이미 선택된 시간 슬롯 클릭 시 (삭제)
-    const isAlreadySelected = chosenSchedule[dateKey]?.includes(actualStartTime);
+    // 2. 이미 선택된 시간 슬롯 클릭 시 (삭제)
+    const isAlreadySelected = chosenSchedule[dateKey]?.includes(time);
     if (isAlreadySelected) {
       const updatedSchedule = { ...chosenSchedule };
       delete updatedSchedule[dateKey];
@@ -197,51 +145,71 @@ const ScheduleSelector = ({
       return;
     }
 
-    // 6. 새로운 시간 선택 시 범위 검증
-    // 6-1. 과거 날짜 차단 (첫 수업일 기준)
-    if (currentFirstDate && date.isBefore(currentFirstDate, "day")) {
-      setTimeError("첫 수업일보다 과거 날짜는 선택할 수 없습니다.");
+    // 3. 수업 시간 슬롯 계산
+    const classTimeSlots = getClassTimeSlots(time);
+    if (classTimeSlots.length === 0) {
+      setTimeError("수업 시간을 계산할 수 없습니다.");
       return;
     }
 
-    // 6-2. Regular 패턴의 7일 제한
-    if (pattern.regular && currentFirstDate) {
-      const weekLater = currentFirstDate.add(7, "days");
-      if (date.isAfter(weekLater, "day") || date.isSame(weekLater, "day")) {
-        setTimeError(
-          "정기 스케줄은 첫 수업일 기준 7일 범위 내에서만 선택 가능합니다."
-        );
+    // 4. 전체 수업 시간 범위와 트레이너 일정 충돌 확인
+    const startTime = classTimeSlots[0];
+    const endTime = addThirtyMinutes(classTimeSlots[classTimeSlots.length - 1]);
+    const currentDate = date.format("YYYY-MM-DD");
+
+    // 트레이너 기존 스케줄과 충돌 확인
+    if (trainerSchedule?.existingSchedules) {
+      const hasConflict = trainerSchedule.existingSchedules.some((schedule) => {
+        const scheduleDate = dayjs(schedule.date).format("YYYY-MM-DD");
+        if (scheduleDate !== currentDate) return false;
+        
+        return timeRangesOverlap(startTime, endTime, schedule.startTime, schedule.endTime);
+      });
+
+      if (hasConflict) {
+        setTimeError("선택한 시간이 트레이너의 다른 수업과 겹칩니다.");
         return;
       }
     }
 
-    // 6-3. 최대 개수 제한 (새로운 날짜 추가하는 경우만)
-    const isNewDate = !chosenSchedule[dateKey];
-    if (
-      pattern.regular &&
-      isNewDate &&
-      Object.keys(chosenSchedule).length >= pattern.count
-    ) {
-      setTimeError(
-        `정기 스케줄은 최대 ${pattern.count}개까지 선택 가능합니다.`
-      );
-      return;
+    // 트레이너 OFF 일정과 충돌 확인
+    if (trainerSchedule?.trainerOffs) {
+      const hasOffConflict = trainerSchedule.trainerOffs.some((off) => {
+        const offDate = dayjs(off.date).format("YYYY-MM-DD");
+        if (offDate !== currentDate) return false;
+        
+        return timeRangesOverlap(startTime, endTime, off.startTime, off.endTime);
+      });
+
+      if (hasOffConflict) {
+        setTimeError("선택한 시간이 트레이너의 휴무 시간과 겹칩니다.");
+        return;
+      }
     }
 
-    // 7. 스케줄 업데이트 (실제 시작 시간과 시간 슬롯 사용)
+    // 트레이너 반복 OFF 일정과 충돌 확인
+    if (trainerSchedule?.repeatOffs) {
+      const currentDayOfWeek = date.day();
+      const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+      const currentWeekDay = dayNames[currentDayOfWeek];
+
+      const hasRepeatOffConflict = trainerSchedule.repeatOffs.some((off) => {
+        if (off.weekDay !== currentWeekDay) return false;
+        
+        return timeRangesOverlap(startTime, endTime, off.startTime, off.endTime);
+      });
+
+      if (hasRepeatOffConflict) {
+        setTimeError("선택한 시간이 트레이너의 정기 휴무 시간과 겹칩니다.");
+        return;
+      }
+    }
+
+    // 5. 스케줄 업데이트
     setChosenSchedule({
       ...chosenSchedule,
       [dateKey]: classTimeSlots,
     });
-
-    // 8. 역산이 발생한 경우 사용자에게 알림
-    if (actualStartTime !== time) {
-      const originalTimeStr = formatTimeSimple(time);
-      const actualTimeStr = formatTimeSimple(actualStartTime);
-      setTimeError(`${originalTimeStr} → ${actualTimeStr}로 자동 조정되었습니다.`);
-      // 3초 후 메시지 자동 제거
-      setTimeout(() => setTimeError(undefined), 3000);
-    }
   };
 
   // 시간 슬롯 상태 확인
@@ -255,52 +223,106 @@ const ScheduleSelector = ({
 
     // 2. 영업시간 확인
     const dayOpeningHours = getOpeningHoursForDay(date.day());
-    if (dayOpeningHours) {
-      if (dayOpeningHours.isClosed) return "closed";
+    if (!dayOpeningHours || dayOpeningHours.isClosed) return "closed";
 
+    // 3. 영업시간 내 시간인지 확인
+    if (time < dayOpeningHours.openTime) {
+      return "closed";
+    }
+
+    // 4. 선택된 수업 범위 내 시간인지 확인 (우선순위 높음)
+    const selectedTimes = chosenSchedule[dateKey];
+    if (selectedTimes && selectedTimes.length > 0) {
+      const startTime = selectedTimes[0];
+      const endTime = addThirtyMinutes(selectedTimes[selectedTimes.length - 1]);
+
+      // 선택된 시작 시간이면 selected 상태
+      if (time === startTime) return "selected";
+
+      // 선택된 수업 범위 내 시간이면 in_class_range 상태
+      if (time > startTime && time < endTime) {
+        return "in_class_range";
+      }
+    }
+
+    // 5. 수업 시작 가능 시간 확인 (duration 고려)
+    const maxStartTime = subtractMinutes(dayOpeningHours.closeTime, duration);
+    if (time > maxStartTime) {
+      return "cannot_start";
+    }
+
+    // 6. 트레이너 스케줄 충돌 확인
+    if (trainerSchedule?.existingSchedules) {
+      const classTimeSlots = getClassTimeSlots(time);
+      if (classTimeSlots.length === 0) return "invalid";
+
+      const endTime = classTimeSlots[classTimeSlots.length - 1];
+      const currentDate = date.format("YYYY-MM-DD");
+
+      // 해당 날짜의 트레이너 기존 스케줄 확인
+      const isOccupied = trainerSchedule.existingSchedules.some((schedule) => {
+        const scheduleDate = dayjs(schedule.date).format("YYYY-MM-DD");
+        if (scheduleDate !== currentDate) return false;
+
+        return timeRangesOverlap(
+          time,
+          endTime,
+          schedule.startTime,
+          schedule.endTime
+        );
+      });
+
+      if (isOccupied) return "occupied";
+    }
+
+    // 7. 트레이너 OFF 일정 확인
+    if (trainerSchedule?.trainerOffs || trainerSchedule?.repeatOffs) {
       const classTimeSlots = getClassTimeSlots(time);
       if (classTimeSlots.length === 0) return "invalid";
 
       const endTime = addThirtyMinutes(
         classTimeSlots[classTimeSlots.length - 1]
       );
+      const currentDate = date.format("YYYY-MM-DD");
 
-      // 수업 시간이 영업시간을 벗어나는지 확인
-      if (
-        time < dayOpeningHours.openTime ||
-        endTime > dayOpeningHours.closeTime
-      ) {
-        return "closed";
+      // 특정 날짜 OFF 확인
+      if (trainerSchedule.trainerOffs) {
+        const isOffDay = trainerSchedule.trainerOffs.some((off) => {
+          const offDate = dayjs(off.date).format("YYYY-MM-DD");
+          if (offDate !== currentDate) return false;
+
+          return timeRangesOverlap(time, endTime, off.startTime, off.endTime);
+        });
+
+        if (isOffDay) return "occupied";
+      }
+
+      // 반복 OFF 확인 (요일별)
+      if (trainerSchedule.repeatOffs) {
+        const currentDayOfWeek = date.day(); // 0 = 일요일, 1 = 월요일, ...
+        const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+        const currentWeekDay = dayNames[currentDayOfWeek];
+
+        const isRepeatOffDay = trainerSchedule.repeatOffs.some((off) => {
+          if (off.weekDay !== currentWeekDay) return false;
+
+          return timeRangesOverlap(time, endTime, off.startTime, off.endTime);
+        });
+
+        if (isRepeatOffDay) return "occupied";
       }
     }
 
-    // 3. 트레이너 스케줄 충돌 확인
-    const occupiedTimes = trainerSchedule?.[dateKey] || [];
-    const classTimeSlots = getClassTimeSlots(time);
-
-    if (classTimeSlots.length === 0) return "invalid";
-
-    const endTime = addThirtyMinutes(classTimeSlots[classTimeSlots.length - 1]);
-    const isOccupied = occupiedTimes.some((occupied) =>
-      timeRangesOverlap(time, endTime, occupied, addThirtyMinutes(occupied))
-    );
-
-    if (isOccupied) return "occupied";
-
-    // 4. 이미 선택된 시간인지 확인
-    const isSelected = chosenSchedule[dateKey]?.includes(time);
-    if (isSelected) return "selected";
-
-    // 5. 첫 수업일 기준 제약사항
+    // 8. 첫 수업일 기준 제약사항
     const currentFirstDate = getFirstScheduleDate(chosenSchedule);
 
     if (currentFirstDate) {
-      // 5-1. 첫 수업일보다 과거 날짜 차단
+      // 8-1. 첫 수업일보다 과거 날짜 차단
       if (date.isBefore(currentFirstDate, "day")) {
         return "disabled";
       }
 
-      // 5-2. Regular 패턴의 7일 제한
+      // 8-2. Regular 패턴의 7일 제한
       if (pattern.regular) {
         const weekLater = currentFirstDate.add(7, "days");
         if (date.isAfter(weekLater, "day") || date.isSame(weekLater, "day")) {
@@ -309,7 +331,7 @@ const ScheduleSelector = ({
       }
     }
 
-    // 6. 새로운 날짜 추가 시 최대 개수 제한 (Regular 패턴)
+    // 9. 새로운 날짜 추가 시 최대 개수 제한 (Regular 패턴)
     const isNewDate = !chosenSchedule[dateKey];
     if (
       pattern.regular &&
@@ -380,8 +402,9 @@ const ScheduleSelector = ({
           </p>
         ) : pattern.regular ? (
           <p className="text-sm text-blue-700">
-            우선 처음 수업할 날짜를 선택해 주세요. 선택한 시간대를 다시 누르면
-            취소할 수 있습니다. 시간은 30분 단위로만 선택 가능합니다.
+            원하는 날짜의 수업 시작시간을 선택하세요. 처음 선택하는 시간이 첫
+            수업일이 됩니다. 시간을 다시 누르면 취소할 수 있습니다. 시간은 30분
+            단위로만 선택 가능합니다.
           </p>
         ) : (
           <div className="text-sm text-blue-700">
@@ -432,12 +455,16 @@ const ScheduleSelector = ({
           <span>선택된 시간 (✓)</span>
         </div>
         <div className="flex items-center gap-1">
+          <div className="w-3 h-3 bg-green-100 rounded"></div>
+          <span>수업 시간</span>
+        </div>
+        <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-red-200 rounded"></div>
           <span>예약 불가 (×)</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-gray-400 rounded"></div>
-          <span>수업 종료</span>
+          <span>수업 시작 불가</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 bg-gray-200 rounded"></div>
@@ -538,7 +565,9 @@ const ScheduleSelector = ({
                     invalid: "bg-gray-200 cursor-not-allowed",
                     disabled: "bg-gray-200 cursor-not-allowed",
                     closed: "bg-gray-300 cursor-not-allowed",
+                    cannot_start: "bg-gray-400 cursor-not-allowed",
                     selected: "bg-green-200 cursor-pointer",
+                    in_class_range: "bg-green-100 cursor-not-allowed",
                     available:
                       "bg-white hover:bg-blue-50 cursor-pointer border",
                   };
@@ -549,7 +578,9 @@ const ScheduleSelector = ({
                     invalid: "",
                     disabled: "",
                     closed: "",
+                    cannot_start: "",
                     selected: "✓",
+                    in_class_range: "",
                     available: "",
                   };
 

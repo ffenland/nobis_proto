@@ -1,7 +1,8 @@
 // components/ptNew/ConfirmationStep.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Textarea } from "@/app/components/ui/Input";
@@ -10,15 +11,16 @@ import {
   IFitnessCenters,
   IPtProgramsByCenter,
   IDaySchedule,
+  IPtSchedule,
+  IPreschedulePtResult,
 } from "@/app/lib/services/pt-apply.service";
 import {
   ISchedulePattern,
   convertRegularScheduleToSlots,
-  IScheduleValidationData,
-  IScheduleSlot,
 } from "@/app/lib/services/schedule.service";
 import { formatTime, addThirtyMinutes } from "./schedule.utils";
 import { formatDateWithWeekday } from "@/app/lib/utils/time.utils";
+import LoadingOverlay from "./LoadingOverlay";
 
 interface ConfirmationStepProps {
   selectedCenter: IFitnessCenters[number];
@@ -28,8 +30,7 @@ interface ConfirmationStepProps {
   chosenSchedule: IDaySchedule;
   message: string;
   setMessage: (message: string) => void;
-  onSubmit: () => void;
-  isSubmitting: boolean;
+  onGoBack: () => void; // 이전 단계로 돌아가기
 }
 
 const ConfirmationStep = ({
@@ -40,60 +41,123 @@ const ConfirmationStep = ({
   chosenSchedule,
   message,
   setMessage,
-  onSubmit,
-  isSubmitting,
+  onGoBack,
 }: ConfirmationStepProps) => {
-  const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] =
-    useState<IScheduleValidationData | null>(null);
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [prescheduleResult, setPrescheduleResult] =
+    useState<IPreschedulePtResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
-  // 스케줄 검증
-  const handleValidateSchedule = async () => {
-    setIsValidating(true);
-    setError(null);
+  // 컴포넌트 마운트 시 사전 스케줄링 실행
+  useEffect(() => {
+    let isCanceled = false; // cleanup 함수로 중복 요청 방지
+
+    const handlePreschedule = async () => {
+      if (isCanceled) return; // 이미 취소된 요청이면 실행하지 않음
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch("/api/member/pt/preschedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chosenSchedule,
+            centerId: selectedCenter.id,
+            ptProductId: selectedPt.id,
+            pattern,
+            trainerId: selectedTrainer.id,
+          }),
+        });
+
+        if (isCanceled) return; // 응답 받기 전에 취소되었으면 처리하지 않음
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "사전 스케줄링 실패");
+        }
+
+        setPrescheduleResult(result);
+      } catch (err) {
+        if (!isCanceled) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        }
+      } finally {
+        if (!isCanceled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    handlePreschedule();
+
+    // cleanup 함수: 컴포넌트 언마운트 시 요청 취소
+    return () => {
+      isCanceled = true;
+    };
+  }, [
+    chosenSchedule,
+    selectedCenter.id,
+    selectedPt.id,
+    pattern,
+    selectedTrainer.id,
+  ]);
+
+  // 취소 핸들러 (서버에 삭제 요청 및 이전 단계로 돌아가기)
+  const handleCancel = async () => {
+    setIsCanceling(true);
+
+    if (prescheduleResult) {
+      try {
+        await fetch(`/api/member/pt/${prescheduleResult.ptId}`, {
+          method: "DELETE",
+        });
+      } catch (err) {
+        console.error("PT 삭제 실패:", err);
+      }
+    }
+
+    // 이전 단계로 돌아가기 (스케줄 설정 단계로)
+    onGoBack();
+  };
+
+  // 최종 확인 핸들러 (PT 상세 페이지로 이동)
+  const handleConfirm = async () => {
+    if (!prescheduleResult) return;
+
+    setIsConfirming(true);
 
     try {
-      const response = await fetch("/api/member/validate-schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          trainerId: selectedTrainer.id,
-          chosenSchedule,
-          pattern,
-          totalCount: selectedPt.totalCount,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Validation failed");
+      // 메시지가 있다면 PT에 업데이트
+      if (message.trim()) {
+        await fetch(`/api/member/pt/${prescheduleResult.ptId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: message }),
+        });
       }
 
-      if (result.success) {
-        setValidationResult(result.data);
-      } else {
-        setError(result.error || "Validation failed");
-      }
+      // PT 상세 페이지로 이동
+      router.push(`/member/pt/${prescheduleResult.ptId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      console.error("PT 확정 실패:", err);
+      // 에러가 발생해도 상세 페이지로 이동
+      router.push(`/member/pt/${prescheduleResult.ptId}`);
     } finally {
-      setIsValidating(false);
+      setIsConfirming(false);
     }
   };
 
-  // 검증 결과 리셋
-  const resetValidation = () => {
-    setValidationResult(null);
-    setError(null);
-  };
+  // 사전 스케줄링 결과 렌더링
+  const renderPrescheduleResult = () => {
+    if (!prescheduleResult) return null;
 
-  // 스케줄 검증 결과 렌더링
-  const renderValidationResult = () => {
-    if (!validationResult) return null;
-
-    const formatScheduleSlot = (slot: IScheduleSlot) => {
+    const formatScheduleSlot = (slot: IPtSchedule) => {
       const date = new Date(slot.date);
       const thisYear = new Date().getFullYear();
       const year = date.getFullYear() === thisYear ? null : date.getFullYear();
@@ -110,14 +174,23 @@ const ConfirmationStep = ({
       };
     };
 
+    const possibleSchedules = prescheduleResult.schedules.filter(
+      (s) => s.possible
+    );
+    const impossibleSchedules = prescheduleResult.schedules.filter(
+      (s) => !s.possible
+    );
+
     return (
       <Card>
         <CardContent className="p-6">
           {/* 성공한 일정들 */}
           <div className="mb-6">
-            <h3 className="font-bold text-green-600 mb-3">예약 가능한 일정</h3>
+            <h3 className="font-bold text-green-600 mb-3">
+              예약 완료된 일정 ({possibleSchedules.length}회)
+            </h3>
             <div className="space-y-2">
-              {validationResult.success
+              {possibleSchedules
                 .sort(
                   (a, b) =>
                     new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -130,7 +203,9 @@ const ConfirmationStep = ({
                       className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="min-w-[80px]">{formatted.dateStr}</span>
+                        <span className="min-w-[80px]">
+                          {formatted.dateStr}
+                        </span>
                         <Badge
                           variant={formatted.isWeekend ? "warning" : "default"}
                         >
@@ -147,19 +222,21 @@ const ConfirmationStep = ({
           </div>
 
           {/* 실패한 일정들 */}
-          {validationResult.fail.length > 0 && (
+          {impossibleSchedules.length > 0 && (
             <div className="mb-6">
-              <h3 className="font-bold text-red-600 mb-3">불가능한 일정</h3>
+              <h3 className="font-bold text-red-600 mb-3">
+                예약 불가능한 일정 ({impossibleSchedules.length}회)
+              </h3>
 
               <div className="mb-3 p-3 bg-gray-100 border rounded-lg">
                 <p className="text-sm text-gray-700">
-                  자동으로 예약되지 않은 일정은 마이페이지에서 새로 잡으실 수
-                  있습니다.
+                  이 일정들은 트레이너 휴무일이나 센터 휴무일과 겹쳐 예약되지
+                  않았습니다. 마이페이지에서 새로 잡으실 수 있습니다.
                 </p>
               </div>
 
               <div className="space-y-2">
-                {validationResult.fail
+                {impossibleSchedules
                   .sort(
                     (a, b) =>
                       new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -189,11 +266,16 @@ const ConfirmationStep = ({
 
           {/* 액션 버튼들 */}
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={resetValidation}>
-              다시 선택하기
+            <Button variant="outline" className="flex-1" onClick={handleCancel}>
+              취소하기
             </Button>
-            <Button variant="primary" className="flex-1" onClick={onSubmit}>
-              신청하기
+            <Button
+              variant="primary"
+              className="flex-1"
+              onClick={handleConfirm}
+              disabled={isConfirming}
+            >
+              {isConfirming ? "처리 중..." : "신청 완료"}
             </Button>
           </div>
         </CardContent>
@@ -201,18 +283,28 @@ const ConfirmationStep = ({
     );
   };
 
-  // 스케줄 검증 결과가 있으면 결과 표시
-  if (validationResult) {
-    return renderValidationResult();
+  // 로딩 중
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">PT 일정을 확인하고 있습니다...</p>
+      </div>
+    );
   }
 
-  // 검증 에러가 있으면 에러 표시
+  // 사전 스케줄링 결과가 있으면 결과 표시
+  if (prescheduleResult) {
+    return renderPrescheduleResult();
+  }
+
+  // 에러가 있으면 에러 표시
   if (error) {
     return (
       <div className="space-y-4">
         <ErrorMessage message={error} />
-        <Button onClick={resetValidation} variant="outline" className="w-full">
-          다시 시도
+        <Button onClick={handleCancel} variant="outline" className="w-full">
+          다시 선택하기
         </Button>
       </div>
     );
@@ -329,15 +421,17 @@ const ConfirmationStep = ({
         </CardContent>
       </Card>
 
-      {/* 스케줄 검증 및 신청 버튼 */}
-      <Button
-        onClick={handleValidateSchedule}
-        disabled={isValidating || isSubmitting}
-        className="w-full"
-        size="lg"
-      >
-        {isValidating ? "스케줄 확인 중..." : "스케줄 확인 및 신청"}
-      </Button>
+      {/* 스케줄 확인 중 표시 */}
+      <div className="text-center py-4">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+        <p className="text-gray-600">스케줄을 확인하고 있습니다...</p>
+      </div>
+
+      {/* 취소 처리 중 로딩 오버레이 */}
+      <LoadingOverlay
+        isVisible={isCanceling}
+        message="생성된 일정을 삭제하고 초기 페이지로 이동합니다"
+      />
     </div>
   );
 };

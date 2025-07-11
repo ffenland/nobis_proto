@@ -58,6 +58,43 @@ const PtApplicationPage = () => {
     "신청 확인",
   ];
 
+  // 이전 단계로 이동하면서 해당 단계 이후의 state들 초기화
+  const goToPreviousStep = () => {
+    const newStep = currentStep - 1;
+
+    // 각 단계에 따라 해당 단계 이후의 state들 초기화
+    switch (newStep) {
+      case 0: // 헬스장 선택으로 돌아감
+        setSelectedCenter(null);
+        setSelectedPt(null);
+        setSelectedTrainer(null);
+        setPattern({ regular: true, count: 2 });
+        setChosenSchedule({});
+        setCheckedSchedule([]);
+        setMessage("");
+        break;
+      case 1: // PT 프로그램 선택으로 돌아감
+        setSelectedPt(null);
+        setSelectedTrainer(null);
+        setPattern({ regular: true, count: 2 });
+        setChosenSchedule({});
+        setCheckedSchedule([]);
+        setMessage("");
+        break;
+      case 2: // 스케줄 설정으로 돌아감
+        setPattern({ regular: true, count: 2 });
+        setChosenSchedule({});
+        setCheckedSchedule([]);
+        setMessage("");
+        break;
+      case 3: // 신청 확인으로 돌아감
+        setMessage("");
+        break;
+    }
+
+    setCurrentStep(newStep);
+  };
+
   // 🚨 NEW: 페이지 로드 시 PENDING PT 체크만 추가
   useEffect(() => {
     const checkPendingPt = async () => {
@@ -125,7 +162,7 @@ const PtApplicationPage = () => {
               ).toLocaleDateString()}\n\n` +
               `기존 신청을 취소한 후 새로 신청해주세요.`
           );
-          router.push("/member/pt/requests");
+          router.push("/member/pt/");
         } else {
           alert(result.error || "신청 중 오류가 발생했습니다.");
         }
@@ -203,8 +240,7 @@ const PtApplicationPage = () => {
             chosenSchedule={chosenSchedule}
             message={message}
             setMessage={setMessage}
-            onSubmit={handleSubmit}
-            isSubmitting={isSubmitting}
+            onGoBack={goToPreviousStep}
           />
         ) : null;
       default:
@@ -235,7 +271,7 @@ const PtApplicationPage = () => {
             <div className="mt-6 pt-4 border-t">
               <Button
                 variant="outline"
-                onClick={() => setCurrentStep(currentStep - 1)}
+                onClick={goToPreviousStep}
                 disabled={isSubmitting}
               >
                 이전 단계
