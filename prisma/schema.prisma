@@ -92,6 +92,19 @@ model Member {
   active           Boolean            @default(true)
 }
 
+model WorkingHour {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trainer   Trainer[]
+  dayOfWeek WeekDay
+  openTime  Int
+  closeTime Int
+  
+  // 이 WorkingHour를 기본값으로 사용하는 FitnessCenter들
+  isDefaultFor FitnessCenter[]
+
+  @@unique([dayOfWeek, openTime, closeTime])
+}
+
 model Trainer {
   id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt        DateTime           @default(now())
@@ -108,6 +121,7 @@ model Trainer {
   fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId  String?            @db.Uuid
   trainerOff       TrainerOff[]
+  workingHours     WorkingHour[]
   working          Boolean            @default(true)
 }
 
@@ -165,6 +179,7 @@ enum PtState {
   PENDING
   CONFIRMED
   REJECTED
+  FINISHED
 }
 
 model Pt {
@@ -534,17 +549,15 @@ model OffDay {
 }
 
 model TrainerOff {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  // 반복 OFF (요일 지정)
-  weekDay   WeekDay? // enum: MON, TUE, ...
-  // 특정 날짜 OFF
-  date      DateTime?
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // 특정 날짜 OFF만 처리 (weekDay 제거됨)
+  date      DateTime // 필수 필드로 변경
   startTime Int
   endTime   Int
-  trainer   Trainer   @relation(fields: [trainerId], references: [id])
-  trainerId String    @db.Uuid
+  trainer   Trainer  @relation(fields: [trainerId], references: [id])
+  trainerId String   @db.Uuid
 }
 
 model FitnessCenter {
@@ -554,6 +567,7 @@ model FitnessCenter {
   phone        String
   description  String
   openingHours OpeningHour[]
+  defaultWorkingHours WorkingHour[]
   trainers     Trainer[]
   members      Member[]
   managers     Manager[]
@@ -690,6 +704,7 @@ model Media {
   // 저장소 정보
   r2Key        String? // R2 저장소 키
   streamId     String? // Cloudflare Stream ID
+  cloudflareId String? // Cloudflare Images ID (이미지용)
   publicUrl    String
   thumbnailUrl String?
 

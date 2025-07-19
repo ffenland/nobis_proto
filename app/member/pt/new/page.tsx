@@ -120,61 +120,6 @@ const PtApplicationPage = () => {
     checkPendingPt();
   }, []);
 
-  // 최종 Pt를 신청하는 프로세스, 일정대로 PtRecord를 생성한다.
-  const handleSubmit = async () => {
-    if (!selectedCenter || !selectedPt || !selectedTrainer) return;
-
-    setIsSubmitting(true);
-    try {
-      const applicationData = {
-        ptProductId: selectedPt.id,
-        trainerId: selectedTrainer.id,
-        startDate: Object.keys(chosenSchedule).sort()[0], // 첫 번째 날짜를 시작일로
-        isRegular: pattern.regular,
-        chosenSchedule,
-        fitnessCenterId: selectedCenter.id, // totalCount 대신 fitnessCenterId 사용
-        duration: selectedPt.time, // 수업 시간 (분 단위)
-        message,
-      };
-
-      const response = await fetch("/api/member/pt-apply", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(applicationData),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        alert("PT 신청이 완료되었습니다!");
-        router.push(`/member/pt/${result.ptId}`);
-      } else {
-        // 🚨 NEW: PENDING PT 에러 특별 처리만 추가
-        if (response.status === 409 && result.details?.pendingPtId) {
-          alert(
-            `이미 승인 대기 중인 PT 신청이 있습니다.\n` +
-              `프로그램: ${result.details.ptTitle}\n` +
-              `트레이너: ${result.details.trainerName}\n` +
-              `신청일: ${new Date(
-                result.details.appliedDate
-              ).toLocaleDateString()}\n\n` +
-              `기존 신청을 취소한 후 새로 신청해주세요.`
-          );
-          router.push("/member/pt/");
-        } else {
-          alert(result.error || "신청 중 오류가 발생했습니다.");
-        }
-      }
-    } catch (error) {
-      console.error("PT 신청 오류:", error);
-      alert("신청 중 오류가 발생했습니다.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // 🚨 NEW: 로딩 중 (PENDING 체크)
   if (isCheckingPending) {
     return (

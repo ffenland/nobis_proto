@@ -88,9 +88,7 @@ const PageLayout: React.FC<PageLayoutProps> = ({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className={cn("mx-auto px-4 py-6", maxWidths[maxWidth])}>
-        {children}
-      </div>
+      <div className={cn("w-full py-2", maxWidths[maxWidth])}>{children}</div>
     </div>
   );
 };

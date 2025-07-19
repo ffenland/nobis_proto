@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "./app/lib/session";
+import { getCurrentIronSession } from "./app/lib/session";
 
 interface Routes {
   [key: string]: boolean;
@@ -33,7 +33,7 @@ const middleware = async (request: NextRequest) => {
     record.count += 1;
     ipRequestCounts.set(ip, record);
   }
-  const session = await getSession();
+  const session = await getCurrentIronSession();
   // member, trainer, manager 각각의 페이지에 접근할 수 있는 url을 정의한다.
 
   const onPublicUrls = Boolean(

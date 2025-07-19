@@ -1,13 +1,17 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { convertKSTtoUTC } from "@/app/lib/utils";
 
 export const getPtList = async () => {
   const today = new Date().setHours(0, 0, 0, 0);
   const utcToday = convertKSTtoUTC(new Date(today));
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
   const trainerId = session.roleId;
 
   const ptList = await prisma.pt.findMany({

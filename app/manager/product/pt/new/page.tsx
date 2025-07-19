@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import useSWR from "swr";
 import Link from "next/link";
 import { ITrainerForSelection } from "@/app/lib/services/product.service";
+import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
 
 interface IPtProductFormData {
   title: string;
@@ -32,20 +33,10 @@ const fetcher = (url: string) =>
 const generateTimeOptions = () => {
   const options = [];
   for (let i = 10; i <= 120; i += 10) {
-    const hours = Math.floor(i / 60);
-    const minutes = i % 60;
-    let label = "";
-
-    if (hours > 0) {
-      label += `${hours}시간`;
-      if (minutes > 0) {
-        label += ` ${minutes}분`;
-      }
-    } else {
-      label = `${minutes}분`;
-    }
-
-    options.push({ value: i, label });
+    options.push({ 
+      value: i, 
+      label: formatMinutesToKorean(i) 
+    });
   }
   return options;
 };

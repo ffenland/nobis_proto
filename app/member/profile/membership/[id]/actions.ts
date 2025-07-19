@@ -1,7 +1,8 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
 export type IMyMembership = NonNullable<
@@ -13,7 +14,10 @@ export const getMyMembership = async ({
 }: {
   membershipId: string;
 }) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
   const membership = await prisma.membership.findFirst({
     where: {
       id: membershipId,

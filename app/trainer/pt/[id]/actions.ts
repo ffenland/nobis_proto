@@ -2,11 +2,15 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { PtState } from "@prisma/client";
 
 export const getPtDetailAction = async (ptId: string) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "TRAINER") {
     throw new Error("접근 권한이 없습니다.");

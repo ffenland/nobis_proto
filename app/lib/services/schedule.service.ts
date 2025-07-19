@@ -2,7 +2,12 @@
 import prisma from "@/app/lib/prisma";
 import { WeekDay, PtState } from "@prisma/client";
 import { convertKSTtoUTC } from "@/app/lib/utils";
-
+import {
+  addThirtyMinutes,
+  getEndTime,
+  timeRangesOverlap,
+  generateTimeSlots,
+} from "@/app/lib/utils/time.utils";
 
 // 스케줄 관련 타입들
 export interface IScheduleSlot {
@@ -70,27 +75,11 @@ export const getTrainerScheduleService = async (
     },
   });
 
-  // 3. 트레이너 OFF (반복)
-  const repeatOffs = await prisma.trainerOff.findMany({
-    where: {
-      trainerId,
-      weekDay: { not: null },
-    },
-    select: {
-      weekDay: true,
-      startTime: true,
-      endTime: true,
-    },
-  });
+  // 3. 트레이너 OFF (반복) -삭제됨
 
   return {
     existingSchedules,
     trainerOffs,
-    repeatOffs: repeatOffs as Array<{
-      weekDay: WeekDay;
-      startTime: number;
-      endTime: number;
-    }>,
     dateRange: {
       start: firstDateOfMonth,
       end: threeMonthsLater,
@@ -219,23 +208,7 @@ const convertTempScheduleToSlots = (
   return schedules;
 };
 
-// 시간 배열에서 종료 시간 계산
-const getEndTime = (times: number[]): number => {
-  const lastTime = times[times.length - 1];
-  return addThirtyMinutes(lastTime);
-};
-
-// 30분 추가 유틸
-const addThirtyMinutes = (time: number): number => {
-  const hour = Math.floor(time / 100);
-  const minute = time % 100;
-
-  if (minute === 30) {
-    return (hour + 1) * 100;
-  } else {
-    return time + 30;
-  }
-};
+// 시간 배열에서 종료 시간 계산 (time.utils.ts의 getEndTime 사용)
 
 // 트레이너 가용성 검사 - 간단하고 직관적인 버전
 const checkTrainerAvailability = async (
@@ -250,12 +223,12 @@ const checkTrainerAvailability = async (
   }
 
   // 신청할 날짜들을 UTC로 변환
-  const targetDates = schedules.map(s => convertKSTtoUTC(s.date));
+  const targetDates = schedules.map((s) => convertKSTtoUTC(s.date));
 
   // 해당 날짜들의 기존 PT 스케줄 조회 (OR 조건 사용)
   const existingPtSchedules = await prisma.ptSchedule.findMany({
     where: {
-      OR: targetDates.map(date => ({ date })),
+      OR: targetDates.map((date) => ({ date })),
       ptRecord: {
         some: {
           pt: {
@@ -277,7 +250,7 @@ const checkTrainerAvailability = async (
   // 각 신청 스케줄에 대해 충돌 검사
   schedules.forEach((schedule) => {
     const scheduleDate = convertKSTtoUTC(schedule.date);
-    
+
     // 같은 날짜의 기존 스케줄과 시간 겹침 검사
     const hasConflict = existingPtSchedules.some((existing) => {
       return (
@@ -301,29 +274,9 @@ const checkTrainerAvailability = async (
   return { success, fail };
 };
 
-// 시간 범위 겹침 확인
-const timeRangesOverlap = (
-  start1: number,
-  end1: number,
-  start2: number,
-  end2: number
-): boolean => {
-  return start1 < end2 && start2 < end1;
-};
-
-// 시간 슬롯 생성 (30분 단위)
-export const generateTimeSlots = (
-  openTime: number = 600,
-  closeTime: number = 2200
-): number[] => {
-  const slots: number[] = [];
-
-  for (let time = openTime; time < closeTime; time = addThirtyMinutes(time)) {
-    slots.push(time);
-  }
-
-  return slots;
-};
+// 시간 범위 겹침 확인 및 시간 슬롯 생성은 time.utils.ts에서 import
+// generateTimeSlots를 re-export
+export { generateTimeSlots } from "@/app/lib/utils/time.utils";
 
 // 시간 길이 계산 (duration 시간만큼)
 export const calculateTimeLength = (

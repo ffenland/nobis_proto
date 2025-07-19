@@ -2,7 +2,8 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { UserRole } from "@prisma/client";
 
 // 사용자 정보 응답 타입
@@ -12,7 +13,10 @@ export interface IUserInfo {
 
 // 사용자 정보 조회 함수
 export const getUserInfo = async (requiredRole?: UserRole): Promise<IUserInfo> => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   // 역할 검증 (옵션)
   if (requiredRole && session.role !== requiredRole) {

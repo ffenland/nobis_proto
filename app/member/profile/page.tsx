@@ -239,9 +239,11 @@ export default function MemberProfilePage() {
                 <div className="text-gray-500 mb-2">
                   진행 중인 PT가 없습니다.
                 </div>
-                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
-                  PT 신청하기
-                </button>
+                <Link href={"/member/pt/new"}>
+                  <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+                    PT 신청하기
+                  </button>
+                </Link>
               </div>
             )}
           </div>

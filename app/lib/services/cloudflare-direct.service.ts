@@ -1,11 +1,23 @@
 // app/lib/services/cloudflare-direct.service.ts
+import { PhotoType, VideoType } from "@prisma/client";
 
 // 환경설정
 const CLOUDFLARE_CONFIG = {
   ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID!,
+  ACCOUNT_HASH: process.env.CLOUDFLARE_ACCOUNT_HASH!,
   IMAGES_TOKEN: process.env.CLOUDFLARE_IMAGES_TOKEN!,
-  STREAM_TOKEN: process.env.CLOUDFLARE_STREAM_TOKEN!,
+  STREAM_TOKEN: process.env.CLOUDFLARE_STREAM_TOKEN || process.env.CLOUDFLARE_API_TOKEN!,
 };
+
+// 업로드 메타데이터 타입
+export interface UploadMetadata {
+  userId: string;
+  ptId?: string;
+  ptRecordId?: string;
+  recordType?: string;
+  category: string;
+  autoDeleteDays?: number;
+}
 
 // 이미지 Direct Upload URL 생성
 export interface ImageUploadUrl {
@@ -65,23 +77,36 @@ export class CloudflareImagesService {
   async createDirectUploadUrl(
     metadata?: Record<string, string>
   ): Promise<ImageUploadUrl> {
+    const formData = new FormData();
+    formData.append("requireSignedURLs", "false");
+    
+    // 메타데이터가 있으면 JSON 문자열로 추가
+    if (metadata && Object.keys(metadata).length > 0) {
+      formData.append("metadata", JSON.stringify(metadata));
+    }
+
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_CONFIG.ACCOUNT_ID}/images/v2/direct_upload`,
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${CLOUDFLARE_CONFIG.IMAGES_TOKEN}`,
-          "Content-Type": "application/json",
+          // Content-Type 헤더 제거 - FormData가 자동으로 설정
         },
-        body: JSON.stringify({
-          requireSignedURLs: false, // 공개 접근 허용
-          metadata: metadata || {},
-        }),
+        body: formData,
       }
     );
 
     if (!response.ok) {
-      throw new Error(`Direct upload URL 생성 실패: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('Cloudflare Images API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+        accountId: CLOUDFLARE_CONFIG.ACCOUNT_ID,
+        hasToken: !!CLOUDFLARE_CONFIG.IMAGES_TOKEN
+      });
+      throw new Error(`Direct upload URL 생성 실패: ${response.statusText} - ${errorText}`);
     }
 
     const result = await response.json();
@@ -129,7 +154,7 @@ export class CloudflareImagesService {
 
   // 이미지 공개 URL 생성
   getPublicUrl(imageId: string, variant: string = "public"): string {
-    return `https://imagedelivery.net/${CLOUDFLARE_CONFIG.ACCOUNT_ID}/${imageId}/${variant}`;
+    return `https://imagedelivery.net/${CLOUDFLARE_CONFIG.ACCOUNT_HASH}/${imageId}/${variant}`;
   }
 }
 
@@ -256,11 +281,14 @@ export class DirectUploadService {
 
     const uploadData = await this.imagesService.createDirectUploadUrl(metadata);
     const publicUrl = this.imagesService.getPublicUrl(uploadData.id);
+    // 커스텀 썸네일 variant 사용
+    const thumbnailUrl = this.imagesService.getPublicUrl(uploadData.id, "80");
 
     return {
       uploadUrl: uploadData.uploadURL,
       imageId: uploadData.id,
       publicUrl,
+      thumbnailUrl,
     };
   }
 
@@ -316,3 +344,52 @@ export class DirectUploadService {
     return await this.streamService.deleteVideo(videoId);
   }
 }
+
+// 헬퍼 함수들
+export const validateFileType = (file: File, type: 'image' | 'video') => {
+  const imageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+  
+  if (type === 'image') {
+    return imageTypes.includes(file.type);
+  } else {
+    return videoTypes.includes(file.type);
+  }
+};
+
+export const validateFileSize = (file: File, type: 'image' | 'video') => {
+  const maxImageSize = 10 * 1024 * 1024; // 10MB
+  const maxVideoSize = 200 * 1024 * 1024; // 200MB
+  
+  if (type === 'image') {
+    return file.size <= maxImageSize;
+  } else {
+    return file.size <= maxVideoSize;
+  }
+};
+
+// PhotoType과 VideoType 매핑
+export const getPhotoTypeFromCategory = (category: string): PhotoType => {
+  const mapping: Record<string, PhotoType> = {
+    'profile': 'PROFILE',
+    'machine': 'MACHINE',
+    'center': 'CENTER',
+    'exercise': 'EXERCISE',
+    'stretching': 'STRETCHING',
+    'pt_record': 'PT_RECORD',
+    'before_after': 'BEFORE_AFTER',
+    'achievement': 'ACHIEVEMENT',
+  };
+  return mapping[category] || 'EXERCISE';
+};
+
+export const getVideoTypeFromCategory = (category: string): VideoType => {
+  const mapping: Record<string, VideoType> = {
+    'exercise_demo': 'EXERCISE_DEMO',
+    'pt_record': 'PT_RECORD',
+    'form_check': 'FORM_CHECK',
+    'progress': 'PROGRESS',
+    'instruction': 'INSTRUCTION',
+  };
+  return mapping[category] || 'PT_RECORD';
+};

@@ -5,11 +5,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import ScheduleSelector from "@/app/member/pt/new/components/ScheduleSelector";
+import useSWR from "swr";
 
 import {
   IPtProgramsByCenter,
   IDaySchedule,
   IFitnessCenters,
+  ITrainerSchedule,
 } from "@/app/lib/services/pt-apply.service";
 import { ISchedulePattern } from "@/app/lib/services/schedule.service";
 import { WeekDay } from "@prisma/client";
@@ -27,50 +29,26 @@ interface ScheduleSelectionStepProps {
   onNext: () => void;
 }
 
-const pTAvailableTimes = [
-  {
-    dayOfWeek: WeekDay.MON,
-    openTime: 900,
-    closeTime: 2100,
-    isClosed: false,
-  },
-  {
-    dayOfWeek: WeekDay.TUE,
-    openTime: 900,
-    closeTime: 2100,
-    isClosed: false,
-  },
-  {
-    dayOfWeek: WeekDay.WED,
-    openTime: 900,
-    closeTime: 2100,
-    isClosed: false,
-  },
-  {
-    dayOfWeek: WeekDay.THU,
-    openTime: 900,
-    closeTime: 2100,
-    isClosed: false,
-  },
-  {
-    dayOfWeek: WeekDay.FRI,
-    openTime: 900,
-    closeTime: 2100,
-    isClosed: false,
-  },
-  {
-    dayOfWeek: WeekDay.SAT,
-    openTime: 900,
-    closeTime: 1400,
-    isClosed: false,
-  },
-  {
-    dayOfWeek: WeekDay.SUN,
-    openTime: 0,
-    closeTime: 0,
-    isClosed: true,
-  },
-];
+// 데이터 페처 함수
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("데이터를 불러오는데 실패했습니다");
+  }
+  return response.json();
+};
+
+// 트레이너 근무시간을 ScheduleSelector 형식으로 변환
+const convertWorkingHoursToOpeningHours = (
+  workingHours: ITrainerSchedule["workingHours"]
+) => {
+  return workingHours.map((wh) => ({
+    dayOfWeek: wh.dayOfWeek as WeekDay,
+    openTime: wh.openTime,
+    closeTime: wh.closeTime,
+    isClosed: wh.openTime === 0 && wh.closeTime === 0,
+  }));
+};
 
 // 스케줄 확인 모달 컴포넌트
 interface IScheduleConfirmModalProps {
@@ -122,10 +100,7 @@ const ScheduleConfirmModal = ({
   ];
 
   const sortedKeys = Object.keys(chosenSchedule).sort((a, b) => {
-    if (pattern.regular) {
-      return dayjs(a).day() - dayjs(b).day();
-    }
-    return a.localeCompare(b);
+    return a.localeCompare(b); // 정기/비정기 모두 날짜순 정렬
   });
 
   return (
@@ -174,7 +149,14 @@ const ScheduleConfirmModal = ({
                   {dayjs(sortedKeys[0]).format("YYYY년 M월 D일")}
                 </p>
                 <p className="font-bold text-green-600">
-                  {formatTime(chosenSchedule[sortedKeys[0]][0])} ~ {formatTime(addThirtyMinutes(chosenSchedule[sortedKeys[0]][chosenSchedule[sortedKeys[0]].length - 1]))}
+                  {formatTime(chosenSchedule[sortedKeys[0]][0])} ~{" "}
+                  {formatTime(
+                    addThirtyMinutes(
+                      chosenSchedule[sortedKeys[0]][
+                        chosenSchedule[sortedKeys[0]].length - 1
+                      ]
+                    )
+                  )}
                 </p>
               </div>
             </div>
@@ -243,6 +225,18 @@ const ScheduleSelectionStep = ({
 }: ScheduleSelectionStepProps) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [canProceedEarly, setCanProceedEarly] = useState(false);
+
+  // 트레이너 스케줄 및 근무시간 조회
+  const { data: trainerScheduleData, error: trainerScheduleError } =
+    useSWR<ITrainerSchedule>(
+      `/api/member/trainer-schedule?trainerId=${selectedTrainer.id}`,
+      fetcher
+    );
+
+  // 근무시간 데이터 변환
+  const openingHours = trainerScheduleData?.workingHours
+    ? convertWorkingHoursToOpeningHours(trainerScheduleData.workingHours)
+    : [];
 
   // 비정기 패턴에서 2개 이상 선택 감지
   useEffect(() => {
@@ -349,7 +343,7 @@ const ScheduleSelectionStep = ({
         duration={selectedPt.time}
         chosenSchedule={chosenSchedule}
         setChosenSchedule={setChosenSchedule}
-        openingHours={pTAvailableTimes}
+        openingHours={openingHours}
       />
 
       {/* 비정기 패턴 안내 메시지 */}

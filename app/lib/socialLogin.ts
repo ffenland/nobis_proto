@@ -1,6 +1,6 @@
 import { createRandomNumber } from "./utils";
 import prisma from "./prisma";
-import { getSession } from "./session";
+import { getCurrentIronSession } from "./session";
 import { redirect } from "next/navigation";
 
 interface NaverAccessTokenResponseSuccess {
@@ -19,7 +19,7 @@ export const loginToSession = async (
   role: "MEMBER" | "TRAINER" | "MANAGER",
   roleId: string
 ) => {
-  const session = await getSession();
+  const session = await getCurrentIronSession();
   session.id = id;
   session.role = role;
   session.roleId = roleId;

@@ -1,19 +1,10 @@
 // app/lib/services/pt-apply.service.ts
 import prisma from "@/app/lib/prisma";
-import { PtState, WeekDay } from "@prisma/client";
+import { PtState } from "@prisma/client";
 import { cache } from "react";
 import { getEndTime } from "@/app/lib/utils/time.utils";
 
-// 요일 매핑 (트레이너 OFF 체크용)
-const weekdaysEnum = [
-  { key: 0, enum: WeekDay.SUN },
-  { key: 1, enum: WeekDay.MON },
-  { key: 2, enum: WeekDay.TUE },
-  { key: 3, enum: WeekDay.WED },
-  { key: 4, enum: WeekDay.THU },
-  { key: 5, enum: WeekDay.FRI },
-  { key: 6, enum: WeekDay.SAT },
-];
+// 요일 매핑 제거됨 (weekDay 필드 사용 안함)
 
 // ===== 스케줄링 관련 타입들 =====
 export interface IScheduleSlot {
@@ -38,7 +29,6 @@ export interface ISchedulePattern {
   count: number;
 }
 
-
 export interface IPtApplicationData {
   memberId: string;
   ptProductId: string;
@@ -50,7 +40,6 @@ export interface IPtApplicationData {
   duration: number; // 수업 시간 (분 단위)
   message?: string;
 }
-
 
 // ===== 헬스장 및 PT 프로그램 조회 =====
 
@@ -218,23 +207,30 @@ export const getTrainerScheduleService = cache(
       },
     });
 
-    // 3. 트레이너 OFF (반복)
-    const repeatOffs = await prisma.trainerOff.findMany({
-      where: {
-        trainerId,
-        weekDay: { not: null },
-      },
+    // 3. 트레이너 OFF (반복) - 스키마에서 weekDay 제거됨으로 해당 기능 비활성화
+
+    // 4. 트레이너 근무시간 정보 조회
+    const trainer = await prisma.trainer.findUnique({
+      where: { id: trainerId },
       select: {
-        weekDay: true,
-        startTime: true,
-        endTime: true,
+        workingHours: {
+          select: {
+            id: true,
+            dayOfWeek: true,
+            openTime: true,
+            closeTime: true,
+          },
+          orderBy: {
+            dayOfWeek: "asc",
+          },
+        },
       },
     });
 
     return {
       existingSchedules,
       trainerOffs,
-      repeatOffs,
+      workingHours: trainer?.workingHours || [],
       dateRange: {
         start: firstDateOfMonth,
         end: threeMonthsLater,
@@ -393,12 +389,17 @@ export const preschedulePtService = async (
         date: schedule.date.toISOString(),
         startTime: schedule.startTime,
         endTime: schedule.endTime,
-        possible: schedule.possible
+        possible: schedule.possible,
       });
     });
 
     // 3. 각 스케줄에 대해 validation 수행 (멤버 충돌 체크 포함)
-    await validatePtSchedules(ptSchedules, data.trainerId, data.centerId, data.memberId);
+    await validatePtSchedules(
+      ptSchedules,
+      data.trainerId,
+      data.centerId,
+      data.memberId
+    );
 
     // 4. possible: true인 스케줄들로 Pt, PtRecord 생성
     const possibleSchedules = ptSchedules
@@ -446,7 +447,7 @@ export const preschedulePtService = async (
           });
         } catch (error: any) {
           // 중복 요청으로 인한 유니크 제약 조건 오류 처리
-          if (error.code === 'P2002') {
+          if (error.code === "P2002") {
             // 다시 조회하여 기존 레코드 사용
             ptSchedule = await tx.ptSchedule.findFirst({
               where: {
@@ -506,15 +507,17 @@ const convertChosenScheduleToRegularSlots = (
 
   const firstDate = new Date(dates[0]);
 
-  const weekPattern = Object.keys(chosenSchedule).map((dateKey) => {
-    const date = new Date(dateKey);
-    const times = chosenSchedule[dateKey];
-    return {
-      dayOfWeek: date.getDay(),
-      startTime: times[0],
-      endTime: getEndTime(times),
-    };
-  });
+  const weekPattern = Object.keys(chosenSchedule)
+    .sort()
+    .map((dateKey) => {
+      const date = new Date(dateKey);
+      const times = chosenSchedule[dateKey];
+      return {
+        dayOfWeek: date.getDay(),
+        startTime: times[0],
+        endTime: getEndTime(times),
+      };
+    });
 
   let currentWeek = 0;
   let generatedCount = 0;
@@ -525,8 +528,15 @@ const convertChosenScheduleToRegularSlots = (
 
       // 새로운 Date 객체 생성 및 안전한 날짜 계산
       const scheduleDate = new Date(firstDate);
+      scheduleDate.setHours(0, 0, 0, 0); // 시간을 00:00:00.000으로 초기화
       const daysToAdd =
         currentWeek * 7 + (pattern.dayOfWeek - firstDate.getDay());
+      
+      // 첫 수업일보다 과거 날짜는 생성하지 않음
+      if (daysToAdd < 0) {
+        return; // 이 패턴은 건너뛰고 generatedCount도 증가시키지 않음
+      }
+      
       scheduleDate.setTime(
         scheduleDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000
       );
@@ -672,26 +682,16 @@ const checkTrainerOffConflicts = async (
 
   if (ptSchedules.length === 0) return conflictIndexes;
 
-  // 트레이너 OFF 일정 조회
+  // 트레이너 OFF 일정 조회 (특정 날짜만)
   const trainerOffs = await prisma.trainerOff.findMany({
     where: {
       trainerId,
-      OR: [
-        // 특정 날짜 OFF
-        {
-          date: {
-            in: ptSchedules.map((s) => s.date),
-          },
-        },
-        // 반복 OFF (요일별)
-        {
-          weekDay: { not: null },
-        },
-      ],
+      date: {
+        in: ptSchedules.map((s) => s.date),
+      },
     },
     select: {
       date: true,
-      weekDay: true,
       startTime: true,
       endTime: true,
     },
@@ -700,7 +700,7 @@ const checkTrainerOffConflicts = async (
   // 각 스케줄과 OFF 일정 충돌 검사
   ptSchedules.forEach((schedule, index) => {
     const hasConflict = trainerOffs.some((off) => {
-      // 특정 날짜 OFF 체크
+      // 특정 날짜 OFF 체크만 수행
       if (off.date && off.date.getTime() === schedule.date.getTime()) {
         return timeRangesOverlap(
           schedule.startTime,
@@ -708,19 +708,6 @@ const checkTrainerOffConflicts = async (
           off.startTime,
           off.endTime
         );
-      }
-
-      // 반복 OFF (요일별) 체크
-      if (off.weekDay) {
-        const scheduleDayOfWeek = weekdaysEnum[schedule.date.getDay()].enum;
-        if (off.weekDay === scheduleDayOfWeek) {
-          return timeRangesOverlap(
-            schedule.startTime,
-            schedule.endTime,
-            off.startTime,
-            off.endTime
-          );
-        }
       }
 
       return false;

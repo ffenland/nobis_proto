@@ -2,7 +2,8 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
 export type ICenterMachines = Prisma.PromiseReturnType<
@@ -11,7 +12,10 @@ export type ICenterMachines = Prisma.PromiseReturnType<
 
 // 센터의 머신 목록 조회
 export const getCenterMachines = async (centerId: string) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");

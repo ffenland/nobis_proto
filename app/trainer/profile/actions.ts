@@ -2,11 +2,15 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 
 // 트레이너 프로필 조회 액션
 export const getTrainerProfileAction = async () => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   // 트레이너 권한 확인
   if (session.role !== "TRAINER") {

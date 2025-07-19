@@ -1,6 +1,7 @@
 // app/lib/services/schedule-conflict.service.ts
 import prisma from "@/app/lib/prisma";
 import { PtState, WeekDay } from "@prisma/client";
+import { timeRangesOverlap, formatTime } from "@/app/lib/utils/time.utils";
 
 // 입력 타입 정의 (I 접두사 사용)
 export interface IDaySchedule {
@@ -46,23 +47,20 @@ export async function checkRegularPtExtensionConflict(
           },
         },
         ptRecord: {
-          where: {
-            attended: "ATTENDED",
-          },
           select: {
             id: true,
+            items: {
+              select: {
+                id: true,
+              },
+            },
             ptSchedule: {
               select: {
                 date: true,
+                startTime: true,
+                endTime: true,
               },
             },
-          },
-        },
-        weekTimes: {
-          select: {
-            weekDay: true,
-            startTime: true,
-            endTime: true,
           },
         },
       },
@@ -70,7 +68,11 @@ export async function checkRegularPtExtensionConflict(
 
     // 2. 거의 완료된 PT들 필터링 (80% 이상 완료)
     const nearCompletionPts = endingSoonPts.filter((pt) => {
-      const completedCount = pt.ptRecord.length;
+      // 참석한 수업 계산: items가 1개 이상이면 참석으로 간주
+      const completedCount = pt.ptRecord.filter((record) => {
+        return record.items.length >= 1;
+      }).length;
+      
       const totalCount = pt.ptProduct.totalCount;
       return completedCount / totalCount >= 0.8; // 80% 이상 완료
     });
@@ -103,19 +105,23 @@ export async function checkRegularPtExtensionConflict(
         const dayOfWeek = date.getDay();
         const weekDayEnum = getWeekDayEnum(dayOfWeek);
 
-        // 해당 요일에 기존 PT가 있는지 체크
-        const existingWeekTime = pt.weekTimes.find(
-          (wt) => wt.weekDay === weekDayEnum
-        );
+        // 기존 PT의 해당 요일 스케줄을 ptRecord에서 찾기
+        const existingSchedulesOnDay = pt.ptRecord.filter((record) => {
+          const recordDate = new Date(record.ptSchedule.date);
+          return recordDate.getDay() === dayOfWeek;
+        });
 
-        if (existingWeekTime) {
+        if (existingSchedulesOnDay.length > 0) {
+          // 대표적인 스케줄 시간 사용 (정기 PT는 보통 같은 시간대)
+          const representativeSchedule = existingSchedulesOnDay[0];
+          
           // 시간 겹침 체크
           const hasTimeOverlap = times.some((newTime) => {
             return timeRangesOverlap(
               newTime,
               newTime + 100, // 1시간 가정
-              existingWeekTime.startTime,
-              existingWeekTime.endTime
+              representativeSchedule.ptSchedule.startTime,
+              representativeSchedule.ptSchedule.endTime
             );
           });
 
@@ -126,8 +132,8 @@ export async function checkRegularPtExtensionConflict(
             }
 
             const timeStr = `${formatTime(
-              existingWeekTime.startTime
-            )}-${formatTime(existingWeekTime.endTime)}`;
+              representativeSchedule.ptSchedule.startTime
+            )}-${formatTime(representativeSchedule.ptSchedule.endTime)}`;
             if (!conflictingTimes.includes(timeStr)) {
               conflictingTimes.push(timeStr);
             }
@@ -139,8 +145,10 @@ export async function checkRegularPtExtensionConflict(
         // 마지막 수업일 계산
         const lastSessionDate = await getLastScheduledSession(pt.id);
 
-        // 완료율 계산
-        const completedCount = pt.ptRecord.length;
+        // 완료율 계산 (items가 1개 이상이면 참석)
+        const completedCount = pt.ptRecord.filter((record) => {
+          return record.items.length >= 1;
+        }).length;
         const totalCount = pt.ptProduct.totalCount;
         const completionRate = completedCount / totalCount;
         const remainingSessions = totalCount - completedCount;
@@ -258,24 +266,7 @@ function getKoreanDayName(weekDay: WeekDay): string {
   return mapping[weekDay];
 }
 
-// 시간 범위 겹침 체크
-function timeRangesOverlap(
-  start1: number,
-  end1: number,
-  start2: number,
-  end2: number
-): boolean {
-  return start1 < end2 && end1 > start2;
-}
-
-// 시간 포맷팅 (900 -> "09:00")
-function formatTime(time: number): string {
-  const hour = Math.floor(time / 100);
-  const minute = time % 100;
-  return `${hour.toString().padStart(2, "0")}:${minute
-    .toString()
-    .padStart(2, "0")}`;
-}
+// 시간 범위 겹침 체크 및 시간 포맷팅은 time.utils.ts에서 import
 
 // 마지막 예정된 수업일 조회
 async function getLastScheduledSession(ptId: string): Promise<Date> {

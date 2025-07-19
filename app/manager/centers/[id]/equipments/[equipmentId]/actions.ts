@@ -2,7 +2,7 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
 import { Prisma, EquipmentCategory } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -17,7 +17,10 @@ export const getEquipmentDetail = async (
   centerId: string,
   equipmentId: string
 ) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -73,7 +76,10 @@ export const updateEquipment = async (
   equipmentId: string,
   formData: FormData
 ) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -150,7 +156,10 @@ export const deleteEquipment = async (
   centerId: string,
   equipmentId: string
 ) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");

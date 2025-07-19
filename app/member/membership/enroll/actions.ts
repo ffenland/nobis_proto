@@ -2,7 +2,8 @@
 
 import { getDiscountPrice } from "@/app/lib/coupon";
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
 export type IMembershipProductResult = Prisma.PromiseReturnType<
@@ -38,7 +39,10 @@ export const makePendingMembership = async ({
   couponId?: string; // 선택적 속성으로 정의
 }) => {
   try {
-    const session = await getSessionOrRedirect();
+    const session = await getSession();
+    if (!session) {
+      redirect("/login");
+    }
     let coupon: { id: string; maxPrice: number; discount: number } | null =
       null;
 

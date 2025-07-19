@@ -9,7 +9,8 @@ import isoWeek from "dayjs/plugin/isoWeek";
 import weekday from "dayjs/plugin/weekday";
 import { useRouter } from "next/navigation";
 
-import { getWeekDayMapData, displayTime } from "@/app/lib/utils";
+import { getWeekDayMapData } from "@/app/lib/utils";
+import { formatTime } from "@/app/lib/utils/time.utils";
 import {
   ErrorModal,
   WeekLimitModal,
@@ -507,7 +508,7 @@ export function ScheduleCalendar({
               key={`time-${time}`}
               className="h-8 bg-gray-50 border-r border-b flex items-center justify-center text-xs text-gray-600"
             >
-              {displayTime(time)}
+              {formatTime(time)}
             </div>,
 
             // 각 요일별 셀

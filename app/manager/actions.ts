@@ -2,7 +2,8 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { Prisma, PtState } from "@prisma/client";
 
 // Manager 대시보드 전체 통계 타입
@@ -17,7 +18,10 @@ export type CenterOverview = Prisma.PromiseReturnType<
 
 // 매니저 정보 조회 (사용자명 포함)
 export const getManagerInfo = async () => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -41,7 +45,10 @@ export const getManagerInfo = async () => {
 
 // Manager 대시보드 전체 통계 조회
 export const getManagerDashboardStats = async () => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -246,7 +253,10 @@ export const getManagerDashboardStats = async () => {
 
 // 센터별 개요 통계 조회
 export const getCenterOverviewStats = async () => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -362,7 +372,10 @@ export const getCenterOverviewStats = async () => {
 
 // 최근 활동 조회 (PT 승인 대기, 최근 가입 회원 등)
 export const getRecentActivities = async () => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");

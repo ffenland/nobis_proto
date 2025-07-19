@@ -206,7 +206,7 @@ export class TrainerManagementService {
     return Object.values(groupedByCenter);
   }
 
-  // 특정 트레이너 상세 정보 조회
+  // 특정 트레이너 상세 정보 조회 (근무시간 포함)
   async getTrainerDetail(params: ITrainerDetailParams) {
     const { trainerId } = params;
 
@@ -239,6 +239,17 @@ export class TrainerManagementService {
             address: true,
           },
         },
+        workingHours: {
+          select: {
+            id: true,
+            dayOfWeek: true,
+            openTime: true,
+            closeTime: true,
+          },
+          orderBy: {
+            dayOfWeek: "asc",
+          },
+        },
       },
     });
 
@@ -246,7 +257,10 @@ export class TrainerManagementService {
       throw new Error("트레이너를 찾을 수 없습니다.");
     }
 
-    return trainer;
+    return {
+      ...trainer,
+      createdAt: trainer.createdAt.toISOString(),
+    };
   }
 
   // 특정 트레이너의 PT 목록 조회

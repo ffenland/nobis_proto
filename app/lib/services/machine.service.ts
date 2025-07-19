@@ -3,7 +3,8 @@
 
 import prisma from "@/app/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 // 머신 상세 조회 타입
@@ -27,7 +28,10 @@ export type MachineUpdateData = {
 
 // 머신 상세 정보 조회
 export const getMachineDetail = async (machineId: string) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -85,7 +89,10 @@ export const updateMachineDetail = async (
   machineId: string,
   updateData: MachineUpdateData
 ) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -193,7 +200,10 @@ export const updateMachineDetail = async (
 
 // 머신 삭제
 export const deleteMachine = async (machineId: string) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");
@@ -249,7 +259,10 @@ export const deleteMachine = async (machineId: string) => {
 
 // 머신 설정 삭제
 export const deleteMachineSetting = async (settingId: string) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   if (session.role !== "MANAGER") {
     throw new Error("매니저 권한이 필요합니다.");

@@ -1,13 +1,16 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 // PT 기록 조회 액션
 export const getPtRecordAction = async (ptRecordId: string) => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   // 트레이너 권한 확인
   if (session.role !== "TRAINER") {
@@ -126,7 +129,10 @@ export const getPtRecordAction = async (ptRecordId: string) => {
 
 // 메모 수정 액션 - FormData를 받아서 처리
 export const updateMemoAction = async (formData: FormData): Promise<void> => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
 
   // 트레이너 권한 확인
   if (session.role !== "TRAINER") {

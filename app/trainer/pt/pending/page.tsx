@@ -17,6 +17,7 @@ import {
 import { Textarea } from "@/app/components/ui/Input";
 import { ITrainerPendingPts } from "@/app/lib/services/trainer.service";
 import { type IConflictingMember } from "@/app/lib/services/schedule-conflict.service"; // 🚨 NEW
+import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
 
 // API fetcher
 const fetcher = (url: string) =>
@@ -25,7 +26,7 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-const PendingApplicationsPage = () => {
+const PendingPtsPage = () => {
   const [selectedPt, setSelectedPt] = useState<
     ITrainerPendingPts[number] | null
   >(null);
@@ -42,22 +43,22 @@ const PendingApplicationsPage = () => {
 
   // 승인 대기 PT 목록 조회
   const {
-    data: pendingApplications,
+    data: pendingPts,
     error,
     isLoading,
     mutate,
-  } = useSWR<ITrainerPendingPts>("/api/trainer/pending-applications", fetcher);
+  } = useSWR<ITrainerPendingPts>("/api/trainer/pt/pending", fetcher);
 
   // 🚨 NEW: PT별 충돌 체크 (useEffect)
   useEffect(() => {
     const checkConflicts = async () => {
-      if (!pendingApplications || pendingApplications.length === 0) return;
+      if (!pendingPts || pendingPts.length === 0) return;
 
       setIsCheckingConflicts(true);
       const warnings: Record<string, IConflictingMember[]> = {};
 
       try {
-        for (const pt of pendingApplications) {
+        for (const pt of pendingPts) {
           try {
             const response = await fetch(
               "/api/trainer/schedule-conflict-check",
@@ -93,7 +94,7 @@ const PendingApplicationsPage = () => {
     };
 
     checkConflicts();
-  }, [pendingApplications]);
+  }, [pendingPts]);
 
   // 🚨 NEW: 충돌 경고 렌더링 함수
   const renderConflictWarning = (ptId: string) => {
@@ -182,7 +183,7 @@ const PendingApplicationsPage = () => {
       year: "numeric",
       month: "long",
       day: "numeric",
-      weekday: "short",
+      weekday: "long",
     });
   };
 
@@ -323,13 +324,13 @@ const PendingApplicationsPage = () => {
       {/* 헤더 (충돌 체크 상태 표시 추가) */}
       <PageHeader
         title="PT 신청 승인"
-        subtitle={`${pendingApplications?.length || 0}건의 승인 대기 중인 신청${
+        subtitle={`${pendingPts?.length || 0}건의 승인 대기 중인 신청${
           isCheckingConflicts ? " • 충돌 체크 중..." : ""
         }`}
       />
 
       {/* 승인 대기 목록 */}
-      {!pendingApplications || pendingApplications.length === 0 ? (
+      {!pendingPts || pendingPts.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <div className="text-4xl mb-4">✅</div>
@@ -341,7 +342,7 @@ const PendingApplicationsPage = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {pendingApplications.map((pt) => {
+          {pendingPts.map((pt) => {
             if (!pt.member) {
               return null; // member가 null인 경우 렌더링하지 않음
             }
@@ -376,7 +377,7 @@ const PendingApplicationsPage = () => {
                     <h4 className="font-medium text-gray-900 mb-2">
                       {pt.ptProduct.title}
                     </h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="flex flex-col gap-2 text-sm">
                       <div>
                         <span className="text-gray-600">총 횟수:</span>{" "}
                         <span className="font-medium">
@@ -386,7 +387,7 @@ const PendingApplicationsPage = () => {
                       <div>
                         <span className="text-gray-600">회당 시간:</span>{" "}
                         <span className="font-medium">
-                          {pt.ptProduct.time}시간
+                          {formatMinutesToKorean(pt.ptProduct.time)}
                         </span>
                       </div>
                       <div>
@@ -402,53 +403,6 @@ const PendingApplicationsPage = () => {
                         </span>
                       </div>
                     </div>
-                  </div>
-
-                  {/* 기존 스케줄 정보 (그대로 유지) */}
-                  <div className="mb-4">
-                    <h4 className="font-medium text-gray-900 mb-2">
-                      운동 일정
-                    </h4>
-
-                    {pt.isRegular ? (
-                      // 정기 스케줄
-                      <div className="bg-blue-50 p-3 rounded-lg">
-                        <div className="text-sm font-medium text-blue-900 mb-1">
-                          정기 스케줄 (주 {pt.weekTimes.length}회)
-                        </div>
-                        <div className="text-sm text-blue-800">
-                          {pt.weekTimes.map((wt, index) => (
-                            <span key={index}>
-                              {getKoreanDayName(wt.weekDay)}요일{" "}
-                              {formatTime(wt.startTime)}-
-                              {formatTime(wt.endTime)}
-                              {index < pt.weekTimes.length - 1 && ", "}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      // 수시 스케줄
-                      <div className="bg-green-50 p-3 rounded-lg">
-                        <div className="text-sm font-medium text-green-900 mb-2">
-                          수시 스케줄 ({pt.ptSchedule.length}회 예약)
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-green-800">
-                          {pt.ptSchedule.slice(0, 4).map((schedule, index) => (
-                            <div key={index}>
-                              {formatDate(schedule.date)}{" "}
-                              {formatTime(schedule.startTime)}-
-                              {formatTime(schedule.endTime)}
-                            </div>
-                          ))}
-                          {pt.ptSchedule.length > 4 && (
-                            <div className="text-green-700">
-                              외 {pt.ptSchedule.length - 4}개 일정...
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* 기존 액션 버튼들 (그대로 유지) */}
@@ -509,10 +463,34 @@ const PendingApplicationsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* PT 일정 정보 */}
+              {selectedPt.ptRecord && selectedPt.ptRecord.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h5 className="font-medium text-blue-900 mb-3">
+                    예정된 수업 일정
+                  </h5>
+                  <div className="space-y-2">
+                    {selectedPt.ptRecord.map((record, index) => (
+                      <div
+                        key={record.id}
+                        className="flex items-center justify-between text-sm bg-white p-2 rounded border"
+                      >
+                        <span className="text-gray-700">{index + 1}회차</span>
+                        <span className="font-medium text-blue-700">
+                          {formatDate(record.ptSchedule.date.toString())}{" "}
+                          {formatTime(record.ptSchedule.startTime)} -{" "}
+                          {formatTime(record.ptSchedule.endTime)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  💡 승인 시 자동으로 모든 수업 일정이 생성되며, 회원이 즉시
-                  수업을 시작할 수 있습니다.
+                <p className="text-sm text-blue-800 text-center">
+                  💡 승인 후, 결제와 관련해서는 <br /> 회원과 직접 연락해서
+                  진행하세요.
                 </p>
               </div>
             </div>
@@ -606,4 +584,4 @@ const PendingApplicationsPage = () => {
   );
 };
 
-export default PendingApplicationsPage;
+export default PendingPtsPage;

@@ -60,8 +60,6 @@ const ScheduleSelector = ({
   setChosenSchedule,
   openingHours,
 }: IScheduleSelectorProps) => {
-  console.log(chosenSchedule, "CHOSENSCHEDULE");
-
   const today = useRef(dayjs());
   const [currentWeek, setCurrentWeek] = useState(today.current);
   const [timeError, setTimeError] = useState<string>();
@@ -162,8 +160,13 @@ const ScheduleSelector = ({
       const hasConflict = trainerSchedule.existingSchedules.some((schedule) => {
         const scheduleDate = dayjs(schedule.date).format("YYYY-MM-DD");
         if (scheduleDate !== currentDate) return false;
-        
-        return timeRangesOverlap(startTime, endTime, schedule.startTime, schedule.endTime);
+
+        return timeRangesOverlap(
+          startTime,
+          endTime,
+          schedule.startTime,
+          schedule.endTime
+        );
       });
 
       if (hasConflict) {
@@ -177,8 +180,13 @@ const ScheduleSelector = ({
       const hasOffConflict = trainerSchedule.trainerOffs.some((off) => {
         const offDate = dayjs(off.date).format("YYYY-MM-DD");
         if (offDate !== currentDate) return false;
-        
-        return timeRangesOverlap(startTime, endTime, off.startTime, off.endTime);
+
+        return timeRangesOverlap(
+          startTime,
+          endTime,
+          off.startTime,
+          off.endTime
+        );
       });
 
       if (hasOffConflict) {
@@ -187,23 +195,7 @@ const ScheduleSelector = ({
       }
     }
 
-    // 트레이너 반복 OFF 일정과 충돌 확인
-    if (trainerSchedule?.repeatOffs) {
-      const currentDayOfWeek = date.day();
-      const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-      const currentWeekDay = dayNames[currentDayOfWeek];
-
-      const hasRepeatOffConflict = trainerSchedule.repeatOffs.some((off) => {
-        if (off.weekDay !== currentWeekDay) return false;
-        
-        return timeRangesOverlap(startTime, endTime, off.startTime, off.endTime);
-      });
-
-      if (hasRepeatOffConflict) {
-        setTimeError("선택한 시간이 트레이너의 정기 휴무 시간과 겹칩니다.");
-        return;
-      }
-    }
+    // 트레이너 반복 OFF 일정과 충돌 확인 (현재 삭제됨)
 
     // 5. 스케줄 업데이트
     setChosenSchedule({
@@ -276,7 +268,7 @@ const ScheduleSelector = ({
     }
 
     // 7. 트레이너 OFF 일정 확인
-    if (trainerSchedule?.trainerOffs || trainerSchedule?.repeatOffs) {
+    if (trainerSchedule?.trainerOffs) {
       const classTimeSlots = getClassTimeSlots(time);
       if (classTimeSlots.length === 0) return "invalid";
 
@@ -295,21 +287,6 @@ const ScheduleSelector = ({
         });
 
         if (isOffDay) return "occupied";
-      }
-
-      // 반복 OFF 확인 (요일별)
-      if (trainerSchedule.repeatOffs) {
-        const currentDayOfWeek = date.day(); // 0 = 일요일, 1 = 월요일, ...
-        const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-        const currentWeekDay = dayNames[currentDayOfWeek];
-
-        const isRepeatOffDay = trainerSchedule.repeatOffs.some((off) => {
-          if (off.weekDay !== currentWeekDay) return false;
-
-          return timeRangesOverlap(time, endTime, off.startTime, off.endTime);
-        });
-
-        if (isRepeatOffDay) return "occupied";
       }
     }
 

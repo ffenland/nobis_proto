@@ -230,56 +230,60 @@ const PtDetailPage = (props: { params: Params }) => {
 
   return (
     <PageLayout maxWidth="lg">
-      {/* 헤더 */}
-      <PageHeader
-        title="PT 상세"
-        subtitle={pt.ptProduct.title}
-        action={
-          <div className="flex items-center gap-2">
-            {canDelete && (
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => setShowDeleteModal(true)}
-              >
-                삭제
-              </Button>
-            )}
-            <Link href="/member/pt">
-              <Button variant="outline">목록으로</Button>
-            </Link>
-          </div>
-        }
-      />
+      {/* 헤더 - 모바일 최적화 */}
+      <div className="px-3 py-2 border-b bg-white sticky top-0 z-10">
+        <div className="flex items-center justify-between mb-2">
+          <Link href="/member/pt">
+            <Button variant="outline" size="sm">
+              ← 목록
+            </Button>
+          </Link>
+          {canDelete && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowDeleteModal(true)}
+            >
+              삭제
+            </Button>
+          )}
+        </div>
+        <h1 className="text-lg font-bold text-gray-900 truncate">
+          {pt.ptProduct.title}
+        </h1>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-sm text-gray-600">PT 상세</span>
+          <Badge variant={status.variant}>{status.text}</Badge>
+        </div>
+      </div>
 
-      {/* PT 기본 정보 */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
+      {/* PT 기본 정보 - 모바일 최적화 */}
+      <Card className="mx-2 my-2 shadow-sm">
+        <CardContent className="p-3">
+          <div className="space-y-3">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
                 {pt.ptProduct.title}
               </h2>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="grid grid-cols-1 gap-1 text-sm text-gray-600">
                 <span>회당 {pt.ptProduct.time}시간</span>
-                <span>•</span>
                 <span>총 {pt.ptProduct.totalCount}회</span>
-                <span>•</span>
-                <span>{pt.ptProduct.price.toLocaleString()}원</span>
+                <span className="font-medium text-gray-900">
+                  {pt.ptProduct.price.toLocaleString()}원
+                </span>
               </div>
             </div>
-            <Badge variant={status.variant}>{status.text}</Badge>
           </div>
 
-          {/* 진행 상태 - 계산된 출석 통계 사용 */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          {/* 진행 상태 - 모바일 최적화 */}
+          <div className="bg-gray-50 rounded-lg p-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-600">진행 상태</span>
               <span className="text-sm font-medium text-gray-900">
-                {attendanceStats.attended}/{pt.ptProduct.totalCount}회 완료
+                {attendanceStats.attended}/{pt.ptProduct.totalCount}회
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
               <div
                 className="bg-gray-900 h-2 rounded-full transition-all"
                 style={{
@@ -292,74 +296,79 @@ const PtDetailPage = (props: { params: Params }) => {
             </div>
             {/* 출석률 표시 */}
             {attendanceStats.completedSessions > 0 && (
-              <div className="mt-2 text-xs text-gray-500">
+              <div className="text-xs text-gray-500">
                 출석률: {attendanceStats.attendanceRate}% (
-                {attendanceStats.attended}회 참석 /{" "}
-                {attendanceStats.completedSessions}회 진행)
+                {attendanceStats.attended}/{attendanceStats.completedSessions})
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* 트레이너 정보 */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
-            <h3 className="font-medium text-gray-900 mb-2">담당 트레이너</h3>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium">
-                    {pt.trainer?.user.username[0]}
-                  </span>
-                </div>
-                <span className="font-medium text-gray-900">
-                  {pt.trainer?.user.username || "트레이너 배정 대기"}
+      {/* 트레이너 정보 - 모바일 최적화 */}
+      <Card className="mx-2 mb-2 shadow-sm">
+        <CardContent className="p-3">
+          <h3 className="font-medium text-gray-900 mb-3">담당 트레이너</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium">
+                  {pt.trainer?.user.username[0]}
                 </span>
               </div>
-              {pt.trainer && (
-                <Link href={`/member/chat/connect?opp=${pt.trainer.user.id}`}>
-                  <Button variant="outline" size="sm">
-                    메시지
-                  </Button>
-                </Link>
-              )}
+              <span className="font-medium text-gray-900 text-sm">
+                {pt.trainer?.user.username || "트레이너 배정 대기"}
+              </span>
             </div>
+            {pt.trainer && (
+              <Link href={`/member/chat/connect?opp=${pt.trainer.user.id}`}>
+                <Button variant="outline" size="sm">
+                  채팅하기
+                </Button>
+              </Link>
+            )}
           </div>
+        </CardContent>
+      </Card>
 
-          {/* 기간 정보 */}
-          {status.text === "진행중" && (
+      {/* 기간 정보 - 모바일 최적화 */}
+      {status.text === "진행중" && (
+        <Card className="mx-2 mb-2 shadow-sm">
+          <CardContent className="p-3">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-gray-600">시작일</span>
+                <span className="text-gray-600 block mb-1">시작일</span>
                 <div className="font-medium text-gray-900">
                   {new Date(pt.startDate).toLocaleDateString("ko-KR")}
                 </div>
               </div>
               <div>
-                <span className="text-gray-600">만료 예정일</span>
+                <span className="text-gray-600 block mb-1">만료 예정일</span>
                 <div className="font-medium text-gray-900">
                   {expiryDate.toLocaleDateString("ko-KR")}
                 </div>
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* 수업 기록 */}
-      <Card>
-        <CardContent className="p-6">
+      {/* 수업 기록 - 모바일 최적화 */}
+      <Card className="mx-2 mb-2 shadow-sm">
+        <CardContent className="p-3">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">수업 기록</h3>
             <span className="text-sm text-gray-600">
-              총 {pt.ptRecord.length}개 세션
+              {pt.ptRecord.length}개
             </span>
           </div>
 
           {pt.ptRecord.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-6 text-gray-500">
               아직 수업 기록이 없습니다.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {pt.ptRecord.map((record) => {
                 const dateInfo = formatDate(record.ptSchedule.date);
 
@@ -379,72 +388,81 @@ const PtDetailPage = (props: { params: Params }) => {
                     className="border border-gray-200 rounded-lg overflow-hidden"
                   >
                     <div
-                      className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="p-2 cursor-pointer hover:bg-gray-50 transition-colors"
                       onClick={() =>
                         setExpandedRecord(isExpanded ? null : record.id)
                       }
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`font-medium ${
-                                dateInfo.isToday
-                                  ? "text-blue-600"
-                                  : dateInfo.isPast
-                                  ? "text-gray-900"
-                                  : "text-gray-600"
-                              }`}
-                            >
-                              {dateInfo.text}
-                            </span>
-                            <span className="text-gray-600">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-sm font-medium ${
+                                  dateInfo.isToday
+                                    ? "text-blue-600"
+                                    : dateInfo.isPast
+                                    ? "text-gray-900"
+                                    : "text-gray-600"
+                                }`}
+                              >
+                                {dateInfo.text}
+                              </span>
+                              <Badge
+                                variant={attendanceInfo.variant}
+                                className="text-xs"
+                              >
+                                {attendanceInfo.text}
+                              </Badge>
+                            </div>
+                            <span className="text-xs text-gray-600">
                               {formatTime(record.ptSchedule.startTime)} -{" "}
                               {formatTime(record.ptSchedule.endTime)}
                             </span>
-                            <Badge variant={attendanceInfo.variant}>
-                              {attendanceInfo.text}
-                            </Badge>
                           </div>
                           {record.memo && (
-                            <p className="text-sm text-gray-600 mt-1">
+                            <p className="text-xs text-gray-600 mt-1 truncate">
                               {record.memo}
                             </p>
                           )}
                         </div>
-                        <div className="text-gray-400">
+                        <div className="text-gray-400 ml-2">
                           {isExpanded ? "△" : "▽"}
                         </div>
                       </div>
                     </div>
 
-                    {/* 운동 기록 상세 */}
+                    {/* 운동 기록 상세 - 모바일 최적화 */}
                     {isExpanded && (
-                      <div className="border-t border-gray-200 bg-gray-50 p-4">
+                      <div className="border-t border-gray-200 bg-gray-50 p-2">
                         {record.items.length === 0 ? (
                           <p className="text-gray-500 text-sm">
                             운동 기록이 없습니다.
                           </p>
                         ) : (
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {record.items.map((item, index) => {
                               const exercises = formatExerciseRecord(item);
                               return (
                                 <div
                                   key={index}
-                                  className="bg-white rounded p-3"
+                                  className="bg-white rounded p-2 border"
                                 >
-                                  <h4 className="font-medium text-gray-900 mb-2">
+                                  <h4 className="font-medium text-gray-900 mb-1 text-sm">
                                     {item.title || "운동"}
                                   </h4>
                                   {exercises.map((exercise, exerciseIndex) => (
                                     <div
                                       key={exerciseIndex}
-                                      className="text-sm text-gray-600 mb-1"
+                                      className="text-xs text-gray-600 mb-1"
                                     >
-                                      <div className="flex justify-between">
-                                        <span>{exercise.name}</span>
-                                        <span>{exercise.details}</span>
+                                      <div className="flex justify-between items-start gap-2">
+                                        <span className="font-medium">
+                                          {exercise.name}
+                                        </span>
+                                        <span className="text-right">
+                                          {exercise.details}
+                                        </span>
                                       </div>
                                       {exercise.settings && (
                                         <div className="text-xs text-gray-500 mt-1">
@@ -454,7 +472,7 @@ const PtDetailPage = (props: { params: Params }) => {
                                     </div>
                                   ))}
                                   {item.description && (
-                                    <p className="text-sm text-gray-600 mt-2 border-t pt-2">
+                                    <p className="text-xs text-gray-600 mt-1 border-t pt-1">
                                       {item.description}
                                     </p>
                                   )}
@@ -473,38 +491,41 @@ const PtDetailPage = (props: { params: Params }) => {
         </CardContent>
       </Card>
 
-      {/* 삭제 확인 모달 */}
+      {/* 삭제 확인 모달 - 모바일 최적화 */}
       <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
         <ModalHeader>PT 삭제 확인</ModalHeader>
         <ModalContent>
-          <div className="space-y-4">
-            <p className="text-gray-700">정말로 이 PT를 삭제하시겠습니까?</p>
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
+          <div className="space-y-3">
+            <p className="text-gray-700 text-sm">
+              정말로 이 PT를 삭제하시겠습니까?
+            </p>
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-800">
                 <strong>주의:</strong> 삭제된 PT는 복구할 수 없으며, 예약된
                 일정도 함께 삭제됩니다.
               </p>
             </div>
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">
+            <div className="p-3 bg-gray-50 rounded-lg space-y-1">
+              <p className="text-xs text-gray-600">
                 <strong>트레이너:</strong>{" "}
                 {pt.trainer?.user.username || "미배정"}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-xs text-gray-600">
                 <strong>상품:</strong> {pt.ptProduct.title}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-xs text-gray-600">
                 <strong>가격:</strong> {pt.ptProduct.price.toLocaleString()}원
               </p>
             </div>
           </div>
         </ModalContent>
         <ModalFooter>
-          <div className="flex justify-end space-x-2">
+          <div className="flex gap-2 w-full">
             <Button
               variant="outline"
               onClick={() => setShowDeleteModal(false)}
               disabled={isDeleting}
+              className="flex-1"
             >
               취소
             </Button>
@@ -512,6 +533,7 @@ const PtDetailPage = (props: { params: Params }) => {
               variant="danger"
               onClick={handleDeletePt}
               disabled={isDeleting}
+              className="flex-1"
             >
               {isDeleting ? "삭제 중..." : "삭제"}
             </Button>

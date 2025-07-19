@@ -3,7 +3,6 @@ import { getIronSession } from "iron-session";
 import type { IronSession } from "iron-session";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 
 export interface SessionContent {
   id?: string;
@@ -24,7 +23,7 @@ const isSessionWithIdAndRole = (
   );
 };
 
-export const getSession = async () => {
+export const getCurrentIronSession = async () => {
   const cookieStore = await cookies();
 
   const session = await getIronSession<SessionContent>(cookieStore, {
@@ -42,12 +41,12 @@ export const getSession = async () => {
 };
 
 export const getSessionOrRedirect = async (): Promise<
-  IronSession<SessionContent & { id: string; role: string; roleId: string }>
+  { id: string; role: string; roleId: string }
 > => {
-  // for server components
+  // for server components - legacy function, consider using getSession() with manual redirect
   const session = await getSession();
 
-  if (isSessionWithIdAndRole(session)) {
+  if (session) {
     return session;
   } else {
     return redirect("/");
@@ -55,7 +54,7 @@ export const getSessionOrRedirect = async (): Promise<
 };
 
 export const logoutSession = async () => {
-  const session = await getSession();
+  const session = await getCurrentIronSession();
   session.destroy();
   redirect("/login");
 };
@@ -65,4 +64,21 @@ export const logoutCurrentSession = async (
 ) => {
   session.destroy();
   redirect("/login");
+};
+
+export const getSession = async (): Promise<
+  { id: string; role: string; roleId: string } | null
+> => {
+  // Main authentication function for both API routes and server actions
+  const session = await getCurrentIronSession();
+
+  if (isSessionWithIdAndRole(session)) {
+    return {
+      id: session.id,
+      role: session.role,
+      roleId: session.roleId
+    };
+  } else {
+    return null;
+  }
 };

@@ -1,5 +1,6 @@
 import { WeekDay } from "@prisma/client";
 import { weekDayNumberStringMap } from "./constants";
+import { addThirtyMinutes, addThirtyMinutesString } from "./utils/time.utils";
 
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -212,44 +213,8 @@ export const getStartEndTime = (
   return { startAt, endAt };
 };
 
-export const addThirtyMinutesString = (time: string): string => {
-  // time = "HH:mm" 형식으로 들어옴
-  let [currentHour, currentMinute] = time.split(":").map(Number);
 
-  currentMinute += 30;
-  if (currentMinute === 60) {
-    currentMinute = 0;
-    currentHour++;
-  }
-  if (currentHour === 24) {
-    currentHour = 0;
-  }
 
-  const formattedHour = currentHour.toString().padStart(2, "0");
-  const formattedMinute = currentMinute.toString().padStart(2, "0");
-
-  return `${formattedHour}:${formattedMinute}`;
-};
-
-export const addThirtyMinutes = (time: number): number => {
-  let currentHour = Math.floor(time / 100);
-  let currentMinute = time % 100;
-  currentMinute += 30;
-  if (currentMinute === 60) {
-    currentMinute = 0;
-    currentHour++;
-  }
-  if (currentHour === 24) {
-    currentHour = 0;
-  }
-  return currentHour * 100 + currentMinute;
-};
-
-export const displayTime = (time: number) => {
-  const hour = Math.floor(time / 100);
-  const minute = time % 100;
-  return `${hour.toString()}:${minute.toString().padStart(2, "0")}`;
-};
 
 export const deepEqual = (obj1: any, obj2: any): boolean => {
   // 기본 타입이거나 null인 경우 직접 비교
@@ -357,12 +322,6 @@ export const getRemainText = (date: Date, startTime: number): string => {
   }
 };
 
-// 시간 포맷 함수
-export const formatTime = (time: number): string => {
-  const hours = Math.floor(time / 100);
-  const minutes = time % 100;
-  return `${hours}:${minutes.toString().padStart(2, "0")}`;
-};
 
 // 남은 시간 계산 함수
 export const getRemainingTime = (

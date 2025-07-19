@@ -1,6 +1,7 @@
 // app/manager/chat/[roomId]/page.tsx
 import React from "react";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
+import { redirect } from "next/navigation";
 import { ChatPageTemplate } from "@/app/components/chat/ChatPageTemplate";
 import { ChatRoom } from "@/app/components/chat/ChatRoom";
 
@@ -9,7 +10,10 @@ interface IPageProps {
 }
 
 export default async function ManagerChatRoomPage({ params }: IPageProps) {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    redirect("/login");
+  }
   const { roomId } = params;
 
   return (

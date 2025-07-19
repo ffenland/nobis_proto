@@ -231,7 +231,9 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
               {roomInfo.otherUser?.avatar ? (
                 <Image
                   src={roomInfo.otherUser.avatar}
-                  alt={roomInfo.otherUser.username}
+                  alt={`${roomInfo.otherUser.username} 프로필 이미지`}
+                  width={40}
+                  height={40}
                   className="w-full h-full object-cover"
                 />
               ) : (

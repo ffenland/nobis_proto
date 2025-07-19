@@ -1,5 +1,5 @@
 import { naverLogin } from "@/app/lib/socialLogin";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { NextRequest } from "next/server";
 
 export const GET = async (request: NextRequest) => {

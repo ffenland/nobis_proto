@@ -1,14 +1,17 @@
 "use server";
 
 import prisma from "@/app/lib/prisma";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSession } from "@/app/lib/session";
 import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 
 export type IMemberProfile = Prisma.PromiseReturnType<typeof getProfile>;
 
 export const getProfile = async () => {
-  const session = await getSessionOrRedirect();
+  const session = await getSession();
+  if (!session) {
+    return redirect("/login");
+  }
   const profile = await prisma.user.findUnique({
     where: { id: session.id },
     select: {
