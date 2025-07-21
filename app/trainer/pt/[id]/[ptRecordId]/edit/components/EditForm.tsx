@@ -1,18 +1,21 @@
+// app/trainer/pt/[id]/[ptRecordId]/edit/components/EditForm.tsx
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getPtRecordDetailService,
   getPtRecordInfoService,
   IPtRecordDetail,
 } from "@/app/lib/services/pt-record.service";
-import PtRecordWriter from "./PtRecordWriter";
+import { Button } from "@/app/components/ui/Button";
+import { Edit } from "lucide-react";
+import PtRecordWriter from "../PtRecordWriter";
 
-interface PtRecordPageProps {
-  params: Promise<{ id: string }>;
+interface EditFormProps {
+  ptId: string;
+  ptRecordId: string;
 }
 
-export default async function PtRecordPage({ params }: PtRecordPageProps) {
-  const resolvedParams = await params;
-  const { id: ptRecordId } = resolvedParams;
+export default async function EditForm({ ptId, ptRecordId }: EditFormProps) {
 
   try {
     // PT 기록 정보와 상세 정보 병렬 조회
@@ -77,7 +80,7 @@ export default async function PtRecordPage({ params }: PtRecordPageProps) {
     const formatSetInfo = (item: IPtRecordDetail["items"][number]) => {
       switch (item.type) {
         case "MACHINE":
-          return item.machineSetRecords.map((record, idx) => (
+          return item.machineSetRecords.map((record) => (
             <div key={record.id} className="text-sm text-gray-600">
               {record.set}세트: {record.reps}회 -{" "}
               {record.settingValues
@@ -89,7 +92,7 @@ export default async function PtRecordPage({ params }: PtRecordPageProps) {
             </div>
           ));
         case "FREE":
-          return item.freeSetRecords.map((record, idx) => (
+          return item.freeSetRecords.map((record) => (
             <div key={record.id} className="text-sm text-gray-600">
               {record.set}세트: {record.reps}회 -{" "}
               {record.equipments
@@ -98,7 +101,7 @@ export default async function PtRecordPage({ params }: PtRecordPageProps) {
             </div>
           ));
         case "STRETCHING":
-          return item.stretchingExerciseRecords.map((record, idx) => (
+          return item.stretchingExerciseRecords.map((record) => (
             <div key={record.id} className="text-sm text-gray-600">
               {record.stretchingExercise.title}
               {record.equipments && record.equipments.length > 0 && (
@@ -120,7 +123,7 @@ export default async function PtRecordPage({ params }: PtRecordPageProps) {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">PT 기록</h1>
+          <h1 className="text-3xl font-bold text-gray-900">PT 기록 작성/편집</h1>
           <div className="mt-2 text-gray-600">
             <p>
               회원: {ptRecordInfo.pt.member!.user.username} | 센터:{" "}
@@ -158,9 +161,17 @@ export default async function PtRecordPage({ params }: PtRecordPageProps) {
                         {getRecordTitle(item)}
                       </span>
                     </div>
-                    <span className="text-sm text-gray-500">
-                      {item.entry}번째 운동
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">
+                        {item.entry}번째 운동
+                      </span>
+                      <Link href={`/trainer/pt/${ptId}/${ptRecordId}/edit/${item.id}`}>
+                        <Button variant="outline" size="sm">
+                          <Edit className="w-4 h-4 mr-1" />
+                          수정
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                   <div className="space-y-1">{formatSetInfo(item)}</div>
                   {item.description && (
@@ -177,6 +188,7 @@ export default async function PtRecordPage({ params }: PtRecordPageProps) {
         {/* PT 기록 작성 컴포넌트 */}
         <PtRecordWriter
           ptRecordId={ptRecordId}
+          ptId={ptId}
           center={ptRecordInfo.pt.trainer!.fitnessCenter!}
         />
       </div>

@@ -78,109 +78,6 @@ export const getPendingPtsService = async (trainerId: string) => {
   }));
 };
 
-// 트레이너의 승인된 PT 목록 조회
-export const getTrainerPtListService = async (trainerId: string) => {
-  const allPts = await prisma.pt.findMany({
-    where: {
-      trainerId,
-      state: PtState.CONFIRMED, // CONFIRMED 상태만
-      trainerConfirmed: true,
-    },
-    select: {
-      id: true,
-      state: true,
-      startDate: true,
-      createdAt: true,
-      description: true,
-      member: {
-        select: {
-          id: true,
-          user: {
-            select: {
-              username: true,
-            },
-          },
-        },
-      },
-      ptProduct: {
-        select: {
-          title: true,
-          totalCount: true,
-          time: true,
-          price: true,
-        },
-      },
-      ptRecord: {
-        select: {
-          id: true,
-          ptSchedule: {
-            select: {
-              date: true,
-              startTime: true,
-            },
-          },
-          items: {
-            select: {
-              id: true,
-            },
-          },
-        },
-        orderBy: {
-          ptSchedule: {
-            date: "asc",
-          },
-        },
-      },
-    },
-    orderBy: {
-      startDate: "desc",
-    },
-  });
-
-  const currentTime = new Date();
-
-  return allPts.map((pt) => {
-    // pt.utils의 함수를 사용하여 완료된 수업 개수 계산
-    const ptRecordsForAttendance: IPtRecordForAttendance[] = pt.ptRecord.map(
-      (record) => ({
-        ptSchedule: record.ptSchedule,
-        items: record.items,
-      })
-    );
-
-    const completedCount = calculateCompletedSessions(
-      ptRecordsForAttendance,
-      currentTime
-    );
-
-    // pt.utils의 함수를 사용하여 다음 예정된 수업 찾기
-    const nextSession = findUpcomingSession(
-      pt.ptRecord.map((record) => ({
-        ...record,
-        ptSchedule: record.ptSchedule,
-        items: record.items,
-      })),
-      currentTime
-    );
-
-    return {
-      ...pt,
-      startDate: pt.startDate.toISOString(),
-      createdAt: pt.createdAt.toISOString(),
-      completedCount,
-      nextSession: nextSession
-        ? {
-            recordId: nextSession.id,
-            date: nextSession.ptSchedule.date.toISOString(),
-            startTime: nextSession.ptSchedule.startTime,
-          }
-        : null,
-      // PT 완료 여부 계산
-      isCompleted: completedCount >= pt.ptProduct.totalCount,
-    };
-  });
-};
-
 // PT 승인 처리
 export const approvePtApplicationService = async (
   ptId: string,
@@ -227,12 +124,24 @@ export const rejectPtApplicationService = async (
   trainerId: string,
   reason?: string
 ) => {
-  // 1. PT가 해당 트레이너의 PENDING 상태인지 확인
+  // 1. PT와 관련된 정보 조회
   const pt = await prisma.pt.findFirst({
     where: {
       id: ptId,
       trainerId,
       state: PtState.PENDING,
+    },
+    include: {
+      ptRecord: {
+        include: {
+          ptSchedule: true,
+        },
+        orderBy: {
+          ptSchedule: {
+            date: "asc",
+          },
+        },
+      },
     },
   });
 
@@ -240,16 +149,58 @@ export const rejectPtApplicationService = async (
     throw new Error("거절할 수 없는 PT 신청입니다.");
   }
 
-  // 2. PT 거절 처리 (상태 변경)
-  const rejectedPt = await prisma.pt.update({
-    where: { id: ptId },
-    data: {
-      state: PtState.REJECTED,
-      description: reason || "트레이너가 거절한 PT입니다.",
-    },
+  // 2. 스케줄 정보를 문자열로 생성
+  const scheduleInfo = pt.ptRecord
+    .map((record) => {
+      const date = new Date(record.ptSchedule.date);
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, "0");
+      const day = date.getDate().toString().padStart(2, "0");
+
+      const startHour = Math.floor(record.ptSchedule.startTime / 100);
+      const startMinute = record.ptSchedule.startTime % 100;
+      const endHour = Math.floor(record.ptSchedule.endTime / 100);
+      const endMinute = record.ptSchedule.endTime % 100;
+
+      const startTime = `${startHour.toString().padStart(2, "0")}:${startMinute
+        .toString()
+        .padStart(2, "0")}`;
+      const endTime = `${endHour.toString().padStart(2, "0")}:${endMinute
+        .toString()
+        .padStart(2, "0")}`;
+
+      return `${year}년 ${month}월 ${day}일 ${startTime}~${endTime}`;
+    })
+    .join(", ");
+
+  // 3. 트랜잭션으로 처리
+  const result = await prisma.$transaction(async (tx) => {
+    // PtRejectInfo 생성
+    await tx.ptRejectInfo.create({
+      data: {
+        ptId,
+        reason: reason || "트레이너가 거절한 PT입니다.",
+        schedule: scheduleInfo,
+      },
+    });
+
+    // 모든 PtRecord 삭제 (스케줄 시간대 해제)
+    await tx.ptRecord.deleteMany({
+      where: { ptId },
+    });
+
+    // PT 상태를 REJECTED로 변경
+    const rejectedPt = await tx.pt.update({
+      where: { id: ptId },
+      data: {
+        state: PtState.REJECTED,
+      },
+    });
+
+    return rejectedPt;
   });
 
-  return rejectedPt;
+  return result;
 };
 
 // 트레이너 대시보드 통계
@@ -643,9 +594,7 @@ export const checkUsernameAvailabilityService = async (
 export type ITrainerPendingPts = Awaited<
   ReturnType<typeof getPendingPtsService>
 >;
-export type ITrainerPtList = Awaited<
-  ReturnType<typeof getTrainerPtListService>
->;
+
 export type ITrainerDashboardStats = Awaited<
   ReturnType<typeof getTrainerDashboardStatsService>
 >;
@@ -708,11 +657,14 @@ export const createTrainerOffScheduleService = async (
     ) {
       throw new Error("시간은 0-2359 범위여야 합니다.");
     }
-    
+
     // 분 단위 검증 (00, 30만 허용)
     const startMinute = data.startTime % 100;
     const endMinute = data.endTime % 100;
-    if ((startMinute !== 0 && startMinute !== 30) || (endMinute !== 0 && endMinute !== 30)) {
+    if (
+      (startMinute !== 0 && startMinute !== 30) ||
+      (endMinute !== 0 && endMinute !== 30)
+    ) {
       throw new Error("시간은 30분 단위로만 설정할 수 있습니다.");
     }
   }

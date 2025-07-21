@@ -93,12 +93,12 @@ model Member {
 }
 
 model WorkingHour {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   trainer   Trainer[]
   dayOfWeek WeekDay
   openTime  Int
   closeTime Int
-  
+
   // 이 WorkingHour를 기본값으로 사용하는 FitnessCenter들
   isDefaultFor FitnessCenter[]
 
@@ -182,24 +182,34 @@ enum PtState {
   FINISHED
 }
 
+model PtRejectInfo {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  pt        Pt       @relation(fields: [ptId], references: [id])
+  ptId      String   @unique @db.Uuid
+  reason    String
+  schedule  String
+}
+
 model Pt {
-  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  ptProduct        PtProduct  @relation(fields: [ptProductId], references: [id])
-  ptProductId      String     @db.Uuid
-  member           Member?    @relation(fields: [memberId], references: [id])
-  memberId         String?    @db.Uuid
-  trainer          Trainer?   @relation(fields: [trainerId], references: [id])
-  trainerId        String?    @db.Uuid
-  state            PtState    @default(PENDING)
-  trainerConfirmed Boolean    @default(false)
-  description      String     @default("")
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  ptProduct        PtProduct     @relation(fields: [ptProductId], references: [id])
+  ptProductId      String        @db.Uuid
+  member           Member?       @relation(fields: [memberId], references: [id])
+  memberId         String?       @db.Uuid
+  trainer          Trainer?      @relation(fields: [trainerId], references: [id])
+  trainerId        String?       @db.Uuid
+  state            PtState       @default(PENDING)
+  trainerConfirmed Boolean       @default(false)
+  description      String        @default("")
   ptRecord         PtRecord[]
   ptCoupon         PtCoupon?
   ptPayment        PtPayment?
   startDate        DateTime
   isRegular        Boolean
+  rejectInfo       PtRejectInfo?
 }
 
 enum ScheduleChangeState {
@@ -561,24 +571,24 @@ model TrainerOff {
 }
 
 model FitnessCenter {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title        String
-  address      String
-  phone        String
-  description  String
-  openingHours OpeningHour[]
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title               String
+  address             String
+  phone               String
+  description         String
+  openingHours        OpeningHour[]
   defaultWorkingHours WorkingHour[]
-  trainers     Trainer[]
-  members      Member[]
-  managers     Manager[]
-  machines     Machine[]
-  offDays      OffDay[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  equipments   Equipment[]
-  media        Media[]
-  ptRecords    PtRecord[]
-  inOperation  Boolean       @default(true)
+  trainers            Trainer[]
+  members             Member[]
+  managers            Manager[]
+  machines            Machine[]
+  offDays             OffDay[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  equipments          Equipment[]
+  media               Media[]
+  ptRecords           PtRecord[]
+  inOperation         Boolean       @default(true)
 }
 
 model OpeningHour {

@@ -24,8 +24,7 @@ const TrainerPt = async () => {
     }
   });
 
-  // 날짜순으로 정렬
-  ptList.sort((a, b) => a.date.getTime() - b.date.getTime());
+  // actions.ts에서 이미 정렬되어 온 상태 (CONFIRMED 먼저, 그 다음 FINISHED)
 
   // 오늘 수업과 예정 수업 분리
   const todayClasses = ptList.filter(
@@ -119,6 +118,7 @@ const TrainerPt = async () => {
 interface PtCardProps {
   pt: {
     ptId: string;
+    ptState: string;
     ptTitle: string;
     memberId?: string;
     memberName?: string;
@@ -163,6 +163,9 @@ const PtCard = ({ pt, memberIdCount, isToday }: PtCardProps) => {
                     {pt.ptTitle}
                   </span>
                   <Badge variant="default">{pt.order}번째 수업</Badge>
+                  <Badge variant={pt.ptState === "CONFIRMED" ? "success" : "default"}>
+                    {pt.ptState === "CONFIRMED" ? "진행중" : "완료"}
+                  </Badge>
                 </div>
               </div>
 

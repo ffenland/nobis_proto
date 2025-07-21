@@ -16,6 +16,7 @@ import StretchingRecord from "./StretchingRecord";
 
 interface PtRecordWriterProps {
   ptRecordId: string;
+  ptId: string;
   center: IFitnessCenter;
 }
 
@@ -28,7 +29,7 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
+const PtRecordWriter = ({ ptRecordId, ptId, center }: PtRecordWriterProps) => {
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<
     "machine" | "free" | "stretching" | null
@@ -144,7 +145,7 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
   const formatSetInfo = (item: IPtRecordItem) => {
     switch (item.type) {
       case "MACHINE":
-        return item.machineSetRecords?.map((record, idx) => (
+        return item.machineSetRecords?.map((record) => (
           <div key={record.id} className="text-sm text-gray-600">
             {record.set}세트: {record.reps}회 -{" "}
             {record.settingValues
@@ -156,7 +157,7 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
           </div>
         ));
       case "FREE":
-        return item.freeSetRecords?.map((record, idx) => (
+        return item.freeSetRecords?.map((record) => (
           <div key={record.id} className="text-sm text-gray-600">
             {record.set}세트: {record.reps}회 -{" "}
             {record.equipments
@@ -165,7 +166,7 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
           </div>
         ));
       case "STRETCHING":
-        return item.stretchingExerciseRecords?.map((record, idx) => (
+        return item.stretchingExerciseRecords?.map((record) => (
           <div key={record.id} className="text-sm text-gray-600">
             {record.stretchingExercise.title}
             {record.equipments && record.equipments.length > 0 && (
@@ -307,6 +308,16 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
           equipmentList={allEquipmentList || []}
         />
       )}
+
+      {/* 완료 버튼 */}
+      <div className="flex justify-center pt-6">
+        <button
+          onClick={() => router.push(`/trainer/pt/${ptId}/${ptRecordId}`)}
+          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+        >
+          기록 작성 완료
+        </button>
+      </div>
     </div>
   );
 };

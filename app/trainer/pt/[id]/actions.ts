@@ -21,7 +21,7 @@ export const getPtDetailAction = async (ptId: string) => {
       id: ptId,
       trainerId: session.roleId,
       state: {
-        in: [PtState.PENDING, PtState.CONFIRMED],
+        in: [PtState.CONFIRMED, PtState.FINISHED],
       },
     },
     select: {
@@ -45,6 +45,12 @@ export const getPtDetailAction = async (ptId: string) => {
           user: {
             select: {
               username: true,
+              avatarMedia: {
+                select: {
+                  publicUrl: true,
+                  thumbnailUrl: true,
+                },
+              },
             },
           },
         },
@@ -128,14 +134,6 @@ export const getPtDetailAction = async (ptId: string) => {
           ptSchedule: {
             date: "asc",
           },
-        },
-      },
-      weekTimes: {
-        select: {
-          id: true,
-          weekDay: true,
-          startTime: true,
-          endTime: true,
         },
       },
     },

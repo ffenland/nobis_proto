@@ -1,0 +1,191 @@
+// app/trainer/pt/[id]/[ptRecordId]/scheduleChange/page.tsx
+import Link from "next/link";
+import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
+import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { Badge } from "@/app/components/ui/Loading";
+import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
+import {
+  Calendar,
+  Clock,
+  ArrowLeft,
+  AlertCircle,
+  User,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { 
+  getPtScheduleDetailAction, 
+  getScheduleChangeRequestsAction,
+  type TPtScheduleDetail,
+  type TScheduleChangeRequest 
+} from "./actions";
+import ScheduleChangeForm from "./ScheduleChangeForm";
+import ScheduleChangeRequestsList from "./ScheduleChangeRequestsList";
+
+interface PageProps {
+  params: Promise<{ id: string; ptRecordId: string }>;
+}
+
+const TrainerScheduleChangePage = async ({ params }: PageProps) => {
+  const { id: ptId, ptRecordId } = await params;
+
+  let ptScheduleDetail: TPtScheduleDetail;
+  let scheduleChangeRequests: TScheduleChangeRequest[];
+
+  try {
+    [ptScheduleDetail, scheduleChangeRequests] = await Promise.all([
+      getPtScheduleDetailAction(ptRecordId),
+      getScheduleChangeRequestsAction(ptRecordId),
+    ]);
+  } catch (error) {
+    return (
+      <PageLayout maxWidth="2xl">
+        <div className="text-center py-12">
+          <div className="text-red-600 mb-4">
+            <AlertCircle className="w-12 h-12 mx-auto" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            스케줄 정보를 불러올 수 없습니다
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {error instanceof Error
+              ? error.message
+              : "알 수 없는 오류가 발생했습니다."}
+          </p>
+          <Link href={`/trainer/pt/${ptId}`}>
+            <Button variant="primary">PT 상세로 돌아가기</Button>
+          </Link>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  // 현재 시간과 수업 시간 비교 (예정 상태인지 확인)
+  const now = new Date();
+  const classDate = new Date(ptScheduleDetail.ptSchedule.date);
+  const classStartTime = ptScheduleDetail.ptSchedule.startTime;
+  const startHour = Math.floor(classStartTime / 100);
+  const startMinute = classStartTime % 100;
+  const classStart = new Date(classDate);
+  classStart.setHours(startHour, startMinute, 0, 0);
+
+  const isUpcoming = classStart > now;
+
+  return (
+    <PageLayout maxWidth="2xl">
+      <PageHeader
+        title="일정 수정"
+        subtitle={`${ptScheduleDetail.pt.member?.user.username}님과의 ${formatDateThisYear(ptScheduleDetail.ptSchedule.date)} 수업`}
+      />
+
+      <div className="space-y-6">
+        {/* 현재 스케줄 정보 카드 */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-semibold">현재 스케줄</h3>
+              <Badge variant={isUpcoming ? "default" : "warning"}>
+                {isUpcoming ? "예정" : "지난 수업"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center gap-3">
+                <User className="w-5 h-5 text-gray-500" />
+                <div>
+                  <div className="text-sm text-gray-600">회원</div>
+                  <div className="font-medium">
+                    {ptScheduleDetail.pt.member?.user.username}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-gray-500" />
+                <div>
+                  <div className="text-sm text-gray-600">수업 날짜</div>
+                  <div className="font-medium">
+                    {formatDateThisYear(ptScheduleDetail.ptSchedule.date)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-gray-500" />
+                <div>
+                  <div className="text-sm text-gray-600">수업 시간</div>
+                  <div className="font-medium">
+                    {formatTimeToString(
+                      Math.floor(ptScheduleDetail.ptSchedule.startTime / 100),
+                      ptScheduleDetail.ptSchedule.startTime % 100
+                    )}{" "}
+                    -{" "}
+                    {formatTimeToString(
+                      Math.floor(ptScheduleDetail.ptSchedule.endTime / 100),
+                      ptScheduleDetail.ptSchedule.endTime % 100
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {!isUpcoming && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">
+                    이미 지난 수업입니다. 일정 변경이 제한될 수 있습니다.
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 일정 변경 요청 목록 */}
+        {scheduleChangeRequests.length > 0 && (
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">일정 변경 요청</h3>
+            </CardHeader>
+            <CardContent>
+              <ScheduleChangeRequestsList 
+                requests={scheduleChangeRequests}
+                ptRecordId={ptRecordId}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 새 일정 변경 요청 (예정 상태일 때만) */}
+        {isUpcoming && (
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">새 일정 변경 요청</h3>
+            </CardHeader>
+            <CardContent>
+              <ScheduleChangeForm 
+                ptRecordId={ptRecordId}
+                currentSchedule={ptScheduleDetail.ptSchedule}
+                ptId={ptId}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 뒤로가기 버튼 */}
+        <div className="flex gap-4">
+          <Link href={`/trainer/pt/${ptId}`}>
+            <Button variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              PT 상세로 돌아가기
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </PageLayout>
+  );
+};
+
+export default TrainerScheduleChangePage;
