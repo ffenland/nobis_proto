@@ -360,57 +360,94 @@ export interface IPreschedulePtResult {
 export const preschedulePtService = async (
   data: IPreschedulePtData
 ): Promise<IPreschedulePtResult> => {
-  return await prisma.$transaction(async (tx) => {
-    // 1. PT 기본 정보 조회
-    const ptProduct = await tx.ptProduct.findUniqueOrThrow({
-      where: { id: data.ptProductId },
-      select: { time: true, totalCount: true },
-    });
+  // 트랜잭션 밖에서 ptSchedule 사전 처리
+  const ptProduct = await prisma.ptProduct.findUniqueOrThrow({
+    where: { id: data.ptProductId },
+    select: { time: true, totalCount: true },
+  });
 
-    // 2. 스케줄 데이터를 IPtSchedule 형식으로 변환
-    let ptSchedules: IPtSchedule[] = [];
+  // 스케줄 데이터를 IPtSchedule 형식으로 변환
+  let ptSchedules: IPtSchedule[] = [];
 
-    if (data.pattern.regular) {
-      // 정기 수업: convertRegularScheduleToSlots 로직 사용
-      ptSchedules = convertChosenScheduleToRegularSlots(
-        data.chosenSchedule,
-        ptProduct.totalCount
-      );
-    } else {
-      // 비정기 수업: chosenSchedule 직접 변환
-      ptSchedules = convertChosenScheduleToTempSlots(data.chosenSchedule);
-    }
-
-    // 디버깅용 로그
-    console.log("=== 변환된 ptSchedules ===");
-    console.log("ptSchedules 개수:", ptSchedules.length);
-    ptSchedules.forEach((schedule, index) => {
-      console.log(`Schedule ${index}:`, {
-        date: schedule.date.toISOString(),
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
-        possible: schedule.possible,
-      });
-    });
-
-    // 3. 각 스케줄에 대해 validation 수행 (멤버 충돌 체크 포함)
-    await validatePtSchedules(
-      ptSchedules,
-      data.trainerId,
-      data.centerId,
-      data.memberId
+  if (data.pattern.regular) {
+    ptSchedules = convertChosenScheduleToRegularSlots(
+      data.chosenSchedule,
+      ptProduct.totalCount
     );
+  } else {
+    ptSchedules = convertChosenScheduleToTempSlots(data.chosenSchedule);
+  }
 
-    // 4. possible: true인 스케줄들로 Pt, PtRecord 생성
-    const possibleSchedules = ptSchedules
-      .filter((s) => s.possible)
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  // 각 스케줄에 대해 validation 수행
+  await validatePtSchedules(
+    ptSchedules,
+    data.trainerId,
+    data.centerId,
+    data.memberId
+  );
 
-    if (possibleSchedules.length === 0) {
-      throw new Error("선택 가능한 일정이 없습니다.");
+  const possibleSchedules = ptSchedules
+    .filter((s) => s.possible)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  if (possibleSchedules.length === 0) {
+    throw new Error("선택 가능한 일정이 없습니다.");
+  }
+
+  // 트랜잭션 밖에서 PtSchedule 미리 생성 (병렬 처리 방지)
+  const scheduleMap = new Map<string, string>();
+  
+  for (const schedule of possibleSchedules) {
+    const key = `${schedule.date.toISOString()}_${schedule.startTime}_${schedule.endTime}`;
+    
+    try {
+      // 먼저 존재하는지 확인
+      let ptSchedule = await prisma.ptSchedule.findFirst({
+        where: {
+          date: schedule.date,
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+        },
+      });
+
+      if (!ptSchedule) {
+        // 존재하지 않으면 생성
+        ptSchedule = await prisma.ptSchedule.create({
+          data: {
+            date: schedule.date,
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+          },
+        });
+      }
+
+      scheduleMap.set(key, ptSchedule.id);
+    } catch (error: any) {
+      // P2002 에러(unique constraint)가 발생하면 다시 조회
+      if (error.code === "P2002") {
+        const existingSchedule = await prisma.ptSchedule.findFirst({
+          where: {
+            date: schedule.date,
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+          },
+        });
+        
+        if (existingSchedule) {
+          scheduleMap.set(key, existingSchedule.id);
+        } else {
+          throw new Error("PtSchedule 생성 중 예상치 못한 오류가 발생했습니다.");
+        }
+      } else {
+        throw error;
+      }
     }
+  }
 
-    // 5. PT 생성
+  // 이제 트랜잭션 시작 (PT와 PtRecord만 생성)
+  return await prisma.$transaction(async (tx) => {
+
+    // PT 생성
     const pt = await tx.pt.create({
       data: {
         memberId: data.memberId,
@@ -423,55 +460,22 @@ export const preschedulePtService = async (
       },
     });
 
-    // 6. PtSchedule 및 PtRecord 생성
+    // PtRecord 생성 (이미 생성된 PtSchedule ID 사용)
     const scheduleResults = [];
 
     for (const schedule of possibleSchedules) {
-      // PtSchedule 찾기 또는 생성
-      let ptSchedule = await tx.ptSchedule.findFirst({
-        where: {
-          date: schedule.date,
-          startTime: schedule.startTime,
-          endTime: schedule.endTime,
-        },
-      });
-
-      if (!ptSchedule) {
-        try {
-          ptSchedule = await tx.ptSchedule.create({
-            data: {
-              date: schedule.date,
-              startTime: schedule.startTime,
-              endTime: schedule.endTime,
-            },
-          });
-        } catch (error: any) {
-          // 중복 요청으로 인한 유니크 제약 조건 오류 처리
-          if (error.code === "P2002") {
-            // 다시 조회하여 기존 레코드 사용
-            ptSchedule = await tx.ptSchedule.findFirst({
-              where: {
-                date: schedule.date,
-                startTime: schedule.startTime,
-                endTime: schedule.endTime,
-              },
-            });
-          } else {
-            throw error;
-          }
-        }
-      }
-
-      // ptSchedule이 null이면 에러 발생
-      if (!ptSchedule) {
-        throw new Error("PtSchedule 생성 또는 조회 실패");
+      const key = `${schedule.date.toISOString()}_${schedule.startTime}_${schedule.endTime}`;
+      const ptScheduleId = scheduleMap.get(key);
+      
+      if (!ptScheduleId) {
+        throw new Error(`PtSchedule ID를 찾을 수 없습니다: ${key}`);
       }
 
       // PtRecord 생성
       const ptRecord = await tx.ptRecord.create({
         data: {
           ptId: pt.id,
-          ptScheduleId: ptSchedule.id,
+          ptScheduleId: ptScheduleId,
           fitnessCenterId: data.centerId,
           memo: "",
         },
@@ -479,7 +483,7 @@ export const preschedulePtService = async (
 
       scheduleResults.push({
         ...schedule,
-        ptScheduleId: ptSchedule.id,
+        ptScheduleId: ptScheduleId,
         ptRecordId: ptRecord.id,
       });
     }

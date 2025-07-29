@@ -12,6 +12,7 @@ import {
   IDaySchedule,
   type IPendingPtCheck,
   IScheduleSlot,
+  IPreschedulePtResult,
 } from "@/app/lib/services/pt-apply.service";
 import { ISchedulePattern } from "@/app/lib/services/schedule.service";
 // components import
@@ -50,6 +51,7 @@ const PtApplicationPage = () => {
   const [chosenSchedule, setChosenSchedule] = useState<IDaySchedule>({});
   const [checkedSchedule, setCheckedSchedule] = useState<IScheduleSlot[]>([]); // 다른 일정과 겹치지 않음이 확인된 스케줄
   const [message, setMessage] = useState("");
+  const [prescheduleResult, setPrescheduleResult] = useState<IPreschedulePtResult | null>(null);
 
   const stepTitles = [
     "헬스장 선택",
@@ -72,6 +74,7 @@ const PtApplicationPage = () => {
         setChosenSchedule({});
         setCheckedSchedule([]);
         setMessage("");
+        setPrescheduleResult(null);
         break;
       case 1: // PT 프로그램 선택으로 돌아감
         setSelectedPt(null);
@@ -80,15 +83,18 @@ const PtApplicationPage = () => {
         setChosenSchedule({});
         setCheckedSchedule([]);
         setMessage("");
+        setPrescheduleResult(null);
         break;
       case 2: // 스케줄 설정으로 돌아감
         setPattern({ regular: true, count: 2 });
         setChosenSchedule({});
         setCheckedSchedule([]);
         setMessage("");
+        setPrescheduleResult(null);
         break;
       case 3: // 신청 확인으로 돌아감
         setMessage("");
+        setPrescheduleResult(null);
         break;
     }
 
@@ -172,11 +178,14 @@ const PtApplicationPage = () => {
             setPattern={setPattern}
             chosenSchedule={chosenSchedule}
             setChosenSchedule={setChosenSchedule}
-            onNext={() => setCurrentStep(3)}
+            onNext={(result) => {
+              setPrescheduleResult(result);
+              setCurrentStep(3);
+            }}
           />
         ) : null;
       case 3:
-        return selectedCenter && selectedPt && selectedTrainer ? (
+        return selectedCenter && selectedPt && selectedTrainer && prescheduleResult ? (
           <ConfirmationStep
             selectedCenter={selectedCenter}
             selectedPt={selectedPt}
@@ -185,6 +194,7 @@ const PtApplicationPage = () => {
             chosenSchedule={chosenSchedule}
             message={message}
             setMessage={setMessage}
+            prescheduleResult={prescheduleResult}
             onGoBack={goToPreviousStep}
           />
         ) : null;

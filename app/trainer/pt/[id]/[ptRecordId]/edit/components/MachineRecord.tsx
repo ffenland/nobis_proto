@@ -3,14 +3,33 @@
 import { IMachine } from "@/app/lib/services/pt-record.service";
 import { useEffect, useState } from "react";
 import { matchSearch } from "@/app/components/common/matchSearch";
+import type { MachineRecordSubmitData } from "./types";
 
 interface MachineRecordProps {
   ptRecordId: string;
   onComplete: () => void;
   machineList: IMachine[];
+  mode?: "create" | "edit";
+  ptRecordItemId?: string;
+  initialData?: {
+    title?: string;
+    description?: string;
+    machineId?: string;
+    sets: Array<{
+      id?: string;
+      set: number;
+      reps: number;
+      settingValues: Array<{
+        settingId: string;
+        value: number;
+      }>;
+    }>;
+  };
+  onSubmit?: (data: MachineRecordSubmitData) => Promise<void>;
 }
 
 interface SetRecord {
+  id: string; // Add unique ID for React keys
   reps: string;
   settingValues: {
     [settingId: string]: {
@@ -24,17 +43,39 @@ export const MachineRecord = ({
   ptRecordId,
   onComplete,
   machineList,
+  mode = "create",
+  initialData,
+  onSubmit,
 }: MachineRecordProps) => {
   const [query, setQuery] = useState("");
   const [searchedMachines, setSearchedMachines] = useState<IMachine[]>([]);
-  const [selectedMachine, setSelectedMachine] = useState<IMachine | null>(null);
-  const [sets, setSets] = useState<SetRecord[]>([
-    {
-      reps: "",
-      settingValues: {},
-    },
-  ]);
-  const [details, setDetails] = useState("");
+  
+  // 초기 머신 설정
+  const initMachine = initialData?.machineId 
+    ? machineList.find(m => m.id === initialData.machineId) || null
+    : null;
+  
+  const [selectedMachine, setSelectedMachine] = useState<IMachine | null>(initMachine);
+  
+  // 초기 세트 설정
+  const initSets = initialData?.sets?.map((set, index) => ({
+    id: set.id || `set-${Date.now()}-${index}`, // Use existing ID or generate unique one
+    reps: set.reps.toString(),
+    settingValues: set.settingValues.reduce((acc, sv) => ({
+      ...acc,
+      [sv.settingId]: {
+        settingId: sv.settingId,
+        valueId: sv.value.toString(),
+      }
+    }), {})
+  })) || [{
+    id: `set-${Date.now()}-0`,
+    reps: "",
+    settingValues: {},
+  }];
+  
+  const [sets, setSets] = useState<SetRecord[]>(initSets);
+  const [details, setDetails] = useState(initialData?.description || "");
   const [isSettingModalOpen, setIsSettingModalOpen] = useState(false);
   const [selectedSetting, setSelectedSetting] = useState<{
     id: string;
@@ -42,7 +83,7 @@ export const MachineRecord = ({
     unit: string;
     values: { id: string; value: string }[];
   } | null>(null);
-  const [selectedSetIndex, setSelectedSetIndex] = useState<number | null>(null);
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 세트 추가
@@ -69,9 +110,10 @@ export const MachineRecord = ({
       return;
     }
 
-    setSets([
-      ...sets,
+    setSets(prevSets => [
+      ...prevSets,
       {
+        id: `set-${Date.now()}-${prevSets.length}`,
         reps: "",
         settingValues: { ...lastSet.settingValues },
       },
@@ -79,35 +121,39 @@ export const MachineRecord = ({
   };
 
   // 세트 삭제
-  const removeSet = (index: number) => {
+  const removeSet = (setId: string) => {
     if (sets.length > 1) {
-      setSets(sets.filter((_, i) => i !== index));
+      setSets(prevSets => prevSets.filter(set => set.id !== setId));
     }
   };
 
-  // 세트 값 변경
+  // 세트 값 변경 - 함수형 업데이트로 최신 상태 보장
   const updateSet = (
-    index: number,
-    field: keyof SetRecord,
+    setId: string,
+    field: keyof Omit<SetRecord, 'id'>,
     value: string | { settingId: string; valueId: string }
   ) => {
-    const newSets = [...sets];
-    if (field === "settingValues") {
-      const { settingId, valueId } = value as {
-        settingId: string;
-        valueId: string;
-      };
-      newSets[index] = {
-        ...newSets[index],
-        settingValues: {
-          ...newSets[index].settingValues,
-          [settingId]: { settingId, valueId },
-        },
-      };
-    } else {
-      newSets[index] = { ...newSets[index], [field]: value as string };
-    }
-    setSets(newSets);
+    setSets(prevSets => 
+      prevSets.map(set => {
+        if (set.id !== setId) return set;
+        
+        if (field === "settingValues") {
+          const { settingId, valueId } = value as {
+            settingId: string;
+            valueId: string;
+          };
+          return {
+            ...set,
+            settingValues: {
+              ...set.settingValues,
+              [settingId]: { settingId, valueId },
+            },
+          };
+        } else {
+          return { ...set, [field]: value as string };
+        }
+      })
+    );
   };
 
   // 설정값 표시 텍스트 생성
@@ -154,8 +200,9 @@ export const MachineRecord = ({
     setIsSubmitting(true);
 
     try {
-      // 세트별 기록 데이터 구성
-      const machineSetRecords = sets.map((set, index) => {
+      // 세트별 기록 데이터 구성 - 최신 상태를 확실히 사용
+      const currentSets = [...sets]; // 현재 상태의 복사본 생성
+      const machineSetRecords = currentSets.map((set, index) => {
         const settingValueIds = Object.values(set.settingValues).map(
           ({ valueId }) => valueId
         );
@@ -167,30 +214,43 @@ export const MachineRecord = ({
         };
       });
 
-      // API 호출하여 머신 기록 생성
-      const response = await fetch("/api/trainer/machine-set-records", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ptRecordId,
+      // 커스텀 제출 핸들러가 있으면 사용
+      if (onSubmit) {
+        await onSubmit({
           machineId: selectedMachine.id,
           machineName: selectedMachine.title,
           machineSetRecords,
           details,
-        }),
-      });
+        });
+      } else if (mode === "create") {
+        // 생성 모드: 기존 로직 사용
+        const response = await fetch("/api/trainer/machine-set-records", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ptRecordId,
+            machineId: selectedMachine.id,
+            machineName: selectedMachine.title,
+            machineSetRecords,
+            details,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error("머신 운동 기록 생성 실패");
+        if (!response.ok) {
+          throw new Error("머신 운동 기록 생성 실패");
+        }
+      } else {
+        // 수정 모드: onSubmit 핸들러 필요
+        throw new Error("수정 모드는 onSubmit 핸들러가 필요합니다");
       }
 
-      alert("머신 운동이 성공적으로 기록되었습니다!");
+      alert(`머신 운동이 성공적으로 ${mode === "edit" ? "수정" : "기록"}되었습니다!`);
       onComplete();
     } catch (error) {
       console.error("Error writing machine record:", error);
-      alert("머신 운동 기록 작성 중 오류가 발생했습니다.");
+      alert(`머신 운동 ${mode === "edit" ? "수정" : "기록"} 중 오류가 발생했습니다.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -207,7 +267,7 @@ export const MachineRecord = ({
       <div className="space-y-6">
         <div className="text-center mb-6">
           <h3 className="text-xl font-bold text-gray-900 mb-2">
-            🏋️ 머신 운동 기록
+            🏋️ 머신 운동 {mode === "edit" ? "수정" : "기록"}
           </h3>
         </div>
 
@@ -234,7 +294,7 @@ export const MachineRecord = ({
           <h4 className="text-sm font-medium text-gray-900">세트 기록</h4>
 
           {sets.map((set, index) => (
-            <div key={index} className="bg-gray-50 rounded-lg p-4 space-y-4">
+            <div key={set.id} className="bg-gray-50 rounded-lg p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-gray-900">
                   세트 {index + 1}
@@ -242,7 +302,7 @@ export const MachineRecord = ({
                 {sets.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => removeSet(index)}
+                    onClick={() => removeSet(set.id)}
                     className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors"
                   >
                     삭제
@@ -261,7 +321,7 @@ export const MachineRecord = ({
                       type="button"
                       onClick={() => {
                         setSelectedSetting(setting);
-                        setSelectedSetIndex(index);
+                        setSelectedSetId(set.id);
                         setIsSettingModalOpen(true);
                       }}
                       className="w-full px-4 py-3 text-left border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -282,7 +342,13 @@ export const MachineRecord = ({
                 <input
                   type="number"
                   value={set.reps}
-                  onChange={(e) => updateSet(index, "reps", e.target.value)}
+                  onChange={(e) => updateSet(set.id, "reps", e.target.value)}
+                  onBlur={(e) => updateSet(set.id, "reps", e.target.value)} // Ensure value is captured on blur
+                  onFocus={(e) => 
+                    e.target.addEventListener("wheel", function (e) { 
+                      e.preventDefault() 
+                    }, { passive: false })
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
                   placeholder="횟수"
                   min="1"
@@ -353,8 +419,8 @@ export const MachineRecord = ({
                   <button
                     key={value.id}
                     onClick={() => {
-                      if (selectedSetIndex !== null) {
-                        updateSet(selectedSetIndex, "settingValues", {
+                      if (selectedSetId !== null) {
+                        updateSet(selectedSetId, "settingValues", {
                           settingId: selectedSetting.id,
                           valueId: value.id,
                         });
@@ -387,7 +453,7 @@ export const MachineRecord = ({
       <div className="space-y-6">
         <div className="text-center mb-6">
           <h3 className="text-xl font-bold text-gray-900 mb-2">
-            🏋️ 머신 운동 기록
+            🏋️ 머신 운동 {mode === "edit" ? "수정" : "기록"}
           </h3>
         </div>
 
@@ -417,6 +483,7 @@ export const MachineRecord = ({
                     // 첫 번째 세트의 설정값 초기화
                     setSets([
                       {
+                        id: `set-${Date.now()}-0`,
                         reps: "",
                         settingValues: {},
                       },

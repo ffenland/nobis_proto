@@ -9,14 +9,12 @@ interface IChatMessageProps {
   message: IMessageData;
   isOwn: boolean;
   showAvatar?: boolean;
-  showReadStatus?: boolean;
 }
 
 export function ChatMessage({
   message,
   isOwn,
   showAvatar = true,
-  showReadStatus = true,
 }: IChatMessageProps) {
   return (
     <div
@@ -78,26 +76,11 @@ export function ChatMessage({
           )}
         </div>
 
-        {/* 시간 및 읽음 상태 */}
-        <div
-          className={`flex items-center gap-2 mt-1 px-1 ${
-            isOwn ? "flex-row-reverse" : "flex-row"
-          }`}
-        >
+        {/* 시간 */}
+        <div className={`mt-1 px-1`}>
           <time className="text-xs text-gray-500">
             {format(new Date(message.createdAt), "HH:mm", { locale: ko })}
           </time>
-
-          {/* 읽음 상태 (내가 보낸 메시지일 때만) */}
-          {isOwn && showReadStatus && (
-            <div className="text-xs text-gray-500">
-              {message.isRead ? (
-                <span className="text-blue-500">읽음</span>
-              ) : (
-                <span>안읽음</span>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>

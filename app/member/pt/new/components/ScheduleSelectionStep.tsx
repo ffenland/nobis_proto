@@ -17,6 +17,7 @@ import { ISchedulePattern } from "@/app/lib/services/schedule.service";
 import { WeekDay } from "@prisma/client";
 import { Badge } from "@/app/components/ui/Loading";
 import dayjs from "dayjs";
+import type { IPreschedulePtResult } from "@/app/lib/services/pt-apply.service";
 
 interface ScheduleSelectionStepProps {
   selectedCenter?: IFitnessCenters[number] | null;
@@ -26,7 +27,7 @@ interface ScheduleSelectionStepProps {
   setPattern: (pattern: ISchedulePattern) => void;
   chosenSchedule: IDaySchedule;
   setChosenSchedule: (schedule: IDaySchedule) => void;
-  onNext: () => void;
+  onNext: (result: IPreschedulePtResult) => void;
 }
 
 // 데이터 페처 함수
@@ -57,9 +58,12 @@ interface IScheduleConfirmModalProps {
   chosenSchedule: IDaySchedule;
   pattern: ISchedulePattern;
   duration: number;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
   onCancel: () => void;
   isPending?: boolean;
+  selectedCenter?: IFitnessCenters[number] | null;
+  selectedPt: IPtProgramsByCenter[number];
+  selectedTrainer: IPtProgramsByCenter[number]["trainer"][number];
 }
 
 const ScheduleConfirmModal = ({
@@ -105,8 +109,8 @@ const ScheduleConfirmModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <Card className="w-full max-w-md border-2 border-green-500">
-        <CardContent className="p-6">
+      <Card className="w-full max-w-md max-h-[80vh] flex flex-col border-2 border-green-500">
+        <CardContent className="p-6 overflow-y-auto">
           {/* 헤더 정보 */}
           <div className="space-y-3 mb-6">
             <div className="flex justify-between items-center">
@@ -196,7 +200,11 @@ const ScheduleConfirmModal = ({
           {/* 버튼 */}
           {isPending ? (
             <div className="mt-6 p-4 bg-gray-100 rounded-lg text-center">
-              <p className="text-gray-600">스케줄 계산중...</p>
+              <div className="flex flex-col items-center space-y-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                <p className="text-gray-600">PT 일정을 생성하는 중입니다...</p>
+                <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
+              </div>
             </div>
           ) : (
             <div className="flex gap-3 mt-6">
@@ -215,6 +223,7 @@ const ScheduleConfirmModal = ({
 };
 
 const ScheduleSelectionStep = ({
+  selectedCenter,
   selectedPt,
   selectedTrainer,
   pattern,
@@ -225,6 +234,8 @@ const ScheduleSelectionStep = ({
 }: ScheduleSelectionStepProps) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [canProceedEarly, setCanProceedEarly] = useState(false);
+  const [isPrescheduleLoading, setIsPrescheduleLoading] = useState(false);
+  const [prescheduleError, setPrescheduleError] = useState<string | null>(null);
 
   // 트레이너 스케줄 및 근무시간 조회
   const { data: trainerScheduleData, error: trainerScheduleError } =
@@ -270,6 +281,52 @@ const ScheduleSelectionStep = ({
   const handleNext = () => {
     if (isScheduleValid()) {
       setShowConfirmModal(true);
+    }
+  };
+
+  // Preschedule API 호출 함수
+  const handlePreschedule = async () => {
+    if (!selectedCenter) return;
+
+    // 이미 로딩 중이면 중복 요청 방지
+    if (isPrescheduleLoading) return;
+
+    setIsPrescheduleLoading(true);
+    setPrescheduleError(null);
+
+    try {
+      const response = await fetch("/api/member/pt/preschedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chosenSchedule,
+          centerId: selectedCenter.id,
+          ptProductId: selectedPt.id,
+          pattern,
+          trainerId: selectedTrainer.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        // 특정 에러 메시지 처리
+        if (result.error?.includes("이미 PENDING 상태의 PT가 존재")) {
+          throw new Error(
+            "이미 신청 대기 중인 PT가 있습니다. 현재 PT를 먼저 처리해주세요."
+          );
+        }
+        throw new Error(result.error || "사전 스케줄링 실패");
+      }
+
+      // 성공 시 다음 단계로 이동
+      setShowConfirmModal(false);
+      onNext(result);
+    } catch (err) {
+      setPrescheduleError(err instanceof Error ? err.message : "Unknown error");
+      // 에러 발생 시 모달은 닫지 않고 유지
+    } finally {
+      setIsPrescheduleLoading(false);
     }
   };
 
@@ -386,15 +443,25 @@ const ScheduleSelectionStep = ({
           chosenSchedule={chosenSchedule}
           pattern={pattern}
           duration={selectedPt.time}
-          onConfirm={() => {
-            setShowConfirmModal(false);
-            onNext();
+          onConfirm={async () => {
+            await handlePreschedule();
           }}
           onCancel={() => {
             setShowConfirmModal(false);
             setChosenSchedule({});
           }}
+          isPending={isPrescheduleLoading}
+          selectedCenter={selectedCenter}
+          selectedPt={selectedPt}
+          selectedTrainer={selectedTrainer}
         />
+      )}
+
+      {/* 에러 메시지 */}
+      {prescheduleError && (
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600 text-sm">{prescheduleError}</p>
+        </div>
       )}
     </div>
   );

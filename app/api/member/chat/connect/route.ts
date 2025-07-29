@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
 
     const chatService = ChatService.getInstance();
     const result = await chatService.connectToChatRoom(session.id, {
-      trainerUserId: opponentId,
+      opponentUserId: opponentId,
+      opponentRole: "TRAINER",
     });
 
     return NextResponse.json(result);

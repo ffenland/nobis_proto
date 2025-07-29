@@ -4,13 +4,8 @@ import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
-import {
-  Clock,
-  AlertTriangle,
-  ArrowLeft,
-  Calendar,
-} from "lucide-react";
-import { type TEditTimePermission } from "../actions";
+import { Clock, AlertTriangle, ArrowLeft, Calendar } from "lucide-react";
+import { TEditTimePermission } from "../../actions";
 
 interface EditTimeRestrictionNoticeProps {
   ptId: string;
@@ -18,10 +13,10 @@ interface EditTimeRestrictionNoticeProps {
   timeInfo: TEditTimePermission;
 }
 
-const EditTimeRestrictionNotice = ({ 
-  ptId, 
-  ptRecordId, 
-  timeInfo 
+const EditTimeRestrictionNotice = ({
+  ptId,
+  ptRecordId,
+  timeInfo,
 }: EditTimeRestrictionNoticeProps) => {
   const formatDateTime = (date: Date) => {
     return `${formatDateThisYear(date)} ${formatTimeToString(
@@ -54,11 +49,9 @@ const EditTimeRestrictionNotice = ({
             <p className="text-orange-800 text-lg mb-6">
               현재는 운동 기록을 작성할 수 없는 시간입니다.
             </p>
-            
+
             <div className="bg-white p-4 rounded-lg border border-orange-200">
-              <div className="text-orange-900 font-medium mb-2">
-                현재 시간
-              </div>
+              <div className="text-orange-900 font-medium mb-2">현재 시간</div>
               <div className="text-xl font-bold text-orange-800">
                 {formatDateTime(timeInfo.currentTime)}
               </div>
@@ -73,7 +66,7 @@ const EditTimeRestrictionNotice = ({
               <Calendar className="w-5 h-5 text-blue-600" />
               <h3 className="text-lg font-semibold">운동 일정 정보</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="p-4 bg-blue-50 rounded-lg">
                 <div className="text-sm text-blue-600 mb-1">운동 날짜</div>
@@ -84,7 +77,8 @@ const EditTimeRestrictionNotice = ({
               <div className="p-4 bg-blue-50 rounded-lg">
                 <div className="text-sm text-blue-600 mb-1">운동 시간</div>
                 <div className="font-semibold text-blue-900">
-                  {formatTime(timeInfo.scheduleStart)} ~ {formatTime(timeInfo.scheduleEnd)}
+                  {formatTime(timeInfo.scheduleStart)} ~{" "}
+                  {formatTime(timeInfo.scheduleEnd)}
                 </div>
               </div>
             </div>
@@ -92,15 +86,18 @@ const EditTimeRestrictionNotice = ({
             <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 <AlertTriangle className="w-5 h-5 text-green-600" />
-                <div className="font-semibold text-green-900">작성 가능 시간</div>
+                <div className="font-semibold text-green-900">
+                  작성 가능 시간
+                </div>
               </div>
               <div className="text-green-800">
                 <div className="font-medium mb-2">
-                  {formatDateTime(timeInfo.allowedStart)} ~ {formatDateTime(timeInfo.allowedEnd)}
+                  {formatDateTime(timeInfo.allowedStart)} ~{" "}
+                  {formatDateTime(timeInfo.allowedEnd)}
                 </div>
                 <div className="text-sm">
-                  • 운동 시작 5분 전부터 가능<br/>
-                  • 운동 종료 1시간 후까지 가능
+                  • 운동 시작 5분 전부터 가능
+                  <br />• 운동 종료 1시간 후까지 가능
                 </div>
               </div>
             </div>
@@ -110,7 +107,9 @@ const EditTimeRestrictionNotice = ({
         {/* 안내 정보 카드 */}
         <Card className="border-gray-200">
           <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4">왜 시간 제한이 있나요?</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              왜 시간 제한이 있나요?
+            </h3>
             <div className="space-y-3 text-gray-700">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -130,7 +129,8 @@ const EditTimeRestrictionNotice = ({
                 <div>
                   <div className="font-medium">데이터 신뢰성</div>
                   <div className="text-sm text-gray-600">
-                    시간이 지난 후 기록을 수정하여 데이터가 왜곡되는 것을 방지합니다.
+                    시간이 지난 후 기록을 수정하여 데이터가 왜곡되는 것을
+                    방지합니다.
                   </div>
                 </div>
               </div>

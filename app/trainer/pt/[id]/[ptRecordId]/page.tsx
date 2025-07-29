@@ -163,17 +163,52 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
             <div className="space-y-4">
               {/* 상태별 설명 */}
               {attendanceStatus === "예정" && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <Circle className="w-5 h-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-blue-900">예정된 수업</div>
-                      <div className="text-sm text-blue-800 mt-1">
-                        아직 진행되지 않은 수업입니다. 필요시 일정을 변경할 수 있습니다.
+                <>
+                  {/* 일정 변경 요청 알림 (PENDING 상태인 경우) */}
+                  {ptRecordDetail.scheduleChangeRequest.length > 0 && (
+                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-orange-600 mt-0.5" />
+                        <div>
+                          <div className="font-medium text-orange-900">일정 변경 요청됨</div>
+                          <div className="text-sm text-orange-800 mt-1">
+                            현재 일정을{" "}
+                            <strong>
+                              {formatDateThisYear(ptRecordDetail.scheduleChangeRequest[0].requestedDate)}
+                              {" "}
+                              {formatTimeToString(
+                                Math.floor(ptRecordDetail.scheduleChangeRequest[0].requestedStartTime / 100),
+                                ptRecordDetail.scheduleChangeRequest[0].requestedStartTime % 100
+                              )}
+                            </strong>
+                            으로 변경해달라고 요청을 보낸 상태입니다.
+                            빠른 확인이 필요한 경우 직접 연락하세요.
+                          </div>
+                          <div className="mt-2">
+                            <Link href={`/trainer/pt/${ptId}/${ptRecordId}/scheduleChange`}>
+                              <Button variant="outline" size="sm">
+                                <Calendar className="w-4 h-4 mr-1" />
+                                일정 변경 관리
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Circle className="w-5 h-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <div className="font-medium text-blue-900">예정된 수업</div>
+                        <div className="text-sm text-blue-800 mt-1">
+                          아직 진행되지 않은 수업입니다. 필요시 일정을 변경할 수 있습니다.
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                </>
               )}
 
               {attendanceStatus === "참석" && (
@@ -236,7 +271,7 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
 
                 {/* 불참한 수업: 기록 작성 */}
                 {attendanceStatus === "불참" && (
-                  <Link href={`/trainer/pt/${ptId}/${ptRecordId}/edit`}>
+                  <Link href={`/trainer/pt/${ptId}/${ptRecordId}/record`}>
                     <Button variant="primary" className="w-full">
                       <Edit className="w-4 h-4 mr-2" />
                       운동 기록 작성

@@ -2,6 +2,7 @@
 
 import prisma from "@/app/lib/prisma";
 import { ScheduleChangeState } from "@prisma/client";
+import { convertKSTtoUTC } from "@/app/lib/utils";
 
 // ===== 입력 타입만 수동 정의 =====
 export interface IScheduleChangeRequest {
@@ -559,10 +560,47 @@ export const cancelScheduleChangeRequest = async (
 };
 
 // 사용자의 요청/응답 목록 조회 (select 사용, Original 정보 포함)
-export const getUserScheduleChangeRequests = async (userId: string) => {
+export const getUserScheduleChangeRequests = async (
+  userId: string,
+  userRole: string
+) => {
+  // 하루 이상 남은 수업을 위한 날짜 계산
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const tomorrowUTC = convertKSTtoUTC(tomorrow);
+
   const requests = await prisma.ptScheduleChangeRequest.findMany({
     where: {
-      OR: [{ requestorId: userId }, { responderId: userId }],
+      AND: [
+        // 본인이 요청자가 아님
+        { requestorId: { not: userId } },
+        // PENDING 상태만
+        { state: ScheduleChangeState.PENDING },
+        // 수업 날짜가 하루 이상 남음
+        {
+          ptRecord: {
+            ptSchedule: {
+              date: {
+                gte: tomorrowUTC,
+              },
+            },
+          },
+        },
+        // 본인이 관련된 PT (Member 또는 Trainer)
+        {
+          ptRecord: {
+            pt: {
+              ...(userRole === "MEMBER" && {
+                member: { user: { id: userId } },
+              }),
+              ...(userRole === "TRAINER" && {
+                trainer: { user: { id: userId } },
+              }),
+            },
+          },
+        },
+      ],
     },
     select: {
       id: true,

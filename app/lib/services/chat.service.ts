@@ -16,7 +16,8 @@ export interface IMarkAsReadRequest {
 }
 
 export interface IChatConnectRequest {
-  trainerUserId: string;
+  opponentUserId: string;
+  opponentRole: "MEMBER" | "TRAINER";
 }
 
 export interface IGetMessagesRequest {
@@ -45,10 +46,7 @@ export class ChatService {
   async getChatRooms(userId: string) {
     const chatRooms = await prisma.chatRoom.findMany({
       where: {
-        OR: [
-          { userOneId: userId },
-          { userTwoId: userId },
-        ],
+        OR: [{ userOneId: userId }, { userTwoId: userId }],
       },
       orderBy: { lastMessageAt: "desc" },
       select: {
@@ -99,7 +97,8 @@ export class ChatService {
     const roomsWithUnreadCount = await Promise.all(
       chatRooms.map(async (room) => {
         // 상대방 정보 확인
-        const otherUser = room.userOne.id === userId ? room.userTwo : room.userOne;
+        const otherUser =
+          room.userOne.id === userId ? room.userTwo : room.userOne;
         const lastMessage = room.messages[0];
 
         // 간단한 안읽은 메시지 수 계산
@@ -146,13 +145,16 @@ export class ChatService {
     // 채팅방 참여자 확인 (새로운 스키마 방식)
     const chatRoom = await prisma.chatRoom.findUnique({
       where: { id: roomId },
-      select: { 
-        userOneId: true, 
-        userTwoId: true 
+      select: {
+        userOneId: true,
+        userTwoId: true,
       },
     });
 
-    if (!chatRoom || (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)) {
+    if (
+      !chatRoom ||
+      (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)
+    ) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
@@ -195,13 +197,16 @@ export class ChatService {
     // 채팅방 참여자 확인 (새로운 스키마 방식)
     const chatRoom = await prisma.chatRoom.findUnique({
       where: { id: roomId },
-      select: { 
-        userOneId: true, 
-        userTwoId: true 
+      select: {
+        userOneId: true,
+        userTwoId: true,
       },
     });
 
-    if (!chatRoom || (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)) {
+    if (
+      !chatRoom ||
+      (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)
+    ) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
@@ -257,13 +262,16 @@ export class ChatService {
     // 채팅방 참여자 확인 (새로운 스키마 방식)
     const chatRoom = await prisma.chatRoom.findUnique({
       where: { id: roomId },
-      select: { 
-        userOneId: true, 
-        userTwoId: true 
+      select: {
+        userOneId: true,
+        userTwoId: true,
       },
     });
 
-    if (!chatRoom || (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)) {
+    if (
+      !chatRoom ||
+      (chatRoom.userOneId !== userId && chatRoom.userTwoId !== userId)
+    ) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
@@ -289,10 +297,7 @@ export class ChatService {
         senderId: { not: userId }, // 내가 보낸 게 아닌
         isRead: false, // 읽지 않은
         room: {
-          OR: [
-            { userOneId: userId },
-            { userTwoId: userId },
-          ],
+          OR: [{ userOneId: userId }, { userTwoId: userId }],
         },
       },
     });
@@ -300,19 +305,24 @@ export class ChatService {
     return { unreadCount };
   }
 
-  // 트레이너와 채팅방 연결 (멤버 전용)
-  async connectToChatRoom(memberId: string, request: IChatConnectRequest) {
-    const { trainerUserId } = request;
+  // 채팅방 연결 (공용 - 멤버, 트레이너 모두 사용 가능)
+  async connectToChatRoom(userId: string, request: IChatConnectRequest) {
+    const { opponentUserId, opponentRole } = request;
 
-    // 1. 트레이너 존재 확인
-    const trainer = await prisma.user.findFirst({
+    // 1. 본인 정보 확인
+    const currentUser = await prisma.user.findFirst({
       where: {
-        id: trainerUserId,
-        role: "TRAINER",
+        id: userId,
       },
       select: {
         id: true,
+        role: true,
         username: true,
+        memberProfile: {
+          select: {
+            id: true,
+          },
+        },
         trainerProfile: {
           select: {
             id: true,
@@ -321,19 +331,26 @@ export class ChatService {
       },
     });
 
-    if (!trainer || !trainer.trainerProfile) {
-      throw new Error("해당 트레이너를 찾을 수 없습니다.");
+    if (!currentUser) {
+      throw new Error("사용자 정보를 찾을 수 없습니다.");
     }
 
-    // 2. 멤버 정보 확인
-    const member = await prisma.user.findFirst({
+    // 2. 상대방 정보 확인
+    const opponent = await prisma.user.findFirst({
       where: {
-        id: memberId,
-        role: "MEMBER",
+        id: opponentUserId,
+        role: opponentRole,
       },
       select: {
         id: true,
+        role: true,
+        username: true,
         memberProfile: {
+          select: {
+            id: true,
+          },
+        },
+        trainerProfile: {
           select: {
             id: true,
           },
@@ -341,13 +358,25 @@ export class ChatService {
       },
     });
 
-    if (!member || !member.memberProfile) {
-      throw new Error("멤버 정보를 찾을 수 없습니다.");
+    if (!opponent) {
+      throw new Error(
+        `해당 ${
+          opponentRole === "TRAINER" ? "트레이너" : "회원"
+        }을 찾을 수 없습니다.`
+      );
+    }
+
+    // 역할별 프로필 확인
+    if (opponentRole === "TRAINER" && !opponent.trainerProfile) {
+      throw new Error("트레이너 프로필을 찾을 수 없습니다.");
+    }
+    if (opponentRole === "MEMBER" && !opponent.memberProfile) {
+      throw new Error("회원 프로필을 찾을 수 없습니다.");
     }
 
     // 3. 기존 채팅방 조회 (새로운 스키마 방식)
-    const [userOneId, userTwoId] = [memberId, trainerUserId].sort();
-    
+    const [userOneId, userTwoId] = [userId, opponentUserId].sort();
+
     const existingRoom = await prisma.chatRoom.findUnique({
       where: {
         unique_chat_participants: {
@@ -364,7 +393,10 @@ export class ChatService {
       return {
         roomId: existingRoom.id,
         created: false,
-        trainerName: trainer.username,
+        opponentName: opponent.username,
+        // 호환성을 위해 기존 필드 유지
+        trainerName: opponentRole === "TRAINER" ? opponent.username : undefined,
+        memberName: opponentRole === "MEMBER" ? opponent.username : undefined,
       };
     }
 
@@ -382,14 +414,17 @@ export class ChatService {
     return {
       roomId: newRoom.id,
       created: true,
-      trainerName: trainer.username,
+      opponentName: opponent.username,
+      // 호환성을 위해 기존 필드 유지
+      trainerName: opponentRole === "TRAINER" ? opponent.username : undefined,
+      memberName: opponentRole === "MEMBER" ? opponent.username : undefined,
     };
   }
 
   async getOrCreateChatRoom(userId: string, otherUserId: string) {
     // 새로운 스키마 방식으로 수정
     const [userOneId, userTwoId] = [userId, otherUserId].sort();
-    
+
     const existingRoom = await prisma.chatRoom.findUnique({
       where: {
         unique_chat_participants: {
@@ -459,20 +494,30 @@ export class ChatService {
     }
 
     // 참여자 확인
-    const isParticipant = chatRoom.userOne.id === userId || chatRoom.userTwo.id === userId;
+    const isParticipant =
+      chatRoom.userOne.id === userId || chatRoom.userTwo.id === userId;
     if (!isParticipant) {
       throw new Error("채팅방에 참여하지 않은 사용자입니다.");
     }
 
     // 상대방 정보 확인
-    const otherUser = chatRoom.userOne.id === userId ? chatRoom.userTwo : chatRoom.userOne;
+    const otherUser =
+      chatRoom.userOne.id === userId ? chatRoom.userTwo : chatRoom.userOne;
 
     // PT 정보 조회
     let ptInfo = null;
-    const member = chatRoom.userOne.role === "MEMBER" ? chatRoom.userOne : 
-                  chatRoom.userTwo.role === "MEMBER" ? chatRoom.userTwo : null;
-    const trainer = chatRoom.userOne.role === "TRAINER" ? chatRoom.userOne : 
-                   chatRoom.userTwo.role === "TRAINER" ? chatRoom.userTwo : null;
+    const member =
+      chatRoom.userOne.role === "MEMBER"
+        ? chatRoom.userOne
+        : chatRoom.userTwo.role === "MEMBER"
+        ? chatRoom.userTwo
+        : null;
+    const trainer =
+      chatRoom.userOne.role === "TRAINER"
+        ? chatRoom.userOne
+        : chatRoom.userTwo.role === "TRAINER"
+        ? chatRoom.userTwo
+        : null;
 
     if (member?.memberProfile?.id && trainer?.trainerProfile?.id) {
       const pt = await prisma.pt.findFirst({

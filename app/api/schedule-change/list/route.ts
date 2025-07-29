@@ -14,7 +14,10 @@ export async function GET(request: NextRequest) {
     }
 
     // 서비스 함수 호출 (타입 자동 추론)
-    const requests = await getUserScheduleChangeRequests(session.id);
+    const requests = await getUserScheduleChangeRequests(
+      session.id,
+      session.role
+    );
 
     return NextResponse.json({
       success: true,

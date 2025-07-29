@@ -1,7 +1,7 @@
 // app/trainer/pt/[id]/page.tsx
 import Link from "next/link";
-import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
-import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { PageLayout } from "@/app/components/ui/Dropdown";
+import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import Image from "next/image";
@@ -11,12 +11,8 @@ import {
   type TPtRecord,
   type TPtRecordItem,
 } from "./actions";
-import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
 import {
-  User,
-  CheckCircle,
   XCircle,
-  Circle,
   ChevronRight,
 } from "lucide-react";
 
@@ -48,6 +44,100 @@ const calculateAttendanceStatus = (
   return items.length > 0 ? "참석" : "불참";
 };
 
+// 출석 상태별 정보 가져오기
+const getAttendanceDisplayInfo = (status: string) => {
+  switch (status) {
+    case "참석":
+      return { text: "참석", variant: "success" as const };
+    case "불참":
+      return { text: "불참", variant: "error" as const };
+    case "예정":
+      return { text: "예정", variant: "default" as const };
+    default:
+      return { text: status, variant: "default" as const };
+  }
+};
+
+// 날짜 포맷 함수
+const formatDate = (dateString: string | Date) => {
+  const date = new Date(dateString);
+  const today = new Date();
+
+  if (date.toDateString() === today.toDateString()) {
+    return { text: "오늘", isToday: true, isPast: false };
+  } else if (date < today) {
+    return {
+      text: date.toLocaleDateString("ko-KR"),
+      isToday: false,
+      isPast: true,
+    };
+  } else {
+    return {
+      text: date.toLocaleDateString("ko-KR"),
+      isToday: false,
+      isPast: false,
+    };
+  }
+};
+
+// 시간 포맷 함수
+const formatTime = (time: number) => {
+  const hour = Math.floor(time / 100);
+  const minute = time % 100;
+  return `${hour.toString().padStart(2, "0")}:${minute
+    .toString()
+    .padStart(2, "0")}`;
+};
+
+// PT 상태 결정
+const getPtStatus = (pt: TPtDetail) => {
+  if (pt.state === "CONFIRMED") {
+    const attendedCount = pt.ptRecord.filter(record => {
+      const status = calculateAttendanceStatus(record.ptSchedule, record.items);
+      return status === "참석";
+    }).length;
+
+    if (attendedCount >= pt.ptProduct.totalCount) {
+      return { text: "완료", variant: "default" as const };
+    }
+    return { text: "진행중", variant: "success" as const };
+  } else if (pt.state === "REJECTED") {
+    return { text: "거절됨", variant: "error" as const };
+  } else if (pt.state === "PENDING") {
+    return { text: "승인대기", variant: "warning" as const };
+  } else {
+    return { text: "알 수 없음", variant: "default" as const };
+  }
+};
+
+// 출석 통계 계산
+const calculateAttendanceStats = (ptRecords: TPtRecord[]) => {
+  const attended = ptRecords.filter(record => {
+    const status = calculateAttendanceStatus(record.ptSchedule, record.items);
+    return status === "참석";
+  }).length;
+
+  const completedSessions = ptRecords.filter(record => {
+    const status = calculateAttendanceStatus(record.ptSchedule, record.items);
+    return status !== "예정";
+  }).length;
+
+  const attendanceRate = completedSessions > 0
+    ? Math.round((attended / completedSessions) * 100)
+    : 0;
+
+  return { attended, completedSessions, attendanceRate };
+};
+
+// 만료일 계산
+const getExpiryDate = (startDate: string | Date, totalCount: number) => {
+  const start = new Date(startDate);
+  const months = totalCount < 11 ? 1 : totalCount < 21 ? 3 : 4;
+  const expiry = new Date(start);
+  expiry.setMonth(expiry.getMonth() + months);
+  return expiry;
+};
+
 const TrainerPtDetailPage = async ({ params }: PageProps) => {
   const { id: ptId } = await params;
 
@@ -57,7 +147,7 @@ const TrainerPtDetailPage = async ({ params }: PageProps) => {
     ptDetail = await getPtDetailAction(ptId);
   } catch (error) {
     return (
-      <PageLayout maxWidth="2xl">
+      <PageLayout maxWidth="lg">
         <div className="text-center py-12">
           <div className="text-red-600 mb-4">
             <XCircle className="w-12 h-12 mx-auto" />
@@ -78,157 +168,232 @@ const TrainerPtDetailPage = async ({ params }: PageProps) => {
     );
   }
 
-  // 출석 상태별 스타일
-  const getAttendanceStyle = (status: string) => {
-    switch (status) {
-      case "참석":
-        return {
-          bgColor: "bg-green-50 border-green-200",
-          badgeVariant: "success" as const,
-          icon: CheckCircle,
-        };
-      case "불참":
-        return {
-          bgColor: "bg-red-50 border-red-200", 
-          badgeVariant: "error" as const,
-          icon: XCircle,
-        };
-      case "예정":
-        return {
-          bgColor: "bg-blue-50 border-blue-200",
-          badgeVariant: "default" as const,
-          icon: Circle,
-        };
-      default:
-        return {
-          bgColor: "bg-gray-50 border-gray-200",
-          badgeVariant: "default" as const,
-          icon: Circle,
-        };
-    }
-  };
+  const status = getPtStatus(ptDetail);
+  const expiryDate = getExpiryDate(ptDetail.startDate, ptDetail.ptProduct.totalCount);
+  const attendanceStats = calculateAttendanceStats(ptDetail.ptRecord);
 
   return (
-    <PageLayout maxWidth="2xl">
-      <PageHeader
-        title="PT 상세 정보"
-        subtitle={`${ptDetail.member?.user.username}님의 ${ptDetail.ptProduct.title}`}
-      />
+    <PageLayout maxWidth="lg">
+      {/* 헤더 - 모바일 최적화 */}
+      <div className="px-3 py-2 border-b bg-white sticky top-0 z-10">
+        <div className="flex items-center justify-between mb-2">
+          <Link href="/trainer/pt">
+            <Button variant="outline" size="sm">
+              ← 목록
+            </Button>
+          </Link>
+        </div>
+        <h1 className="text-lg font-bold text-gray-900 truncate">
+          {ptDetail.ptProduct.title}
+        </h1>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-sm text-gray-600">PT 상세</span>
+          <Badge variant={status.variant}>{status.text}</Badge>
+        </div>
+      </div>
 
-      <div className="space-y-6">
-        {/* PT 기본 정보 카드 */}
-        <Card>
-          <CardHeader>
-            <h2 className="text-xl font-semibold">
-              {ptDetail.ptProduct.title}
-            </h2>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4 mb-6">
+      {/* PT 기본 정보 - 모바일 최적화 */}
+      <Card className="mx-2 my-2 shadow-sm">
+        <CardContent className="p-3">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                {ptDetail.ptProduct.title}
+              </h2>
+              <div className="grid grid-cols-1 gap-1 text-sm text-gray-600">
+                <span>회당 {ptDetail.ptProduct.time}시간</span>
+                <span>총 {ptDetail.ptProduct.totalCount}회</span>
+                <span className="font-medium text-gray-900">
+                  {ptDetail.ptProduct.price.toLocaleString()}원
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 진행 상태 - 모바일 최적화 */}
+          <div className="bg-gray-50 rounded-lg p-2 mt-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-600">진행 상태</span>
+              <span className="text-sm font-medium text-gray-900">
+                {attendanceStats.attended}/{ptDetail.ptProduct.totalCount}회
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+              <div
+                className="bg-gray-900 h-2 rounded-full transition-all"
+                style={{
+                  width: `${Math.min(
+                    (attendanceStats.attended / ptDetail.ptProduct.totalCount) * 100,
+                    100
+                  )}%`,
+                }}
+              ></div>
+            </div>
+            {/* 출석률 표시 */}
+            {attendanceStats.completedSessions > 0 && (
+              <div className="text-xs text-gray-500">
+                출석률: {attendanceStats.attendanceRate}% (
+                {attendanceStats.attended}/{attendanceStats.completedSessions})
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 회원 정보 - 모바일 최적화 */}
+      <Card className="mx-2 mb-2 shadow-sm">
+        <CardContent className="p-3">
+          <h3 className="font-medium text-gray-900 mb-3">회원 정보</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
               {ptDetail.member?.user.avatarMedia?.thumbnailUrl || ptDetail.member?.user.avatarMedia?.publicUrl ? (
                 <Image
                   src={ptDetail.member.user.avatarMedia.thumbnailUrl || ptDetail.member.user.avatarMedia.publicUrl || ''}
                   alt={ptDetail.member.user.username}
-                  width={48}
-                  height={48}
-                  className="w-12 h-12 rounded-full object-cover"
+                  width={40}
+                  height={40}
+                  className="w-10 h-10 rounded-full object-cover"
                 />
               ) : (
-                <User className="w-12 h-12 text-gray-500 p-2 bg-gray-100 rounded-full" />
-              )}
-              <div>
-                <div className="text-lg font-medium">
-                  {ptDetail.member?.user.username}
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium">
+                    {ptDetail.member?.user.username[0]}
+                  </span>
                 </div>
-                <div className="text-sm text-gray-600">
-                  시작일: {formatDateThisYear(ptDetail.startDate)}
+              )}
+              <span className="font-medium text-gray-900 text-sm">
+                {ptDetail.member?.user.username || "회원 정보 없음"}
+              </span>
+            </div>
+            {ptDetail.member && (
+              <Link href={`/trainer/chat/connect?opp=${ptDetail.member.user.id}`}>
+                <Button variant="outline" size="sm">
+                  채팅하기
+                </Button>
+              </Link>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 기간 정보 - 모바일 최적화 */}
+      {status.text === "진행중" && (
+        <Card className="mx-2 mb-2 shadow-sm">
+          <CardContent className="p-3">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600 block mb-1">시작일</span>
+                <div className="font-medium text-gray-900">
+                  {new Date(ptDetail.startDate).toLocaleDateString("ko-KR")}
+                </div>
+              </div>
+              <div>
+                <span className="text-gray-600 block mb-1">만료 예정일</span>
+                <div className="font-medium text-gray-900">
+                  {expiryDate.toLocaleDateString("ko-KR")}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* 수업 기록 목록 */}
-        <Card>
-          <CardHeader>
-            <h3 className="text-lg font-semibold">수업 기록</h3>
-          </CardHeader>
-          <CardContent>
-            {ptDetail.ptRecord.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Circle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p>수업 기록이 없습니다.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {ptDetail.ptRecord.map((record) => {
-                  const attendanceStatus = calculateAttendanceStatus(
-                    record.ptSchedule,
-                    record.items
-                  );
-                  const style = getAttendanceStyle(attendanceStatus);
-                  const IconComponent = style.icon;
+      {/* 수업 기록 - 모바일 최적화 */}
+      <Card className="mx-2 mb-2 shadow-sm">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">수업 기록</h3>
+            <span className="text-sm text-gray-600">
+              {ptDetail.ptRecord.length}개
+            </span>
+          </div>
 
-                  return (
-                    <Link 
-                      key={record.id}
-                      href={`/trainer/pt/${ptId}/${record.id}`}
-                      className="block"
-                    >
-                      <div
-                        className={`border rounded-lg p-4 ${style.bgColor} transition-all hover:shadow-md cursor-pointer`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <IconComponent className="w-5 h-5" />
-                            <div>
-                              <div className="font-medium">
-                                {formatDateThisYear(record.ptSchedule.date)}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                {formatTimeToString(
-                                  Math.floor(record.ptSchedule.startTime / 100),
-                                  record.ptSchedule.startTime % 100
-                                )}{" "}
-                                -{" "}
-                                {formatTimeToString(
-                                  Math.floor(record.ptSchedule.endTime / 100),
-                                  record.ptSchedule.endTime % 100
+          {ptDetail.ptRecord.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">
+              아직 수업 기록이 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {ptDetail.ptRecord.map((record) => {
+                const dateInfo = formatDate(record.ptSchedule.date);
+                const attendanceStatus = calculateAttendanceStatus(
+                  record.ptSchedule,
+                  record.items
+                );
+                const attendanceInfo = getAttendanceDisplayInfo(attendanceStatus);
+
+                // 일정 변경 요청 중 PENDING 또는 APPROVED 상태 확인
+                const pendingRequest = record.scheduleChangeRequest.find(
+                  req => req.state === "PENDING"
+                );
+                const approvedRequest = record.scheduleChangeRequest.find(
+                  req => req.state === "APPROVED"
+                );
+
+                return (
+                  <div
+                    key={record.id}
+                    className="border border-gray-200 rounded-lg overflow-hidden"
+                  >
+                    <Link href={`/trainer/pt/${ptId}/${record.id}`}>
+                      <div className="p-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-sm font-medium ${
+                                    dateInfo.isToday
+                                      ? "text-blue-600"
+                                      : dateInfo.isPast
+                                      ? "text-gray-900"
+                                      : "text-gray-600"
+                                  }`}
+                                >
+                                  {dateInfo.text}
+                                </span>
+                                <Badge
+                                  variant={attendanceInfo.variant}
+                                  className="text-xs"
+                                >
+                                  {attendanceInfo.text}
+                                </Badge>
+                                {/* 일정 변경 배지 - 상태별로 다르게 표시 */}
+                                {pendingRequest && (
+                                  <Badge variant="warning" className="text-xs">
+                                    일정 변경중
+                                  </Badge>
+                                )}
+                                {approvedRequest && !pendingRequest && (
+                                  <Badge variant="success" className="text-xs">
+                                    일정 변경완료
+                                  </Badge>
                                 )}
                               </div>
-                              {/* 운동 기록 개수 표시 (참석한 경우) */}
-                              {attendanceStatus === "참석" && record.items.length > 0 && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  운동 기록 {record.items.length}개
-                                </div>
-                              )}
+                              <span className="text-xs text-gray-600">
+                                {formatTime(record.ptSchedule.startTime)} -{" "}
+                                {formatTime(record.ptSchedule.endTime)}
+                              </span>
                             </div>
-                            <Badge variant={style.badgeVariant}>
-                              {attendanceStatus}
-                            </Badge>
+                            {record.memo && (
+                              <p className="text-xs text-gray-600 mt-1 truncate">
+                                {record.memo}
+                              </p>
+                            )}
                           </div>
-                          
-                          {/* 화살표 아이콘으로 클릭 가능함을 표시 */}
-                          <div className="text-gray-400">
-                            <ChevronRight className="w-5 h-5" />
+                          <div className="text-gray-400 ml-2">
+                            <ChevronRight size={16} />
                           </div>
                         </div>
                       </div>
                     </Link>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 뒤로가기 버튼 */}
-        <div className="flex">
-          <Link href="/trainer/pt">
-            <Button variant="outline">목록으로 돌아가기</Button>
-          </Link>
-        </div>
-      </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </PageLayout>
   );
 };

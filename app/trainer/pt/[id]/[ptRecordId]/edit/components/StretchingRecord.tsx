@@ -7,11 +7,20 @@ import {
 } from "@/app/lib/services/pt-record.service";
 import { matchSearch } from "@/app/components/common/matchSearch";
 import useSWR from "swr";
+import type { StretchingRecordSubmitData } from "./types";
 
 interface StretchingRecordProps {
   ptRecordId: string;
   onComplete: () => void;
   equipmentList: IEquipment[];
+  mode?: "create" | "edit";
+  ptRecordItemId?: string;
+  initialData?: {
+    stretchingExerciseId?: string;
+    description?: string;
+    equipments?: IEquipment[];
+  };
+  onSubmit?: (data: StretchingRecordSubmitData) => Promise<void>;
 }
 
 interface StretchingRecordData {
@@ -33,12 +42,15 @@ const StretchingRecord = ({
   ptRecordId,
   onComplete,
   equipmentList,
+  mode = "create",
+  initialData,
+  onSubmit,
 }: StretchingRecordProps) => {
   const [selectedExercise, setSelectedExercise] =
     useState<IStretchingExercise | null>(null);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initialData?.description || "");
   const [selectedEquipments, setSelectedEquipments] = useState<IEquipment[]>(
-    []
+    initialData?.equipments || []
   );
   const [query, setQuery] = useState("");
   const [equipmentQuery, setEquipmentQuery] = useState("");
@@ -61,6 +73,18 @@ const StretchingRecord = ({
     `/api/trainer/stretching-exercises`,
     fetcher
   );
+
+  // 초기 운동 설정 (수정 모드)
+  useEffect(() => {
+    if (mode === "edit" && initialData?.stretchingExerciseId && stretchingExercises) {
+      const exercise = stretchingExercises.find(
+        e => e.id === initialData.stretchingExerciseId
+      );
+      if (exercise) {
+        setSelectedExercise(exercise);
+      }
+    }
+  }, [mode, initialData, stretchingExercises]);
 
   // 운동 검색
   useEffect(() => {
@@ -130,57 +154,70 @@ const StretchingRecord = ({
     setIsSubmitting(true);
 
     try {
-      // PT Record Item 생성
-      const ptRecordItemResponse = await fetch(`/api/trainer/pt-record-items`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ptRecordId,
-          title: selectedExercise.title,
+      // 커스텀 제출 핸들러가 있으면 사용
+      if (onSubmit) {
+        await onSubmit({
+          stretchingExerciseId: selectedExercise.id,
           description,
-          type: "STRETCHING",
-        }),
-      });
-
-      if (!ptRecordItemResponse.ok) {
-        throw new Error("PT Record Item 생성 실패");
-      }
-
-      const ptRecordItem = await ptRecordItemResponse.json();
-
-      // StretchingExerciseRecord 생성
-      const equipmentIds = selectedEquipments.map((eq) => eq.id);
-
-      const stretchingRecordResponse = await fetch(
-        `/api/trainer/stretching-records`,
-        {
+          equipmentIds: selectedEquipments.map((eq) => eq.id),
+        });
+      } else if (mode === "create") {
+        // 생성 모드: 기존 로직 사용
+        const ptRecordItemResponse = await fetch(`/api/trainer/pt-records/${ptRecordId}/items`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            ptRecordItemId: ptRecordItem.id,
-            stretchingExerciseId: selectedExercise.id,
+            title: selectedExercise.title,
             description,
-            equipmentIds,
+            type: "STRETCHING",
           }),
-        }
-      );
+        });
 
-      if (!stretchingRecordResponse.ok) {
-        throw new Error("스트레칭 기록 생성 실패");
+        if (!ptRecordItemResponse.ok) {
+          throw new Error("PT Record Item 생성 실패");
+        }
+
+        const ptRecordItem = await ptRecordItemResponse.json();
+
+        // StretchingExerciseRecord 생성
+        const equipmentIds = selectedEquipments.map((eq) => eq.id);
+
+        const stretchingRecordResponse = await fetch(
+          `/api/trainer/stretching-records`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ptRecordItemId: ptRecordItem.id,
+              stretchingExerciseId: selectedExercise.id,
+              description,
+              equipmentIds,
+            }),
+          }
+        );
+
+        if (!stretchingRecordResponse.ok) {
+          throw new Error("스트레칭 기록 생성 실패");
+        }
+      } else {
+        // 수정 모드: onSubmit 핸들러 필요
+        throw new Error("수정 모드는 onSubmit 핸들러가 필요합니다");
       }
 
-      // 성공 후 초기화
-      setSelectedExercise(null);
-      setDescription("");
-      setSelectedEquipments([]);
+      // 성공 후 초기화 (생성 모드에서만)
+      if (mode === "create") {
+        setSelectedExercise(null);
+        setDescription("");
+        setSelectedEquipments([]);
+      }
       onComplete();
     } catch (error) {
-      console.error("스트레칭 기록 생성 실패:", error);
-      alert("기록 생성 중 오류가 발생했습니다.");
+      console.error("스트레칭 기록 처리 실패:", error);
+      alert("기록 처리 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
@@ -204,7 +241,9 @@ const StretchingRecord = ({
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm border">
-      <h3 className="text-lg font-semibold mb-4">스트레칭 기록</h3>
+      <h3 className="text-lg font-semibold mb-4">
+        스트레칭 {mode === "edit" ? "수정" : "기록"}
+      </h3>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* 스트레칭 운동 선택 */}
@@ -300,7 +339,7 @@ const StretchingRecord = ({
             disabled={isSubmitting || !selectedExercise}
             className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
           >
-            {isSubmitting ? "저장 중..." : "기록 완료"}
+            {isSubmitting ? "저장 중..." : mode === "edit" ? "수정 완료" : "기록 완료"}
           </button>
         </div>
       </form>

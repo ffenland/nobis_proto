@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import useSWR from "swr";
-import { useRouter } from "next/navigation";
 import {
   IMachine,
   IEquipment,
@@ -29,8 +28,7 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
-const PtRecordWriter = ({ ptRecordId, ptId, center }: PtRecordWriterProps) => {
-  const router = useRouter();
+const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
   const [selectedType, setSelectedType] = useState<
     "machine" | "free" | "stretching" | null
   >(null);
@@ -42,7 +40,7 @@ const PtRecordWriter = ({ ptRecordId, ptId, center }: PtRecordWriterProps) => {
     isLoading: recordItemsLoading,
     mutate: mutateRecordItems,
   } = useSWR<{ items: IPtRecordItem[] }>(
-    `/api/trainer/pt-record-items/${ptRecordId}`,
+    `/api/trainer/pt-records/${ptRecordId}/items`,
     fetcher
   );
 
@@ -203,81 +201,39 @@ const PtRecordWriter = ({ ptRecordId, ptId, center }: PtRecordWriterProps) => {
   const ptRecordItems = ptRecordItemsData?.items || [];
 
   return (
-    <div className="space-y-6">
-      {/* 기존 기록 목록 */}
-      {ptRecordItems.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold mb-4">운동 기록</h3>
-          <div className="space-y-4">
-            {ptRecordItems.map((item) => (
-              <div
-                key={item.id}
-                className="p-4 border border-gray-200 rounded-md"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">{getTypeIcon(item.type)}</span>
-                    <span className="font-medium text-gray-900">
-                      {getRecordTitle(item)}
-                    </span>
-                  </div>
-                  <span className="text-sm text-gray-500">
-                    {item.entry}번째 운동
-                  </span>
-                </div>
-                <div className="space-y-1">{formatSetInfo(item)}</div>
-                {item.description && (
-                  <div className="text-sm text-gray-600 mt-2">
-                    {item.description}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+    <div className="space-y-4">
       {/* 운동 기록 추가 */}
       {selectedType === null && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold mb-4">운동 기록 추가</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <h3 className="text-base font-semibold mb-3">운동 추가</h3>
+          <div className="grid grid-cols-3 gap-3">
             <button
               onClick={() => setSelectedType("machine")}
-              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+              className="p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">🏋️</div>
-                <div className="font-medium">머신 운동</div>
-                <div className="text-sm text-gray-600">
-                  머신을 사용한 운동 기록
-                </div>
+                <div className="text-xl mb-1">🏋️</div>
+                <div className="text-sm font-medium">머신</div>
               </div>
             </button>
 
             <button
               onClick={() => setSelectedType("free")}
-              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+              className="p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">💪</div>
-                <div className="font-medium">프리웨이트</div>
-                <div className="text-sm text-gray-600">
-                  덤벨, 바벨 등을 사용한 운동
-                </div>
+                <div className="text-xl mb-1">💪</div>
+                <div className="text-sm font-medium">프리웨이트</div>
               </div>
             </button>
 
             <button
               onClick={() => setSelectedType("stretching")}
-              className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+              className="p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">🧘</div>
-                <div className="font-medium">스트레칭</div>
-                <div className="text-sm text-gray-600">
-                  스트레칭 및 유연성 운동
-                </div>
+                <div className="text-xl mb-1">🧘</div>
+                <div className="text-sm font-medium">스트레칭</div>
               </div>
             </button>
           </div>
@@ -309,15 +265,17 @@ const PtRecordWriter = ({ ptRecordId, ptId, center }: PtRecordWriterProps) => {
         />
       )}
 
-      {/* 완료 버튼 */}
-      <div className="flex justify-center pt-6">
-        <button
-          onClick={() => router.push(`/trainer/pt/${ptId}/${ptRecordId}`)}
-          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-        >
-          기록 작성 완료
-        </button>
-      </div>
+      {/* 취소 버튼 - 선택된 타입이 있을 때만 표시 */}
+      {selectedType !== null && (
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={() => setSelectedType(null)}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            취소
+          </button>
+        </div>
+      )}
     </div>
   );
 };

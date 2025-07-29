@@ -383,9 +383,20 @@ model Equipment {
   @@index([fitnessCenterId, category])
 }
 
+model FreeExercise {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt      DateTime        @default(now())
+  title          String
+  description    String?
+  photos         Media[]
+  freeSetRecords FreeSetRecord[]
+}
+
 model FreeSetRecord {
   id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt      DateTime     @default(now())
+  freeExercise   FreeExercise @relation(fields: [freeExerciseId], references: [id])
+  freeExerciseId String       @db.Uuid
   equipments     Equipment[]
   reps           Int // 횟수
   set            Int // 몇번째 세트인지
@@ -750,7 +761,9 @@ model Media {
   equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   // 메타데이터 (JSON)
-  metadata Json? // 추가 정보를 위한 유연한 필드
+  metadata       Json? // 추가 정보를 위한 유연한 필드
+  freeExercise   FreeExercise? @relation(fields: [freeExerciseId], references: [id])
+  freeExerciseId String?       @db.Uuid
 
   @@index([uploadedById])
   @@index([type])
@@ -760,6 +773,7 @@ model Media {
   @@index([machineId])
   @@index([fitnessCenterId])
   @@index([stretchingExerciseId])
+  @@index([freeExerciseId])
 }
 
 // 사용자별 미디어 사용량 추적

@@ -80,6 +80,11 @@ export function ChatInput({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // 한글 입력 중(조합 중)에는 Enter 키 무시
+    if (e.nativeEvent.isComposing) {
+      return;
+    }
+    
     // Enter 키 처리 (Shift+Enter는 줄바꿈, Enter만 누르면 전송)
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

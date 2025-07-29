@@ -1,7 +1,7 @@
 // components/ptNew/ConfirmationStep.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -30,6 +30,7 @@ interface ConfirmationStepProps {
   chosenSchedule: IDaySchedule;
   message: string;
   setMessage: (message: string) => void;
+  prescheduleResult: IPreschedulePtResult;
   onGoBack: () => void; // 이전 단계로 돌아가기
 }
 
@@ -41,72 +42,13 @@ const ConfirmationStep = ({
   chosenSchedule,
   message,
   setMessage,
+  prescheduleResult,
   onGoBack,
 }: ConfirmationStepProps) => {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [prescheduleResult, setPrescheduleResult] =
-    useState<IPreschedulePtResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  // 컴포넌트 마운트 시 사전 스케줄링 실행
-  useEffect(() => {
-    let isCanceled = false; // cleanup 함수로 중복 요청 방지
-
-    const handlePreschedule = async () => {
-      if (isCanceled) return; // 이미 취소된 요청이면 실행하지 않음
-
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch("/api/member/pt/preschedule", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chosenSchedule,
-            centerId: selectedCenter.id,
-            ptProductId: selectedPt.id,
-            pattern,
-            trainerId: selectedTrainer.id,
-          }),
-        });
-
-        if (isCanceled) return; // 응답 받기 전에 취소되었으면 처리하지 않음
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "사전 스케줄링 실패");
-        }
-
-        setPrescheduleResult(result);
-      } catch (err) {
-        if (!isCanceled) {
-          setError(err instanceof Error ? err.message : "Unknown error");
-        }
-      } finally {
-        if (!isCanceled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    handlePreschedule();
-
-    // cleanup 함수: 컴포넌트 언마운트 시 요청 취소
-    return () => {
-      isCanceled = true;
-    };
-  }, [
-    chosenSchedule,
-    selectedCenter.id,
-    selectedPt.id,
-    pattern,
-    selectedTrainer.id,
-  ]);
 
   // 취소 핸들러 (서버에 삭제 요청 및 이전 단계로 돌아가기)
   const handleCancel = async () => {
@@ -283,31 +225,9 @@ const ConfirmationStep = ({
     );
   };
 
-  // 로딩 중
-  if (isLoading) {
-    return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">PT 일정을 확인하고 있습니다...</p>
-      </div>
-    );
-  }
-
-  // 사전 스케줄링 결과가 있으면 결과 표시
+  // 사전 스케줄링 결과 표시
   if (prescheduleResult) {
     return renderPrescheduleResult();
-  }
-
-  // 에러가 있으면 에러 표시
-  if (error) {
-    return (
-      <div className="space-y-4">
-        <ErrorMessage message={error} />
-        <Button onClick={handleCancel} variant="outline" className="w-full">
-          다시 선택하기
-        </Button>
-      </div>
-    );
   }
 
   // 스케줄 표시 계산

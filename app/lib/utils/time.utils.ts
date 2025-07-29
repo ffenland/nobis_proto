@@ -592,6 +592,40 @@ export const formatDateWithWeekday = (date: Date): string => {
 };
 
 /**
+ * 날짜를 한글 형식으로 포맷 (현재 연도와 같으면 연도 생략)
+ * @param dateInput 포맷할 날짜 (Date 객체 또는 날짜 문자열)
+ * @returns 한글 형식 날짜 문자열
+ * @throws Error 유효하지 않은 날짜인 경우
+ * @example 
+ * // 2025년이 현재 연도인 경우
+ * formatDateWithConditionalYear('2025-03-15') // "3월 15일"
+ * formatDateWithConditionalYear('2024-12-25') // "2024년 12월 25일"
+ */
+export const formatDateWithConditionalYear = (dateInput: Date | string): string => {
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    throw new Error('Invalid date input');
+  }
+
+  const currentYear = new Date().getFullYear();
+  const year = date.getFullYear();
+  
+  if (year === currentYear) {
+    return date.toLocaleDateString('ko-KR', {
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+  
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+/**
  * HH:MM 문자열에 30분 추가
  * @param time HH:MM 형식 문자열
  * @returns 30분 추가된 HH:MM 형식 문자열

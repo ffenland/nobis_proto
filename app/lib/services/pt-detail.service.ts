@@ -35,6 +35,7 @@ export const getPtDetailForMemberService = async (
             select: {
               id: true,
               username: true,
+              mobile: true,
             },
           },
         },
@@ -69,6 +70,12 @@ export const getPtDetailForMemberService = async (
             },
           },
           memo: true,
+          scheduleChangeRequest: {
+            select: {
+              id: true,
+              state: true,
+            },
+          },
           items: {
             select: {
               id: true,

@@ -43,6 +43,17 @@ export const getPtRecordItemAction = async (itemId: string) => {
                   },
                 },
               },
+              trainer: {
+                select: {
+                  fitnessCenterId: true,
+                  fitnessCenter: {
+                    select: {
+                      id: true,
+                      title: true,
+                    },
+                  },
+                },
+              },
             },
           },
           ptSchedule: true,
@@ -66,6 +77,7 @@ export const getPtRecordItemAction = async (itemId: string) => {
       },
       freeSetRecords: {
         include: {
+          freeExercise: true,
           equipments: true,
         },
         orderBy: {

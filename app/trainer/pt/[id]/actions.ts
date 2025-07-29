@@ -44,6 +44,7 @@ export const getPtDetailAction = async (ptId: string) => {
         select: {
           user: {
             select: {
+              id: true,
               username: true,
               avatarMedia: {
                 select: {
@@ -72,6 +73,27 @@ export const getPtDetailAction = async (ptId: string) => {
               date: true,
               startTime: true,
               endTime: true,
+            },
+          },
+          scheduleChangeRequest: {
+            select: {
+              id: true,
+              state: true,
+              requestedDate: true,
+              requestedStartTime: true,
+              requestedEndTime: true,
+              reason: true,
+              createdAt: true,
+              requestor: {
+                select: {
+                  id: true,
+                  role: true,
+                  username: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
             },
           },
           items: {

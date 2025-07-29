@@ -10,6 +10,31 @@ import { formatDate } from "@/app/lib/utils";
 import { IScheduleChangeRequestList } from "@/app/lib/services/pt-schedule-change.service";
 import { Bell, Clock, ArrowRight, X } from "lucide-react";
 
+// API 응답 타입 정의
+interface ScheduleChangeListApiResponse {
+  success: true;
+  requests: IScheduleChangeRequestList;
+}
+
+interface ScheduleChangeListApiError {
+  error: string;
+}
+
+type ScheduleChangeListResponse =
+  | ScheduleChangeListApiResponse
+  | ScheduleChangeListApiError;
+
+// 타입 가드 함수
+const isSuccessResponse = (
+  data: any
+): data is ScheduleChangeListApiResponse => {
+  return data.success === true && Array.isArray(data.requests);
+};
+
+const isErrorResponse = (data: any): data is ScheduleChangeListApiError => {
+  return typeof data.error === "string";
+};
+
 // 알림 항목 타입 정의
 interface INotificationItem {
   id: string;
@@ -95,55 +120,35 @@ const transformRequestsToNotifications = (
     .filter((request) => {
       // 최근 7일 이내의 알림만 표시
       const daysDiff =
-        (new Date().getTime() - request.createdAt.getTime()) /
+        (new Date().getTime() - new Date(request.createdAt).getTime()) /
         (1000 * 60 * 60 * 24);
       return daysDiff <= 7;
     })
     .map((request): INotificationItem => {
-      const isRequest = request.state === "PENDING";
-      const isResponse = request.state !== "PENDING" && request.respondedAt;
-
       // 만료 여부 체크
-      const isExpired =
-        request.state === "PENDING" && new Date() > request.expiresAt;
+      const isExpired = new Date() > new Date(request.expiresAt);
       const finalState = isExpired ? "EXPIRED" : request.state;
 
       return {
         id: request.id,
-        type: (request.isMyRequest ? "request" : "response") as
-          | "request"
-          | "response",
-        title: isRequest
-          ? request.isMyRequest
-            ? "일정 변경 요청 전송됨"
-            : "새로운 일정 변경 요청"
-          : request.isMyRequest
-          ? "일정 변경 요청 응답"
-          : "일정 변경 요청 처리됨",
-        message: isRequest
-          ? request.isMyRequest
-            ? `${request.ptInfo.trainerName} 트레이너에게 요청을 전송했습니다`
-            : `${request.requestorName}님이 일정 변경을 요청했습니다`
-          : request.isMyRequest
-          ? `${request.responderName || "상대방"}이 요청을 ${
-              finalState === "APPROVED" ? "승인" : "거절"
-            }했습니다`
-          : `${request.requestorName}님의 요청을 처리했습니다`,
+        type: "request", // 서비스에서 이미 본인에게 온 요청만 가져오므로
+        title: "새로운 일정 변경 요청",
+        message: `${request.requestorName}님이 일정 변경을 요청했습니다`,
         state: finalState as
           | "PENDING"
           | "APPROVED"
           | "REJECTED"
           | "CANCELLED"
           | "EXPIRED",
-        createdAt: request.createdAt,
-        expiresAt: request.expiresAt,
+        createdAt: new Date(request.createdAt),
+        expiresAt: new Date(request.expiresAt),
         ptInfo: request.ptInfo,
-        isMyRequest: request.isMyRequest,
+        isMyRequest: false, // 서비스에서 이미 본인에게 온 요청만 가져오므로
       };
     })
     .sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        b.createdAt.getTime() - a.createdAt.getTime()
     );
 };
 
@@ -230,15 +235,18 @@ export default function ScheduleChangeNotifications({
     try {
       setIsLoading(true);
       const response = await fetch("/api/schedule-change/list");
-      const data = await response.json();
+      const data: ScheduleChangeListResponse = await response.json();
 
-      if (response.ok) {
+      if (response.ok && isSuccessResponse(data)) {
         const transformedNotifications = transformRequestsToNotifications(
           data.requests
         );
+
         setNotifications(transformedNotifications.slice(0, maxItems));
+      } else if (isErrorResponse(data)) {
+        setError(data.error);
       } else {
-        setError(data.error || "알림을 불러올 수 없습니다.");
+        setError("알림을 불러올 수 없습니다.");
       }
     } catch (error) {
       console.error("알림 조회 실패:", error);
@@ -312,14 +320,9 @@ export default function ScheduleChangeNotifications({
           <h3 className="text-lg font-semibold text-gray-900">
             일정 변경 알림
           </h3>
-          {notifications.filter((n) => n.state === "PENDING" && !n.isMyRequest)
-            .length > 0 && (
+          {notifications.filter((n) => n.state === "PENDING").length > 0 && (
             <Badge variant="default" className="bg-red-100 text-red-700">
-              {
-                notifications.filter(
-                  (n) => n.state === "PENDING" && !n.isMyRequest
-                ).length
-              }
+              {notifications.filter((n) => n.state === "PENDING").length}
             </Badge>
           )}
         </div>

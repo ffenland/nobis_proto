@@ -14,11 +14,12 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { 
-  getPtScheduleDetailAction, 
+import {
+  getPtScheduleDetailAction,
   getScheduleChangeRequestsAction,
+  getCurrentUserAction,
   type TPtScheduleDetail,
-  type TScheduleChangeRequest 
+  type TScheduleChangeRequest,
 } from "./actions";
 import ScheduleChangeForm from "./ScheduleChangeForm";
 import ScheduleChangeRequestsList from "./ScheduleChangeRequestsList";
@@ -32,12 +33,19 @@ const TrainerScheduleChangePage = async ({ params }: PageProps) => {
 
   let ptScheduleDetail: TPtScheduleDetail;
   let scheduleChangeRequests: TScheduleChangeRequest[];
-
+  let currentUser: Awaited<ReturnType<typeof getCurrentUserAction>>;
+  let isPendingExist = false;
   try {
-    [ptScheduleDetail, scheduleChangeRequests] = await Promise.all([
-      getPtScheduleDetailAction(ptRecordId),
-      getScheduleChangeRequestsAction(ptRecordId),
-    ]);
+    [ptScheduleDetail, scheduleChangeRequests, currentUser] = await Promise.all(
+      [
+        getPtScheduleDetailAction(ptRecordId),
+        getScheduleChangeRequestsAction(ptRecordId),
+        getCurrentUserAction(),
+      ]
+    );
+    isPendingExist = scheduleChangeRequests.some(
+      (request) => request.state === "PENDING"
+    );
   } catch (error) {
     return (
       <PageLayout maxWidth="2xl">
@@ -76,7 +84,9 @@ const TrainerScheduleChangePage = async ({ params }: PageProps) => {
     <PageLayout maxWidth="2xl">
       <PageHeader
         title="일정 수정"
-        subtitle={`${ptScheduleDetail.pt.member?.user.username}님과의 ${formatDateThisYear(ptScheduleDetail.ptSchedule.date)} 수업`}
+        subtitle={`${
+          ptScheduleDetail.pt.member?.user.username
+        }님과의 ${formatDateThisYear(ptScheduleDetail.ptSchedule.date)} 수업`}
       />
 
       <div className="space-y-6">
@@ -150,26 +160,54 @@ const TrainerScheduleChangePage = async ({ params }: PageProps) => {
               <h3 className="text-lg font-semibold">일정 변경 요청</h3>
             </CardHeader>
             <CardContent>
-              <ScheduleChangeRequestsList 
+              <ScheduleChangeRequestsList
                 requests={scheduleChangeRequests}
                 ptRecordId={ptRecordId}
+                currentUser={currentUser}
               />
             </CardContent>
           </Card>
         )}
 
-        {/* 새 일정 변경 요청 (예정 상태일 때만) */}
-        {isUpcoming && (
+        {/* 새 일정 변경 요청 (예정 상태이면서 기존 PENDING 요청이 없을 때만) */}
+        {isUpcoming && !isPendingExist && (
           <Card>
             <CardHeader>
               <h3 className="text-lg font-semibold">새 일정 변경 요청</h3>
             </CardHeader>
             <CardContent>
-              <ScheduleChangeForm 
+              <ScheduleChangeForm
                 ptRecordId={ptRecordId}
                 currentSchedule={ptScheduleDetail.ptSchedule}
+                ptProduct={ptScheduleDetail.pt.ptProduct}
                 ptId={ptId}
               />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 기존 PENDING 요청이 있을 때 안내  메시지 */}
+        {isUpcoming && isPendingExist && (
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">일정 변경 요청 진행 중</h3>
+            </CardHeader>
+            <CardContent>
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <div className="font-medium text-yellow-900">
+                      새 요청 불가
+                    </div>
+                    <div className="text-sm text-yellow-800 mt-1">
+                      현재 처리 대기 중인 일정 변경 요청이 있어 새로운 요청을
+                      작성할 수 없습니다. 기존 요청을 취소하거나 처리 완료 후 새
+                      요청을 작성해주세요.
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}

@@ -6,7 +6,14 @@ import prisma from "@/app/lib/prisma";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ptRecordItemId, reps, set, equipmentIds } = body;
+    const { ptRecordItemId, freeExerciseId, reps, set, equipmentIds } = body;
+
+    if (!freeExerciseId) {
+      return NextResponse.json(
+        { error: "freeExerciseId가 필요합니다." },
+        { status: 400 }
+      );
+    }
 
     if (!equipmentIds || !Array.isArray(equipmentIds)) {
       return NextResponse.json(
@@ -20,6 +27,7 @@ export async function POST(request: NextRequest) {
         reps,
         set,
         ptRecordItemId,
+        freeExerciseId,
         equipments: {
           connect: equipmentIds.map((equipmentId: string) => ({
             id: equipmentId,
@@ -30,6 +38,13 @@ export async function POST(request: NextRequest) {
         id: true,
         reps: true,
         set: true,
+        freeExercise: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+          },
+        },
         equipments: {
           select: {
             id: true,
@@ -75,6 +90,13 @@ export async function GET(request: NextRequest) {
         id: true,
         reps: true,
         set: true,
+        freeExercise: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+          },
+        },
         equipments: {
           select: {
             id: true,

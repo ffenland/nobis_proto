@@ -29,10 +29,6 @@ export function ChatList({ userRole }: IChatListProps) {
   });
 
   const chatRooms = result?.success ? result.data : [];
-  const totalUnreadCount = chatRooms.reduce(
-    (sum, room) => sum + room.unreadCount,
-    0
-  );
 
   const basePath = `/${userRole.toLowerCase()}/chat`;
 
@@ -84,17 +80,6 @@ export function ChatList({ userRole }: IChatListProps) {
 
   return (
     <div className="space-y-2">
-      {/* 헤더 정보 */}
-      {totalUnreadCount > 0 && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2 text-blue-700">
-            <MessageCircle size={16} />
-            <span className="text-sm font-medium">
-              읽지 않은 메시지가 {totalUnreadCount}건 있습니다
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* 채팅방 목록 */}
       <div className="space-y-1">
@@ -121,12 +106,6 @@ export function ChatList({ userRole }: IChatListProps) {
                   )}
                 </div>
 
-                {/* 안읽은 메시지 뱃지 */}
-                {room.unreadCount > 0 && (
-                  <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                    {room.unreadCount > 99 ? "99+" : room.unreadCount}
-                  </div>
-                )}
               </div>
 
               <div className="flex-1 min-w-0">
@@ -146,31 +125,13 @@ export function ChatList({ userRole }: IChatListProps) {
 
                 {/* 마지막 메시지 */}
                 <div className="flex items-center justify-between gap-2">
-                  <p
-                    className={`text-sm truncate flex-1 ${
-                      room.unreadCount > 0
-                        ? "text-gray-900 font-medium"
-                        : "text-gray-600"
-                    }`}
-                  >
+                  <p className="text-sm truncate flex-1 text-gray-600">
                     {room.lastMessage ? (
                       <>
                         {room.lastMessage.isMine && (
                           <span className="text-gray-500">나: </span>
                         )}
                         {room.lastMessage.content}
-                        {/* 읽음 상태 표시 (내가 보낸 메시지일 때) */}
-                        {room.lastMessage.isMine && (
-                          <span
-                            className={`ml-1 text-xs ${
-                              room.lastMessage.isRead
-                                ? "text-blue-500"
-                                : "text-gray-400"
-                            }`}
-                          >
-                            {room.lastMessage.isRead ? "읽음" : "안읽음"}
-                          </span>
-                        )}
                       </>
                     ) : (
                       <span className="text-gray-400 italic">

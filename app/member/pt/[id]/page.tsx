@@ -15,6 +15,7 @@ import {
   ModalContent,
   ModalFooter,
 } from "@/app/components/ui/Modal";
+import { ChevronRight, Phone } from "lucide-react";
 import {
   IPtDetailForMember,
   IPtRecordItemFromPtDetail,
@@ -41,7 +42,6 @@ const PtDetailPage = (props: { params: Params }) => {
   const ptId = params.id;
   const router = useRouter();
 
-  const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -321,11 +321,22 @@ const PtDetailPage = (props: { params: Params }) => {
               </span>
             </div>
             {pt.trainer && (
-              <Link href={`/member/chat/connect?opp=${pt.trainer.user.id}`}>
-                <Button variant="outline" size="sm">
-                  채팅하기
-                </Button>
-              </Link>
+              <div className="flex gap-2">
+                <Link href={`/member/chat/connect?opp=${pt.trainer.user.id}`}>
+                  <Button variant="outline" size="sm">
+                    채팅하기
+                  </Button>
+                </Link>
+                {pt.trainer.user.mobile && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.location.href = `tel:${pt.trainer.user.mobile}`}
+                  >
+                    <Phone className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
@@ -380,109 +391,64 @@ const PtDetailPage = (props: { params: Params }) => {
                 const attendanceInfo =
                   getAttendanceDisplayInfo(attendanceStatus);
 
-                const isExpanded = expandedRecord === record.id;
-
                 return (
                   <div
                     key={record.id}
                     className="border border-gray-200 rounded-lg overflow-hidden"
                   >
-                    <div
-                      className="p-2 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() =>
-                        setExpandedRecord(isExpanded ? null : record.id)
-                      }
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-sm font-medium ${
-                                  dateInfo.isToday
-                                    ? "text-blue-600"
-                                    : dateInfo.isPast
-                                    ? "text-gray-900"
-                                    : "text-gray-600"
-                                }`}
-                              >
-                                {dateInfo.text}
-                              </span>
-                              <Badge
-                                variant={attendanceInfo.variant}
-                                className="text-xs"
-                              >
-                                {attendanceInfo.text}
-                              </Badge>
-                            </div>
-                            <span className="text-xs text-gray-600">
-                              {formatTime(record.ptSchedule.startTime)} -{" "}
-                              {formatTime(record.ptSchedule.endTime)}
-                            </span>
-                          </div>
-                          {record.memo && (
-                            <p className="text-xs text-gray-600 mt-1 truncate">
-                              {record.memo}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-gray-400 ml-2">
-                          {isExpanded ? "△" : "▽"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 운동 기록 상세 - 모바일 최적화 */}
-                    {isExpanded && (
-                      <div className="border-t border-gray-200 bg-gray-50 p-2">
-                        {record.items.length === 0 ? (
-                          <p className="text-gray-500 text-sm">
-                            운동 기록이 없습니다.
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {record.items.map((item, index) => {
-                              const exercises = formatExerciseRecord(item);
-                              return (
-                                <div
-                                  key={index}
-                                  className="bg-white rounded p-2 border"
+                    <Link href={`/member/pt/${ptId}/${record.id}`}>
+                      <div className="p-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-sm font-medium ${
+                                    dateInfo.isToday
+                                      ? "text-blue-600"
+                                      : dateInfo.isPast
+                                      ? "text-gray-900"
+                                      : "text-gray-600"
+                                  }`}
                                 >
-                                  <h4 className="font-medium text-gray-900 mb-1 text-sm">
-                                    {item.title || "운동"}
-                                  </h4>
-                                  {exercises.map((exercise, exerciseIndex) => (
-                                    <div
-                                      key={exerciseIndex}
-                                      className="text-xs text-gray-600 mb-1"
-                                    >
-                                      <div className="flex justify-between items-start gap-2">
-                                        <span className="font-medium">
-                                          {exercise.name}
-                                        </span>
-                                        <span className="text-right">
-                                          {exercise.details}
-                                        </span>
-                                      </div>
-                                      {exercise.settings && (
-                                        <div className="text-xs text-gray-500 mt-1">
-                                          {exercise.settings}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                  {item.description && (
-                                    <p className="text-xs text-gray-600 mt-1 border-t pt-1">
-                                      {item.description}
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                  {dateInfo.text}
+                                </span>
+                                <Badge
+                                  variant={attendanceInfo.variant}
+                                  className="text-xs"
+                                >
+                                  {attendanceInfo.text}
+                                </Badge>
+                                {/* 일정 변경 배지 - 상태별로 다르게 표시 */}
+                                {record.scheduleChangeRequest.some(req => req.state === "PENDING") && (
+                                  <Badge variant="warning" className="text-xs">
+                                    일정 변경중
+                                  </Badge>
+                                )}
+                                {record.scheduleChangeRequest.some(req => req.state === "APPROVED") && 
+                                 !record.scheduleChangeRequest.some(req => req.state === "PENDING") && (
+                                  <Badge variant="success" className="text-xs">
+                                    일정 변경완료
+                                  </Badge>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-600">
+                                {formatTime(record.ptSchedule.startTime)} -{" "}
+                                {formatTime(record.ptSchedule.endTime)}
+                              </span>
+                            </div>
+                            {record.memo && (
+                              <p className="text-xs text-gray-600 mt-1 truncate">
+                                {record.memo}
+                              </p>
+                            )}
                           </div>
-                        )}
+                          <div className="text-gray-400 ml-2">
+                            <ChevronRight size={16} />
+                          </div>
+                        </div>
                       </div>
-                    )}
+                    </Link>
                   </div>
                 );
               })}

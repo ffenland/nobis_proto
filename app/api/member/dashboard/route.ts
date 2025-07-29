@@ -1,21 +1,26 @@
-// app/api/member/dashboard/route.ts (PtState 적용 업데이트)
-import { NextRequest, NextResponse } from "next/server";
-import { getSessionOrRedirect } from "@/app/lib/session";
-import { getMemberDashboardStatsService } from "@/app/lib/services/member.service";
+import { NextResponse } from "next/server";
+import { getSession } from "@/app/lib/session";
+import { getMemberDashboardStats } from "@/app/lib/services/member/member-dashboard.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const session = await getSessionOrRedirect();
-    if (session.role !== "MEMBER") {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    const session = await getSession();
+    
+    if (!session || session.role !== "MEMBER") {
+      return NextResponse.json(
+        { error: "권한이 없습니다." },
+        { status: 401 }
+      );
     }
 
-    const stats = await getMemberDashboardStatsService(session.roleId);
+    const memberId = session.roleId;
+    const stats = await getMemberDashboardStats(memberId);
+    
     return NextResponse.json(stats);
   } catch (error) {
-    console.error("회원 대시보드 통계 조회 실패:", error);
+    console.error("Failed to fetch member dashboard stats:", error);
     return NextResponse.json(
-      { error: "서버 오류가 발생했습니다." },
+      { error: "대시보드 정보를 불러올 수 없습니다." },
       { status: 500 }
     );
   }

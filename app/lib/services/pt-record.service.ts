@@ -50,6 +50,13 @@ export const getPtRecordDetailService = async (ptRecordId: string) => {
               id: true,
               reps: true,
               set: true,
+              freeExercise: {
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                },
+              },
               equipments: {
                 select: {
                   id: true,

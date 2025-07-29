@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
-import { respondToScheduleChangeRequestAction, type TScheduleChangeRequest } from "./actions";
+import { respondToScheduleChangeRequestAction, cancelScheduleChangeRequestAction, type TScheduleChangeRequest } from "./actions";
 import { useRouter } from "next/navigation";
 import {
   Clock,
@@ -20,9 +20,14 @@ import {
 interface ScheduleChangeRequestsListProps {
   requests: TScheduleChangeRequest[];
   ptRecordId: string;
+  currentUser: {
+    id: string;
+    role: string;
+    roleId: string;
+  } | null;
 }
 
-const ScheduleChangeRequestsList = ({ requests, ptRecordId }: ScheduleChangeRequestsListProps) => {
+const ScheduleChangeRequestsList = ({ requests, currentUser }: ScheduleChangeRequestsListProps) => {
   const router = useRouter();
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
   const [responseReason, setResponseReason] = useState<{ [key: string]: string }>({});
@@ -48,6 +53,21 @@ const ScheduleChangeRequestsList = ({ requests, ptRecordId }: ScheduleChangeRequ
     }
   };
 
+  const handleCancel = async (requestId: string) => {
+    setProcessingRequestId(requestId);
+
+    try {
+      await cancelScheduleChangeRequestAction(requestId);
+      alert("일정 변경 요청이 취소되었습니다.");
+      router.refresh();
+    } catch (error) {
+      console.error("취소 처리 오류:", error);
+      alert(error instanceof Error ? error.message : "취소 중 오류가 발생했습니다.");
+    } finally {
+      setProcessingRequestId(null);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
@@ -56,6 +76,8 @@ const ScheduleChangeRequestsList = ({ requests, ptRecordId }: ScheduleChangeRequ
         return <Badge variant="success">승인됨</Badge>;
       case "REJECTED":
         return <Badge variant="error">거절됨</Badge>;
+      case "CANCELLED":
+        return <Badge variant="default">취소됨</Badge>;
       default:
         return <Badge variant="default">알 수 없음</Badge>;
     }
@@ -69,6 +91,8 @@ const ScheduleChangeRequestsList = ({ requests, ptRecordId }: ScheduleChangeRequ
         return <CheckCircle className="w-5 h-5 text-green-600" />;
       case "REJECTED":
         return <XCircle className="w-5 h-5 text-red-600" />;
+      case "CANCELLED":
+        return <XCircle className="w-5 h-5 text-gray-600" />;
       default:
         return <AlertCircle className="w-5 h-5 text-gray-600" />;
     }
@@ -89,16 +113,18 @@ const ScheduleChangeRequestsList = ({ requests, ptRecordId }: ScheduleChangeRequ
         <div
           key={request.id}
           className={`border rounded-lg p-4 ${
-            request.status === "PENDING"
+            request.state === "PENDING"
               ? "bg-yellow-50 border-yellow-200"
-              : request.status === "APPROVED"
+              : request.state === "APPROVED"
               ? "bg-green-50 border-green-200"
-              : "bg-red-50 border-red-200"
+              : request.state === "REJECTED"
+              ? "bg-red-50 border-red-200"
+              : "bg-gray-50 border-gray-200"
           }`}
         >
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
-              {getStatusIcon(request.status)}
+              {getStatusIcon(request.state)}
               <div>
                 <div className="font-medium text-gray-900">
                   일정 변경 요청
@@ -108,14 +134,14 @@ const ScheduleChangeRequestsList = ({ requests, ptRecordId }: ScheduleChangeRequ
                 </div>
               </div>
             </div>
-            {getStatusBadge(request.status)}
+            {getStatusBadge(request.state)}
           </div>
 
           {/* 요청자 정보 */}
           <div className="mb-4">
             <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
               <User className="w-4 h-4" />
-              요청자: {request.requestedBy.username} ({request.requestedBy.role === "TRAINER" ? "트레이너" : "회원"})
+              요청자: {request.requestor.username} ({request.requestor.role === "TRAINER" ? "트레이너" : "회원"})
             </div>
           </div>
 
@@ -161,61 +187,80 @@ const ScheduleChangeRequestsList = ({ requests, ptRecordId }: ScheduleChangeRequ
           )}
 
           {/* 응답 정보 (승인/거절된 경우) */}
-          {request.status !== "PENDING" && (
+          {request.state !== "PENDING" && (
             <div className="mb-4 p-3 bg-white rounded-lg border">
               <div className="text-sm font-medium text-gray-700 mb-1">
-                응답자: {request.respondedBy?.username || "알 수 없음"}
+                응답자: {request.responder?.username || "알 수 없음"}
               </div>
-              {request.responseReason && (
+              {request.responseMessage && (
                 <div className="text-sm text-gray-600">
-                  {request.responseReason}
+                  {request.responseMessage}
                 </div>
               )}
             </div>
           )}
 
           {/* 대기 중인 요청에 대한 액션 버튼 */}
-          {request.status === "PENDING" && (
+          {request.state === "PENDING" && currentUser && (
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  응답 메시지 (선택사항)
-                </label>
-                <textarea
-                  value={responseReason[request.id] || ""}
-                  onChange={(e) =>
-                    setResponseReason(prev => ({
-                      ...prev,
-                      [request.id]: e.target.value
-                    }))
-                  }
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="승인/거절 사유를 입력해주세요..."
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => handleResponse(request.id, "APPROVED")}
-                  disabled={processingRequestId === request.id}
-                  className="flex-1"
-                >
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  {processingRequestId === request.id ? "처리 중..." : "승인"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleResponse(request.id, "REJECTED")}
-                  disabled={processingRequestId === request.id}
-                  className="flex-1"
-                >
-                  <XCircle className="w-4 h-4 mr-1" />
-                  {processingRequestId === request.id ? "처리 중..." : "거절"}
-                </Button>
-              </div>
+              {/* 본인이 요청한 경우 - 취소 버튼만 표시 */}
+              {request.requestor.id === currentUser.id ? (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCancel(request.id)}
+                    disabled={processingRequestId === request.id}
+                    className="flex-1"
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    {processingRequestId === request.id ? "취소 중..." : "요청 취소"}
+                  </Button>
+                </div>
+              ) : (
+                /* 상대방이 요청한 경우 - 승인/거절 버튼 표시 */
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      응답 메시지 (선택사항)
+                    </label>
+                    <textarea
+                      value={responseReason[request.id] || ""}
+                      onChange={(e) =>
+                        setResponseReason(prev => ({
+                          ...prev,
+                          [request.id]: e.target.value
+                        }))
+                      }
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="승인/거절 사유를 입력해주세요..."
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleResponse(request.id, "APPROVED")}
+                      disabled={processingRequestId === request.id}
+                      className="flex-1"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      {processingRequestId === request.id ? "처리 중..." : "승인"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleResponse(request.id, "REJECTED")}
+                      disabled={processingRequestId === request.id}
+                      className="flex-1"
+                    >
+                      <XCircle className="w-4 h-4 mr-1" />
+                      {processingRequestId === request.id ? "처리 중..." : "거절"}
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
