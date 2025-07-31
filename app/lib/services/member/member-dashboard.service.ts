@@ -58,11 +58,26 @@ export type MemberDashboardStats = {
     ptRecordId: string;
     count: number;
   } | null;
+  username: string;
 };
 
 // 회원 대시보드 통계 조회
 export async function getMemberDashboardStats(memberId: string) {
   const currentTime = new Date();
+
+  // 회원 정보 조회
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: {
+      user: {
+        select: {
+          username: true,
+        }
+      }
+    }
+  });
+
+  const username = member?.user?.username || "";
 
   // PENDING 상태의 PT 조회 (최대 1개)
   const pendingPt = await prisma.pt.findFirst({
@@ -316,6 +331,7 @@ export async function getMemberDashboardStats(memberId: string) {
     thisMonthSessions,
     nextSession,
     pendingScheduleChange,
+    username,
   };
 
   return result;

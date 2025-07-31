@@ -210,6 +210,27 @@ export const getTrainerDashboardStatsService = async (trainerId: string) => {
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const currentTime = new Date();
 
+  // 트레이너 정보와 매니저 프로필 확인
+  const trainer = await prisma.trainer.findUnique({
+    where: { id: trainerId },
+    select: {
+      userId: true,
+      user: {
+        select: {
+          username: true,
+          managerProfile: {
+            select: {
+              id: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const hasManagerProfile = !!trainer?.user?.managerProfile;
+  const username = trainer?.user?.username || "";
+
   // 승인 대기 중인 PT 개수
   const pendingCount = await prisma.pt.count({
     where: {
@@ -413,6 +434,8 @@ export const getTrainerDashboardStatsService = async (trainerId: string) => {
     activeCount,
     todayClasses,
     thisMonthCompleted,
+    hasManagerProfile,
+    username,
     todaySchedule: todaySchedule.map((record) => ({
       ...record,
       ptSchedule: {

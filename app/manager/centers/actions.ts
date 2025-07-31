@@ -73,6 +73,7 @@ export async function getCentersData() {
         select: {
           members: true,
           machines: true,
+          equipments: true,
         },
       },
     },
@@ -155,6 +156,7 @@ export async function getCenterData(centerId: string) {
           members: true,
           machines: true,
           trainers: true,
+          equipments: true,
         },
       },
     },
@@ -181,12 +183,13 @@ export async function getCenterStatsData(centerId: string) {
           members: true,
           trainers: true,
           machines: true,
+          equipments: true,
         },
       },
     },
   });
 
-  return stats?._count || { members: 0, trainers: 0, machines: 0 };
+  return stats?._count || { members: 0, trainers: 0, machines: 0, equipments: 0 };
 }
 
 // 입력 검증 함수

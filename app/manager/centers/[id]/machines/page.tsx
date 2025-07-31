@@ -1,6 +1,7 @@
 // app/manager/centers/[id]/machines/page.tsx
 import Link from "next/link";
 import { getCenterMachines } from "./actions";
+import Image from "next/image";
 
 interface PageProps {
   params: Promise<{
@@ -97,12 +98,14 @@ const CenterMachinesPage = async ({ params }: PageProps) => {
                 className="group block bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden"
               >
                 {/* 머신 이미지 */}
-                <div className="aspect-video bg-gray-100 relative overflow-hidden">
+                <div className="aspect-square bg-gray-100 relative overflow-hidden">
                   {machine.images.length > 0 ? (
-                    <img
-                      src={`https://imagedelivery.net/${process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH}/${machine.images[0].cloudflareId}/public`}
+                    <Image
+                      src={`https://imagedelivery.net/${process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH}/${machine.images[0].cloudflareId}/avatar`}
                       alt={machine.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className="object-contain group-hover:scale-105 transition-transform duration-200"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">

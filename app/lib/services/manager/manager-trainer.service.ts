@@ -235,10 +235,73 @@ export const assignTrainersToCenter = async (
   });
 };
 
+// 매니저의 트레이너 프로필 조회 또는 생성
+export const getOrCreateTrainerProfileForManager = async (userId: string) => {
+  // 먼저 매니저 프로필 확인
+  const manager = await prisma.manager.findUnique({
+    where: { userId },
+    select: { id: true }
+  });
+
+  if (!manager) {
+    throw new Error("매니저 프로필을 찾을 수 없습니다.");
+  }
+
+  // 트레이너 프로필 조회
+  let trainer = await prisma.trainer.findUnique({
+    where: { userId },
+    select: {
+      id: true,
+      fitnessCenterId: true,
+    }
+  });
+
+  // 트레이너 프로필이 없으면 생성
+  if (!trainer) {
+    trainer = await prisma.trainer.create({
+      data: {
+        userId,
+        // 매니저는 센터 배정 없이 트레이너 프로필만 생성
+        fitnessCenterId: null,
+      },
+      select: {
+        id: true,
+        fitnessCenterId: true,
+      }
+    });
+  }
+
+  return trainer;
+};
+
+// 트레이너의 매니저 프로필 조회
+export const getManagerProfileForTrainer = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      username: true,
+      managerProfile: {
+        select: {
+          id: true,
+        }
+      }
+    }
+  });
+
+  return user?.managerProfile;
+};
+
 // 타입 추론
 export type TrainersForCenterAssignment = Awaited<
   ReturnType<typeof getTrainersForCenterAssignment>
 >;
 export type AssignTrainersToCenterResult = Awaited<
   ReturnType<typeof assignTrainersToCenter>
+>;
+export type TrainerProfileForManager = Awaited<
+  ReturnType<typeof getOrCreateTrainerProfileForManager>
+>;
+export type ManagerProfileForTrainer = Awaited<
+  ReturnType<typeof getManagerProfileForTrainer>
 >;

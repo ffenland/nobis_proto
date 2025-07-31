@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const { entityType, entityId, metadata, requireSignedURLs } = body;
 
     // entityType 검증
-    const validEntityTypes: EntityType[] = ['profile', 'pt-record', 'exercise', 'chat', 'review'];
+    const validEntityTypes: EntityType[] = ['profile', 'pt-record', 'exercise', 'chat', 'review', 'machine'];
     if (!validEntityTypes.includes(entityType)) {
       return NextResponse.json(
         { error: 'Invalid entity type' },
@@ -39,6 +39,14 @@ export async function POST(request: NextRequest) {
 
     // 권한 검증 (예: PT 기록은 트레이너만 가능)
     if (entityType === 'pt-record' && session.role !== 'TRAINER') {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
+
+    // 머신 이미지는 매니저만 가능
+    if (entityType === 'machine' && session.role !== 'MANAGER') {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }

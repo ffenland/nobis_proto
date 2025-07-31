@@ -14,7 +14,8 @@ export type EntityType =
   | "pt-record"
   | "exercise"
   | "chat"
-  | "review";
+  | "review"
+  | "machine";
 export type ImageVariant =
   | "public"
   | "thumbnail"

@@ -39,9 +39,10 @@ function CenterCard({ center }: { center: ICenterSummary }) {
           <p className="text-gray-600 text-sm">{center.phone}</p>
         </div>
         <div className="text-right">
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-gray-500 space-y-1">
             <span className="block">회원 {center._count.members}명</span>
-            <span className="block">기구 {center._count.machines}개</span>
+            <span className="block">머신 {center._count.machines}개</span>
+            <span className="block">운동기구 {center._count.equipments}개</span>
           </div>
         </div>
       </div>
@@ -90,19 +91,39 @@ function CenterCard({ center }: { center: ICenterSummary }) {
         </div>
       )}
 
-      {/* 액션 버튼 */}
-      <div className="flex gap-2">
+      {/* 액션 버튼 - 2x2 그리드 */}
+      <div className="grid grid-cols-2 gap-2">
         <Link
           href={`/manager/centers/${center.id}`}
-          className="flex-1 bg-gray-900 text-white text-center py-2 px-4 rounded-md hover:bg-gray-800 transition-colors text-sm"
+          className="bg-gray-900 text-white text-center py-2 px-4 rounded-md hover:bg-gray-800 transition-colors text-sm font-medium"
         >
           상세보기
         </Link>
         <Link
           href={`/manager/centers/${center.id}/edit`}
-          className="flex-1 bg-gray-100 text-gray-900 text-center py-2 px-4 rounded-md hover:bg-gray-200 transition-colors text-sm"
+          className="bg-gray-100 text-gray-900 text-center py-2 px-4 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium"
         >
-          수정
+          센터 수정
+        </Link>
+        <Link
+          href={`/manager/centers/${center.id}/machines`}
+          className="bg-blue-600 text-white text-center py-2 px-4 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          머신 관리
+        </Link>
+        <Link
+          href={`/manager/centers/${center.id}/equipments`}
+          className="bg-green-600 text-white text-center py-2 px-4 rounded-md hover:bg-green-700 transition-colors text-sm font-medium flex items-center justify-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+          </svg>
+          운동기구 관리
         </Link>
       </div>
     </div>
@@ -168,7 +189,7 @@ export default async function CentersPage() {
       {centers.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="grid grid-cols-1  lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {centers.map((center) => (
             <CenterCard key={center.id} center={center} />
           ))}

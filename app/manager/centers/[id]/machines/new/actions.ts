@@ -2,6 +2,7 @@
 
 import prisma from "@/app/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getSession } from "@/app/lib/session";
 
 export interface IMachineSetting {
   id: string;
@@ -26,6 +27,21 @@ export async function createMachine(
   data: { title: string; machineSetting: IMachineSetting[] }
 ) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return {
+        ok: false,
+        error: { message: "인증되지 않은 사용자입니다." },
+      };
+    }
+
+    if (session.role !== "MANAGER") {
+      return {
+        ok: false,
+        error: { message: "매니저 권한이 필요합니다." },
+      };
+    }
+
     const machine = await prisma.machine.create({
       data: {
         title: data.title,
@@ -49,7 +65,8 @@ export async function createMachine(
       },
     });
 
-    revalidatePath(`/manager/centers/${centerId}/machines/}`);
+
+    revalidatePath(`/manager/centers/${centerId}/machines/`);
     return { ok: true, data: { machineId: machine.id } };
   } catch (error) {
     console.error("Error creating machine:", error);

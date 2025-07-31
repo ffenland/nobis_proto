@@ -159,8 +159,10 @@ export async function getImageInfo(imageId: string): Promise<ImageInfo | null> {
 // 이미지 삭제
 export async function deleteImage(imageId: string): Promise<void> {
   try {
+    // imageId에 슬래시가 포함된 경우를 위해 encodeURIComponent 사용
+    const encodedImageId = encodeURIComponent(imageId);
     const response = await fetch(
-      `${CLOUDFLARE_IMAGES_API_BASE}/v1/${imageId}`,
+      `${CLOUDFLARE_IMAGES_API_BASE}/v1/${encodedImageId}`,
       {
         method: "DELETE",
         headers: {

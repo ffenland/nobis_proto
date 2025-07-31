@@ -133,31 +133,43 @@ export async function getImageByCloudflareId(cloudflareId: string) {
 
 // DB 레코드와 Cloudflare 이미지 동시 삭제
 export async function deleteImageWithCloudflare(imageId: string, userId: string) {
-  // 트랜잭션으로 안전하게 처리
-  const result = await prisma.$transaction(async (tx) => {
-    // 1. 이미지 정보 조회
-    const image = await tx.image.findUnique({
-      where: { id: imageId },
-      select: {
-        id: true,
-        cloudflareId: true,
-        uploadedById: true,
-        avatarUser: {
-          select: { id: true },
-        },
+  // 1. 먼저 이미지 정보 조회 및 권한 확인
+  const image = await prisma.image.findUnique({
+    where: { id: imageId },
+    select: {
+      id: true,
+      cloudflareId: true,
+      uploadedById: true,
+      avatarUser: {
+        select: { id: true },
       },
-    });
+    },
+  });
 
-    if (!image) {
-      throw new Error('Image not found');
+  if (!image) {
+    throw new Error('Image not found');
+  }
+
+  // 2. 권한 확인
+  if (image.uploadedById !== userId) {
+    throw new Error('Unauthorized to delete this image');
+  }
+
+  // 3. Cloudflare에서 먼저 삭제 시도
+  try {
+    await deleteCloudflareImage(image.cloudflareId);
+  } catch (error: any) {
+    // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
+    if (!error.message?.includes('404')) {
+      console.error('Failed to delete from Cloudflare:', error);
+      throw new Error('Failed to delete image from Cloudflare');
     }
+    console.log('Image already deleted from Cloudflare or not found');
+  }
 
-    // 2. 권한 확인
-    if (image.uploadedById !== userId) {
-      throw new Error('Unauthorized to delete this image');
-    }
-
-    // 3. 아바타로 사용 중인지 확인
+  // 4. Cloudflare 삭제 성공 후 DB 처리
+  const result = await prisma.$transaction(async (tx) => {
+    // 아바타로 사용 중인지 확인
     if (image.avatarUser) {
       // 아바타로 사용 중이면 User의 avatarImageId를 null로 설정
       await tx.user.update({
@@ -166,23 +178,13 @@ export async function deleteImageWithCloudflare(imageId: string, userId: string)
       });
     }
 
-    // 4. DB에서 삭제 (또는 소프트 삭제)
-    await tx.image.update({
+    // DB에서 완전히 삭제 (하드 삭제)
+    const deletedImage = await tx.image.delete({
       where: { id: imageId },
-      data: { status: ImageStatus.DELETED },
     });
 
-    return image;
+    return deletedImage;
   });
-
-  // 5. Cloudflare에서 삭제 (트랜잭션 외부에서 처리)
-  try {
-    await deleteCloudflareImage(result.cloudflareId);
-  } catch (error) {
-    console.error('Failed to delete from Cloudflare:', error);
-    // Cloudflare 삭제 실패해도 DB는 이미 삭제 상태로 변경됨
-    // 추후 배치 작업으로 정리 가능
-  }
 
   return result;
 }

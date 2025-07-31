@@ -10,6 +10,7 @@ import {
 } from "./actions";
 import { PageHeader, PageLayout } from "../components/ui/Dropdown";
 import LogoutButton from "../components/base/s_logout_button";
+import RoleSwitchButton from "../components/base/RoleSwitchButton";
 
 const ManagerMainPage = async () => {
   try {
@@ -36,7 +37,10 @@ const ManagerMainPage = async () => {
             <div className="text-sm text-gray-600">
               <span className="font-medium text-gray-900">{managerInfo.username}</span>님 안녕하세요
             </div>
-            <LogoutButton variant="manager" size="sm" />
+            <div className="flex gap-2">
+              <RoleSwitchButton targetRole="TRAINER" size="sm" variant="outline" />
+              <LogoutButton variant="manager" size="sm" />
+            </div>
           </div>
         </div>
 

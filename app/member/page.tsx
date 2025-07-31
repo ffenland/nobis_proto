@@ -54,7 +54,12 @@ const MemberDashboardPage = () => {
         <div>
           <PageHeader title="대시보드" subtitle="나의 PT 현황을 확인하세요" />
         </div>
-        <ClientLogoutButton userType="member" />
+        <div className="flex flex-col items-end space-y-2">
+          <div className="text-sm text-gray-600">
+            <span className="font-medium text-gray-900">{stats?.username}</span>님 안녕하세요
+          </div>
+          <ClientLogoutButton />
+        </div>
       </div>
 
       {/* 메인 PT 카드 */}
