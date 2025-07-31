@@ -626,6 +626,28 @@ import MediaGallery from '@/app/components/media/MediaGallery';
 3. **역할 기반 제한**: PT 기록은 트레이너만, 프로필은 본인만
 4. **서명된 URL**: 민감한 컨텐츠는 requireSignedURLs 옵션 사용
 
+### Media Upload/Delete Principles (중요)
+
+미디어 업로드와 삭제는 항상 **Cloudflare를 먼저 처리**하고, 성공한 경우에만 DB를 업데이트합니다:
+
+#### Upload Flow
+1. Cloudflare에 Direct Upload URL 생성
+2. 클라이언트가 Cloudflare로 직접 업로드
+3. 업로드 성공 확인 후 DB에 레코드 생성
+4. 실패 시 Cloudflare의 이미지/비디오는 자동 정리됨
+
+#### Delete Flow
+1. DB에서 미디어 정보 조회 및 권한 확인
+2. **Cloudflare에서 먼저 삭제 시도**
+3. Cloudflare 삭제 성공 시 DB에서 삭제 (소프트 삭제)
+4. 404 에러는 이미 삭제된 것으로 간주하고 정상 처리
+
+#### 일관성 원칙
+- **Cloudflare = Single Source of Truth**
+- DB는 Cloudflare의 상태를 반영
+- 불일치 발생 시 Cloudflare 상태를 우선시
+- 배치 작업으로 주기적 동기화 검토
+
 ### Environment Variables
 
 필수 환경 변수:
