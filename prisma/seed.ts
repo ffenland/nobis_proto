@@ -35,7 +35,10 @@ async function main() {
     // 4. 웨이트 도구 생성
     await createAllEquipmentData();
 
-    // 5. 스트레칭 운동 생성
+    // 5. 프리 웨이트 운동 생성
+    await createFreeExercises();
+
+    // 6. 스트레칭 운동 생성
     await createStretchingExercises();
 
     console.log("🎉 시드 데이터 생성 완료!");
@@ -121,6 +124,7 @@ async function createUsers() {
           role: UserRole.TRAINER,
           naverId: isNaver ? getUniqueNaverId() : null,
           kakaoId: isNaver ? null : getUniqueKakaoId(),
+          avatarImageId: null, // avatarImageId 추가
         },
       });
       await prisma.trainer.create({
@@ -162,6 +166,7 @@ async function createUsers() {
           role: UserRole.MANAGER,
           naverId: isNaver ? getUniqueNaverId() : null,
           kakaoId: isNaver ? null : getUniqueKakaoId(),
+          avatarImageId: null, // avatarImageId 추가
         },
       });
       await prisma.manager.create({
@@ -211,6 +216,7 @@ async function createUsers() {
           role: UserRole.MEMBER,
           naverId: isNaver ? getUniqueNaverId() : null,
           kakaoId: isNaver ? null : getUniqueKakaoId(),
+          avatarImageId: null, // avatarImageId 추가
         },
       });
       await prisma.member.create({
@@ -856,6 +862,149 @@ const createEquipmentData = async (fitnessCenterId: string) => {
     }
   }
 };
+
+async function createFreeExercises() {
+  console.log("🏋️‍♂️ 프리 웨이트 운동 생성 중...");
+
+  // 이미 존재하는 프리 운동 확인
+  const existingExercises = await prisma.freeExercise.findMany({
+    select: { title: true },
+  });
+  const existingExerciseTitles = new Set(existingExercises.map((e) => e.title));
+
+  const freeExercises = [
+    // 가슴 운동
+    {
+      title: "벤치 프레스",
+      description: "바벨을 이용한 대표적인 가슴 운동",
+    },
+    {
+      title: "인클라인 벤치 프레스",
+      description: "상부 가슴을 타겟으로 하는 벤치 프레스",
+    },
+    {
+      title: "덤벨 프레스",
+      description: "덤벨을 이용한 가슴 운동",
+    },
+    {
+      title: "덤벨 플라이",
+      description: "가슴 근육을 늘려주는 덤벨 운동",
+    },
+    // 등 운동
+    {
+      title: "바벨 로우",
+      description: "바벨을 이용한 등 근육 운동",
+    },
+    {
+      title: "덤벨 로우",
+      description: "한쪽씩 진행하는 등 운동",
+    },
+    {
+      title: "풀업",
+      description: "체중을 이용한 등 운동",
+    },
+    {
+      title: "데드리프트",
+      description: "전신 운동의 대표격",
+    },
+    // 어깨 운동
+    {
+      title: "밀리터리 프레스",
+      description: "바벨을 이용한 어깨 운동",
+    },
+    {
+      title: "덤벨 숄더 프레스",
+      description: "덤벨을 이용한 어깨 운동",
+    },
+    {
+      title: "사이드 레터럴 레이즈",
+      description: "측면 삼각근을 타겟으로 하는 운동",
+    },
+    {
+      title: "프론트 레이즈",
+      description: "전면 삼각근을 타겟으로 하는 운동",
+    },
+    // 팔 운동
+    {
+      title: "바벨 컬",
+      description: "바벨을 이용한 이두근 운동",
+    },
+    {
+      title: "덤벨 컬",
+      description: "덤벨을 이용한 이두근 운동",
+    },
+    {
+      title: "해머 컬",
+      description: "중립 그립으로 하는 이두근 운동",
+    },
+    {
+      title: "트라이셉 익스텐션",
+      description: "삼두근을 타겟으로 하는 운동",
+    },
+    {
+      title: "클로즈 그립 벤치 프레스",
+      description: "좁은 그립으로 하는 삼두근 운동",
+    },
+    // 하체 운동
+    {
+      title: "스쿼트",
+      description: "바벨을 이용한 대표적인 하체 운동",
+    },
+    {
+      title: "프론트 스쿼트",
+      description: "바벨을 앞에 놓고 하는 스쿼트",
+    },
+    {
+      title: "런지",
+      description: "한쪽 다리씩 진행하는 하체 운동",
+    },
+    {
+      title: "불가리안 스플릿 스쿼트",
+      description: "한쪽 다리를 벤치에 올려놓고 하는 스쿼트",
+    },
+    {
+      title: "스티프 레그 데드리프트",
+      description: "햄스트링을 타겟으로 하는 운동",
+    },
+    {
+      title: "카프 레이즈",
+      description: "종아리 근육을 타겟으로 하는 운동",
+    },
+    // 복근 운동
+    {
+      title: "바벨 롤아웃",
+      description: "바벨을 이용한 복근 운동",
+    },
+    {
+      title: "행잉 레그 레이즈",
+      description: "매달려서 하는 복근 운동",
+    },
+  ];
+
+  for (const exercise of freeExercises) {
+    // 중복 체크: 이미 존재하는 운동이면 건너뛰기
+    if (existingExerciseTitles.has(exercise.title)) {
+      console.log(
+        `🔄 프리 웨이트 운동 "${exercise.title}" 이미 존재함 - 건너뛰기`
+      );
+      continue;
+    }
+
+    try {
+      await prisma.freeExercise.create({
+        data: {
+          title: exercise.title,
+          description: exercise.description,
+        },
+      });
+      console.log(`✅ 프리 웨이트 운동 "${exercise.title}" 생성 완료`);
+    } catch (error) {
+      console.error(`❌ 프리 웨이트 운동 "${exercise.title}" 생성 실패:`, error);
+    }
+  }
+
+  console.log("✅ 프리 웨이트 운동 생성 완료");
+}
 
 async function createStretchingExercises() {
   console.log("🤸 스트레칭 운동 생성 중...");

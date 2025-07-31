@@ -28,10 +28,9 @@ export const getCenterDetail = async (centerId: string) => {
             select: {
               username: true,
               email: true,
-              avatarMedia: {
+              avatarImage: {
                 select: {
-                  id: true,
-                  publicUrl: true,
+                  cloudflareId: true,
                 },
               },
             },
@@ -57,10 +56,9 @@ export const getCenterDetail = async (centerId: string) => {
           user: {
             select: {
               username: true,
-              avatarMedia: {
+              avatarImage: {
                 select: {
-                  id: true,
-                  publicUrl: true,
+                  cloudflareId: true,
                 },
               },
             },
@@ -88,10 +86,9 @@ export const getCenterDetail = async (centerId: string) => {
             select: {
               username: true,
               email: true,
-              avatarMedia: {
+              avatarImage: {
                 select: {
-                  id: true,
-                  publicUrl: true,
+                  cloudflareId: true,
                 },
               },
             },

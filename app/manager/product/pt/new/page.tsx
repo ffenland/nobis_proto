@@ -8,6 +8,10 @@ import useSWR from "swr";
 import Link from "next/link";
 import { ITrainerForSelection } from "@/app/lib/services/product.service";
 import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
+import { PageLayout } from "@/app/components/ui/Dropdown";
+import { Card, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { PageHeaderWithActions } from "@/app/components/ui/PageHeaderWithActions";
 
 interface IPtProductFormData {
   title: string;
@@ -186,56 +190,47 @@ const PtProductNewPage = () => {
 
   if (trainersLoading) {
     return (
-      <div className="container mx-auto p-4 max-w-2xl">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-center">
-            <p className="text-gray-600">트레이너 목록을 불러오는 중...</p>
-          </div>
+      <PageLayout maxWidth="md">
+        <div className="flex items-center justify-center py-12">
+          <p className="text-gray-600">트레이너 목록을 불러오는 중...</p>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   if (trainersError) {
     return (
-      <div className="container mx-auto p-4 max-w-2xl">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="text-center">
-            <p className="text-red-600 mb-4">
-              트레이너 목록을 불러오는데 실패했습니다.
-            </p>
-            <Link
-              href="/manager/product"
-              className="text-blue-600 hover:text-blue-800"
-            >
-              ← 뒤로가기
-            </Link>
-          </div>
+      <PageLayout maxWidth="md">
+        <div className="text-center py-12">
+          <p className="text-red-600 mb-4">
+            트레이너 목록을 불러오는데 실패했습니다.
+          </p>
+          <Link href="/manager/product">
+            <Button variant="outline">제품 관리로 돌아가기</Button>
+          </Link>
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-2xl">
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">새 PT 상품 등록</h1>
-          <Link
-            href="/manager/product"
-            className="text-gray-600 hover:text-gray-800"
-          >
-            ← 뒤로가기
-          </Link>
+    <PageLayout maxWidth="md">
+      <PageHeaderWithActions
+        title="새 PT 상품 등록"
+        subtitle="PT 상품의 정보를 입력하여 등록합니다"
+        backHref="/manager/product"
+        backLabel="제품 관리"
+      />
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-red-800">{error}</p>
         </div>
+      )}
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-800">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <Card>
+        <CardContent className="p-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* trainerIds를 React Hook Form에 등록 */}
           <input
             type="hidden"
@@ -246,8 +241,12 @@ const PtProductNewPage = () => {
             })}
           />
 
-          {/* 상품명 */}
-          <div>
+          {/* 기본 정보 섹션 */}
+          <div className="space-y-6">
+            <h3 className="text-base font-medium text-gray-900">기본 정보</h3>
+            
+            {/* 상품명 */}
+            <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               상품명 *
             </label>
@@ -381,13 +380,14 @@ const PtProductNewPage = () => {
               placeholder="상품에 대한 자세한 설명을 입력하세요"
             />
           </div>
+          </div>
 
           {/* 담당 트레이너 선택 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               담당 트레이너 선택 *
             </label>
-            <div className="border border-gray-300 rounded-md p-4 bg-gray-50">
+            <div className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
                   선택된 트레이너: {selectedTrainerIds.length}명 /{" "}
@@ -396,7 +396,7 @@ const PtProductNewPage = () => {
                 <button
                   type="button"
                   onClick={handleSelectAllTrainers}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                 >
                   {selectedTrainerIds.length === trainers?.length
                     ? "전체 해제"
@@ -404,17 +404,17 @@ const PtProductNewPage = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto bg-gray-50 rounded-md p-2">
                 {trainers?.map((trainer) => (
                   <label
                     key={trainer.id}
-                    className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer"
+                    className="flex items-center p-2 hover:bg-white rounded cursor-pointer transition-colors"
                   >
                     <input
                       type="checkbox"
                       checked={selectedTrainerIds.includes(trainer.id)}
                       onChange={() => handleTrainerToggle(trainer.id)}
-                      className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded mr-2"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
                     />
                     <span className="text-sm text-gray-700">
                       {trainer.user.username}
@@ -431,18 +431,25 @@ const PtProductNewPage = () => {
             </div>
           </div>
 
-          {/* 판매 상태 */}
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              {...register("onSale")}
-              className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
-            />
-            <label className="ml-2 block text-sm text-gray-700">판매 중</label>
-          </div>
+          {/* 구분선 */}
+          <div className="border-t pt-6"></div>
 
-          {/* 기간 제한 */}
+          {/* 판매 설정 섹션 */}
           <div className="space-y-4">
+            <h3 className="text-base font-medium text-gray-900">판매 설정</h3>
+            
+            {/* 판매 상태 */}
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                {...register("onSale")}
+                className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
+              />
+              <label className="ml-2 block text-sm text-gray-700">판매 중</label>
+            </div>
+
+            {/* 기간 제한 */}
+            <div className="space-y-4">
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -496,25 +503,24 @@ const PtProductNewPage = () => {
               )}
             </div>
           </div>
-
-          {/* 제출 버튼 */}
-          <div className="flex justify-end space-x-4">
-            <Link
-              href="/manager/product"
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-            >
-              취소
-            </Link>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-400 rounded-md transition-colors"
-            >
-              {isSubmitting ? "등록 중..." : "등록"}
-            </button>
           </div>
-        </form>
-      </div>
+
+            {/* 제출 버튼 */}
+            <div className="flex justify-end space-x-4 pt-4 border-t">
+              <Link href="/manager/product">
+                <Button variant="outline">취소</Button>
+              </Link>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                variant="primary"
+              >
+                {isSubmitting ? "등록 중..." : "등록"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       {/* 드롭다운이 열려있을 때 백그라운드 클릭으로 닫기 */}
       {isTimeDropdownOpen && (
@@ -523,7 +529,7 @@ const PtProductNewPage = () => {
           onClick={() => setIsTimeDropdownOpen(false)}
         />
       )}
-    </div>
+    </PageLayout>
   );
 };
 

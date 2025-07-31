@@ -57,10 +57,9 @@ export class ChatService {
             id: true,
             username: true,
             role: true,
-            avatarMedia: {
+            avatarImage: {
               select: {
-                thumbnailUrl: true,
-                publicUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -70,10 +69,9 @@ export class ChatService {
             id: true,
             username: true,
             role: true,
-            avatarMedia: {
+            avatarImage: {
               select: {
-                thumbnailUrl: true,
-                publicUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -117,9 +115,9 @@ export class ChatService {
             id: otherUser.id,
             username: otherUser.username,
             role: otherUser.role,
-            avatar:
-              otherUser.avatarMedia?.thumbnailUrl ||
-              otherUser.avatarMedia?.publicUrl,
+            avatar: otherUser.avatarImage?.cloudflareId
+              ? `https://imagedelivery.net/4qM0nUySNuH-4XE1BufwsQ/${otherUser.avatarImage.cloudflareId}/avatar`
+              : null,
           },
           lastMessage: lastMessage
             ? {
@@ -176,10 +174,9 @@ export class ChatService {
           select: {
             username: true,
             role: true,
-            avatarMedia: {
+            avatarImage: {
               select: {
-                thumbnailUrl: true,
-                publicUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -232,10 +229,9 @@ export class ChatService {
             select: {
               username: true,
               role: true,
-              avatarMedia: {
+              avatarImage: {
                 select: {
-                  thumbnailUrl: true,
-                  publicUrl: true,
+                  cloudflareId: true,
                 },
               },
             },
@@ -463,10 +459,9 @@ export class ChatService {
             role: true,
             memberProfile: { select: { id: true } },
             trainerProfile: { select: { id: true } },
-            avatarMedia: {
+            avatarImage: {
               select: {
-                thumbnailUrl: true,
-                publicUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -478,10 +473,9 @@ export class ChatService {
             role: true,
             memberProfile: { select: { id: true } },
             trainerProfile: { select: { id: true } },
-            avatarMedia: {
+            avatarImage: {
               select: {
-                thumbnailUrl: true,
-                publicUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -573,9 +567,9 @@ export class ChatService {
         id: otherUser.id,
         username: otherUser.username,
         role: otherUser.role,
-        avatar:
-          otherUser.avatarMedia?.thumbnailUrl ||
-          otherUser.avatarMedia?.publicUrl,
+        avatar: otherUser.avatarImage?.cloudflareId
+          ? `https://imagedelivery.net/4qM0nUySNuH-4XE1BufwsQ/${otherUser.avatarImage.cloudflareId}/avatar`
+          : null,
       },
       ptInfo,
     };

@@ -67,10 +67,11 @@ export const getMachineDetail = async (machineId: string) => {
           title: "asc",
         },
       },
-      photos: {
+      images: {
         select: {
           id: true,
-          publicUrl: true,
+          cloudflareId: true,
+          originalName: true,
         },
         take: 5,
       },

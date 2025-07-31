@@ -33,7 +33,7 @@ export const getFreeExercises = async () => {
       _count: {
         select: {
           freeSetRecords: true,
-          photos: true,
+          images: true,
         },
       },
     },

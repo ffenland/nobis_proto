@@ -439,11 +439,13 @@ export const getTrainerProfileForEditService = async (trainerId: string) => {
           id: true,
           username: true,
           email: true,
-          avatarMedia: {
+          avatarImageId: true,
+          avatarImage: {
             select: {
               id: true,
-              publicUrl: true,
-              thumbnailUrl: true,
+              cloudflareId: true,
+              originalName: true,
+              type: true,
             },
           },
         },
@@ -461,7 +463,8 @@ export const getTrainerProfileForEditService = async (trainerId: string) => {
     username: trainer.user.username,
     email: trainer.user.email,
     introduce: trainer.introduce,
-    avatarMedia: trainer.user.avatarMedia,
+    avatarImageId: trainer.user.avatarImageId,
+    avatarImage: trainer.user.avatarImage,
   };
 };
 
@@ -471,7 +474,7 @@ export const updateTrainerProfileService = async (
   data: {
     username?: string;
     introduce?: string;
-    avatarMediaId?: string | null;
+    avatarImageId?: string | null;
   }
 ) => {
   const trainer = await prisma.trainer.findUnique({
@@ -481,7 +484,7 @@ export const updateTrainerProfileService = async (
       user: {
         select: {
           username: true,
-          avatarMediaId: true,
+          avatarImageId: true,
         },
       },
     },
@@ -512,19 +515,21 @@ export const updateTrainerProfileService = async (
       where: { id: trainer.userId },
       data: {
         ...(data.username && { username: data.username }),
-        ...(data.avatarMediaId !== undefined && {
-          avatarMediaId: data.avatarMediaId,
+        ...(data.avatarImageId !== undefined && {
+          avatarImageId: data.avatarImageId,
         }),
       },
       select: {
         id: true,
         username: true,
         email: true,
-        avatarMedia: {
+        avatarImageId: true,
+        avatarImage: {
           select: {
             id: true,
-            publicUrl: true,
-            thumbnailUrl: true,
+            cloudflareId: true,
+            originalName: true,
+            type: true,
           },
         },
       },
@@ -542,28 +547,14 @@ export const updateTrainerProfileService = async (
       },
     });
 
-    // 기존 아바타 미디어 정리 (새로운 아바타로 변경된 경우)
-    if (
-      data.avatarMediaId !== undefined &&
-      trainer.user.avatarMediaId &&
-      trainer.user.avatarMediaId !== data.avatarMediaId
-    ) {
-      await tx.media.update({
-        where: { id: trainer.user.avatarMediaId },
-        data: {
-          status: "SCHEDULED_DELETE",
-          scheduledDeleteAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24시간 후 삭제
-        },
-      });
-    }
-
     return {
       id: updatedTrainer.id,
       userId: updatedUser.id,
       username: updatedUser.username,
       email: updatedUser.email,
       introduce: updatedTrainer.introduce,
-      avatarMedia: updatedUser.avatarMedia,
+      avatarImageId: updatedUser.avatarImageId,
+      avatarImage: updatedUser.avatarImage,
     };
   });
 

@@ -10,6 +10,12 @@ export interface FreeRecordSubmitData {
     reps: number;
     equipmentIds: string[];
   }>;
+  imageFiles?: File[];
+  videoFiles?: File[];
+  existingImageIds?: string[];
+  existingVideoIds?: string[];
+  deletedImageIds?: string[];
+  deletedVideoIds?: string[];
 }
 
 // 머신 운동 제출 데이터
@@ -22,6 +28,12 @@ export interface MachineRecordSubmitData {
     reps: number;
     settingValueIds: string[];
   }>;
+  imageFiles?: File[];
+  videoFiles?: File[];
+  existingImageIds?: string[];
+  existingVideoIds?: string[];
+  deletedImageIds?: string[];
+  deletedVideoIds?: string[];
 }
 
 // 스트레칭 제출 데이터
@@ -29,4 +41,10 @@ export interface StretchingRecordSubmitData {
   stretchingExerciseId: string;
   description?: string;
   equipmentIds: string[];
+  imageFiles?: File[];
+  videoFiles?: File[];
+  existingImageIds?: string[];
+  existingVideoIds?: string[];
+  deletedImageIds?: string[];
+  deletedVideoIds?: string[];
 }

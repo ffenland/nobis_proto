@@ -16,6 +16,7 @@ import type {
   MachineRecordSubmitData, 
   StretchingRecordSubmitData 
 } from "../components/types";
+import { uploadMediaFiles } from "../components/uploadMedia";
 
 interface EditItemFormProps {
   item: TPtRecordItem;
@@ -36,6 +37,8 @@ const fetcher = (url: string) =>
 export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditItemFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
+  const [deletedVideoIds, setDeletedVideoIds] = useState<string[]>([]);
 
   // 머신 목록 조회
   const { data: machineList } = useSWR<IMachine[]>(
@@ -50,6 +53,47 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
       : null,
     fetcher
   );
+
+  // 미디어 삭제 핸들러
+  const handleDeleteImage = async (imageId: string) => {
+    if (confirm("이미지를 삭제하시겠습니까?")) {
+      try {
+        const response = await fetch(
+          `/api/trainer/pt-records/${ptRecordId}/items/${item.id}/media/${imageId}?type=image`,
+          { method: "DELETE" }
+        );
+        
+        if (!response.ok) {
+          throw new Error("이미지 삭제 실패");
+        }
+        
+        setDeletedImageIds(prev => [...prev, imageId]);
+      } catch (error) {
+        console.error("이미지 삭제 중 오류:", error);
+        alert("이미지 삭제 중 오류가 발생했습니다.");
+      }
+    }
+  };
+
+  const handleDeleteVideo = async (videoId: string) => {
+    if (confirm("동영상을 삭제하시겠습니까?")) {
+      try {
+        const response = await fetch(
+          `/api/trainer/pt-records/${ptRecordId}/items/${item.id}/media/${videoId}?type=video`,
+          { method: "DELETE" }
+        );
+        
+        if (!response.ok) {
+          throw new Error("동영상 삭제 실패");
+        }
+        
+        setDeletedVideoIds(prev => [...prev, videoId]);
+      } catch (error) {
+        console.error("동영상 삭제 중 오류:", error);
+        alert("동영상 삭제 중 오류가 발생했습니다.");
+      }
+    }
+  };
 
   // 제출 핸들러
   const handleSubmit = async (data: FreeRecordSubmitData | MachineRecordSubmitData | StretchingRecordSubmitData) => {
@@ -74,6 +118,29 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
             formData.append(`sets[${index}].equipments[${eqIndex}]`, equipmentId);
           });
         });
+        
+        // Add deleted media IDs
+        deletedImageIds.forEach((id, index) => {
+          formData.append(`deletedImages[${index}]`, id);
+        });
+        deletedVideoIds.forEach((id, index) => {
+          formData.append(`deletedVideos[${index}]`, id);
+        });
+        
+        // Handle media uploads if any
+        if (freeData.imageFiles?.length || freeData.videoFiles?.length) {
+          const uploadResults = await uploadMediaFiles(
+            ptRecordId,
+            item.id,
+            freeData.imageFiles || [],
+            freeData.videoFiles || []
+          );
+          
+          if (uploadResults.errors.length > 0) {
+            console.error("일부 미디어 업로드 실패:", uploadResults.errors);
+            alert(`일부 파일 업로드 실패:\n${uploadResults.errors.join('\n')}`);
+          }
+        }
         
         const response = await fetch(`/api/trainer/pt-records/${ptRecordId}/items/${item.id}?type=free`, {
           method: "PUT",
@@ -102,6 +169,29 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
           });
         });
         
+        // Add deleted media IDs
+        deletedImageIds.forEach((id, index) => {
+          formData.append(`deletedImages[${index}]`, id);
+        });
+        deletedVideoIds.forEach((id, index) => {
+          formData.append(`deletedVideos[${index}]`, id);
+        });
+        
+        // Handle media uploads if any
+        if (machineData.imageFiles?.length || machineData.videoFiles?.length) {
+          const uploadResults = await uploadMediaFiles(
+            ptRecordId,
+            item.id,
+            machineData.imageFiles || [],
+            machineData.videoFiles || []
+          );
+          
+          if (uploadResults.errors.length > 0) {
+            console.error("일부 미디어 업로드 실패:", uploadResults.errors);
+            alert(`일부 파일 업로드 실패:\n${uploadResults.errors.join('\n')}`);
+          }
+        }
+        
         const response = await fetch(`/api/trainer/pt-records/${ptRecordId}/items/${item.id}?type=machine`, {
           method: "PUT",
           body: formData,
@@ -117,6 +207,29 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
         stretchingData.equipmentIds.forEach((equipmentId, index) => {
           formData.append(`equipments[${index}]`, equipmentId);
         });
+        
+        // Add deleted media IDs
+        deletedImageIds.forEach((id, index) => {
+          formData.append(`deletedImages[${index}]`, id);
+        });
+        deletedVideoIds.forEach((id, index) => {
+          formData.append(`deletedVideos[${index}]`, id);
+        });
+        
+        // Handle media uploads if any
+        if (stretchingData.imageFiles?.length || stretchingData.videoFiles?.length) {
+          const uploadResults = await uploadMediaFiles(
+            ptRecordId,
+            item.id,
+            stretchingData.imageFiles || [],
+            stretchingData.videoFiles || []
+          );
+          
+          if (uploadResults.errors.length > 0) {
+            console.error("일부 미디어 업로드 실패:", uploadResults.errors);
+            alert(`일부 파일 업로듍 실패:\n${uploadResults.errors.join('\n')}`);
+          }
+        }
         
         const response = await fetch(`/api/trainer/pt-records/${ptRecordId}/items/${item.id}?type=stretching`, {
           method: "PUT",
@@ -159,6 +272,7 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
           onComplete={handleComplete}
           equipmentList={equipmentList}
           mode="edit"
+          ptRecordItemId={item.id}
           initialData={{
             title: item.title || "",
             description: item.description || "",
@@ -171,6 +285,10 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
             })),
           }}
           onSubmit={handleSubmit}
+          existingImages={item.images.filter(img => !deletedImageIds.includes(img.id))}
+          existingVideos={item.videos.filter(vid => !deletedVideoIds.includes(vid.id))}
+          onRemoveExistingImage={handleDeleteImage}
+          onRemoveExistingVideo={handleDeleteVideo}
         />
       )}
 
@@ -181,6 +299,7 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
           onComplete={handleComplete}
           machineList={machineList}
           mode="edit"
+          ptRecordItemId={item.id}
           initialData={{
             title: item.title || undefined,
             description: item.description || "",
@@ -196,6 +315,10 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
             })),
           }}
           onSubmit={handleSubmit}
+          existingImages={item.images.filter(img => !deletedImageIds.includes(img.id))}
+          existingVideos={item.videos.filter(vid => !deletedVideoIds.includes(vid.id))}
+          onRemoveExistingImage={handleDeleteImage}
+          onRemoveExistingVideo={handleDeleteVideo}
         />
       )}
 
@@ -206,12 +329,17 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
           onComplete={handleComplete}
           equipmentList={equipmentList}
           mode="edit"
+          ptRecordItemId={item.id}
           initialData={{
             stretchingExerciseId: item.stretchingExerciseRecords[0]?.stretchingExercise?.id,
             description: item.description || item.stretchingExerciseRecords[0]?.description || "",
             equipments: item.stretchingExerciseRecords[0]?.equipments || [],
           }}
           onSubmit={handleSubmit}
+          existingImages={item.images.filter(img => !deletedImageIds.includes(img.id))}
+          existingVideos={item.videos.filter(vid => !deletedVideoIds.includes(vid.id))}
+          onRemoveExistingImage={handleDeleteImage}
+          onRemoveExistingVideo={handleDeleteVideo}
         />
       )}
 

@@ -12,6 +12,7 @@ import { Button } from "@/app/components/ui/Button";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 import Link from "next/link";
 import Image from "next/image";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 // 폼 스키마
 const profileEditSchema = z.object({
@@ -37,10 +38,12 @@ interface TrainerProfileData {
   username: string;
   email: string;
   introduce: string | null;
-  avatarMedia: {
+  avatarImageId: string | null;
+  avatarImage?: {
     id: string;
-    publicUrl: string;
-    thumbnailUrl: string | null;
+    cloudflareId: string;
+    originalName: string;
+    type: string;
   } | null;
 }
 
@@ -62,17 +65,15 @@ export default function TrainerProfileEditPage() {
     null
   );
   const [avatarSrc, setAvatarSrc] = useState("");
+  const [cloudflareImageId, setCloudflareImageId] = useState<string | null>(null); // Track Cloudflare image ID
+  const [dbImageId, setDbImageId] = useState<string | null>(null); // Track DB image ID
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isValid },
-    reset,
-  } = useForm<ProfileEditForm>({
-    resolver: zodResolver(profileEditSchema),
-    mode: "onChange",
-  });
+  // Form validation state
+  const [validationErrors, setValidationErrors] = useState<{
+    username?: string;
+    introduce?: string;
+  }>({});
 
   useEffect(() => {
     // 프로필 데이터 로드
@@ -87,13 +88,19 @@ export default function TrainerProfileEditPage() {
         }
 
         const { data } = await response.json();
-        setProfileData(data);
-
-        // 폼 초기값 설정
-        reset({
+        
+        // Transform API data to match our interface
+        const transformedData: TrainerProfileData = {
+          id: data.id,
+          userId: data.userId,
           username: data.username,
-          introduce: data.introduce || "",
-        });
+          email: data.email,
+          introduce: data.introduce,
+          avatarImageId: data.avatarImageId || null,
+          avatarImage: data.avatarImage || null,
+        };
+        
+        setProfileData(transformedData);
       } catch (error) {
         setError(
           error instanceof Error
@@ -105,12 +112,19 @@ export default function TrainerProfileEditPage() {
       }
     };
     loadProfileData();
-  }, [reset]);
+  }, []);
 
   // 기존 아바타 이미지 초기화
   useEffect(() => {
-    if (profileData?.avatarMedia) {
-      setAvatarSrc(profileData.avatarMedia.publicUrl);
+    if (!profileData) return;
+    
+    setDbImageId(profileData.avatarImageId);
+    
+    // 이미지 URL 설정 (새로운 Image 시스템 우선)
+    if (profileData.avatarImageId && profileData.avatarImage) {
+      const imageUrl = getOptimizedImageUrl(profileData.avatarImage.cloudflareId, 'avatar');
+      setAvatarSrc(imageUrl);
+      setCloudflareImageId(profileData.avatarImage.cloudflareId);
     }
   }, [profileData]);
 
@@ -153,9 +167,23 @@ export default function TrainerProfileEditPage() {
   };
 
   // 아바타 제거
-  const handleAvatarRemove = () => {
+  const handleAvatarRemove = async () => {
     setSelectedAvatarFile(null);
-    setAvatarSrc(profileData?.avatarMedia?.publicUrl || "");
+    setCloudflareImageId(null);
+    
+    // Reset to original profile image if exists
+    if (profileData) {
+      // 이미지 URL 재설정 (원래 이미지로)
+      if (profileData.avatarImageId && profileData.avatarImage) {
+        const imageUrl = getOptimizedImageUrl(profileData.avatarImage.cloudflareId, 'avatar');
+        setAvatarSrc(imageUrl);
+      } else {
+        setAvatarSrc("");
+      }
+    } else {
+      setAvatarSrc("");
+    }
+    
     if (avatarInputRef.current) {
       avatarInputRef.current.value = "";
     }
@@ -166,18 +194,38 @@ export default function TrainerProfileEditPage() {
     avatarInputRef.current?.click();
   };
 
-  const onSubmit = async (data: ProfileEditForm) => {
+  const handleProfileUpdate = async () => {
     if (!profileData) return;
+
+    // Form validation
+    const formData = {
+      username: (document.querySelector('input[name="username"]') as HTMLInputElement)?.value || '',
+      introduce: (document.querySelector('textarea[name="introduce"]') as HTMLTextAreaElement)?.value || '',
+    };
+
+    // Validate form data
+    const validationResult = profileEditSchema.safeParse(formData);
+    if (!validationResult.success) {
+      const errors: { username?: string; introduce?: string } = {};
+      validationResult.error.errors.forEach((err) => {
+        if (err.path[0] === 'username') {
+          errors.username = err.message;
+        } else if (err.path[0] === 'introduce') {
+          errors.introduce = err.message;
+        }
+      });
+      setValidationErrors(errors);
+      return;
+    }
+    setValidationErrors({});
 
     try {
       setIsSubmitting(true);
       setError(null);
-      const trimmedUsername = data.username.trim();
+      const trimmedUsername = formData.username.trim();
 
       // 사용자명이 변경된 경우 중복 검사
-      if (data.username !== trimmedUsername) {
-        // 사용자명 앞뒤 공백 제거
-
+      if (profileData.username !== trimmedUsername) {
         try {
           const checkResponse = await fetch("/api/trainer/profile", {
             method: "POST",
@@ -202,68 +250,64 @@ export default function TrainerProfileEditPage() {
         }
       }
 
-      let avatarMediaId = profileData.avatarMedia?.id || null;
+      let newAvatarImageId: string | null = null;
+      const previousImageId = profileData.avatarImageId;
 
       // 새로운 아바타 파일이 선택된 경우 업로드
       if (selectedAvatarFile) {
         try {
-          // 1. 업로드 URL 생성
-          const createUrlResponse = await fetch(
-            "/api/upload/create-upload-url",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "image",
-                category: "profile",
-                fileName: selectedAvatarFile.name,
-                fileSize: selectedAvatarFile.size,
-                fileType: selectedAvatarFile.type,
-              }),
-            }
-          );
+          // 1. Cloudflare 업로드 URL 생성
+          const uploadUrlResponse = await fetch("/api/media/images/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entityType: "profile",
+              entityId: profileData.userId,
+            }),
+          });
 
-          if (!createUrlResponse.ok) {
-            const error = await createUrlResponse.json();
+          if (!uploadUrlResponse.ok) {
+            const error = await uploadUrlResponse.json();
             throw new Error(error.error || "업로드 URL 생성 실패");
           }
 
-          const { uploadUrl, imageId } = await createUrlResponse.json();
+          const { uploadURL, customId } = await uploadUrlResponse.json();
 
           // 2. Cloudflare Images에 직접 업로드
           const formData = new FormData();
           formData.append("file", selectedAvatarFile);
 
-          const uploadResponse = await fetch(uploadUrl, {
+          const uploadResponse = await fetch(uploadURL, {
             method: "POST",
             body: formData,
           });
 
           if (!uploadResponse.ok) {
-            throw new Error("아바타 업로드 실패");
+            throw new Error("이미지 업로드 실패");
           }
 
-          // 3. 업로드 완료 처리
-          const completeResponse = await fetch("/api/upload/complete", {
+          // 3. 업로드 확인 및 DB 레코드 생성
+          const confirmResponse = await fetch("/api/media/images/confirm", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              type: "image",
-              cloudflareId: imageId,
-              category: "profile",
+              cloudflareId: customId,
               originalName: selectedAvatarFile.name,
-              size: selectedAvatarFile.size,
               mimeType: selectedAvatarFile.type,
+              size: selectedAvatarFile.size,
+              type: "PROFILE",
             }),
           });
 
-          if (!completeResponse.ok) {
-            const error = await completeResponse.json();
-            throw new Error(error.error || "업로드 완료 처리 실패");
+          if (!confirmResponse.ok) {
+            const error = await confirmResponse.json();
+            throw new Error(error.error || "이미지 확인 실패");
           }
 
-          const { media } = await completeResponse.json();
-          avatarMediaId = media.id;
+          const { id: imageId } = await confirmResponse.json();
+          newAvatarImageId = imageId;
+          setDbImageId(imageId);
+          setCloudflareImageId(customId);
         } catch (uploadError) {
           throw new Error(
             `아바타 업로드 중 오류 발생: ${
@@ -275,11 +319,11 @@ export default function TrainerProfileEditPage() {
         }
       }
 
-      // 프로필 업데이트 (사용자명 trim 적용)
+      // 프로필 업데이트
       const updateData = {
         username: trimmedUsername,
-        introduce: data.introduce || "",
-        avatarMediaId,
+        introduce: formData.introduce || "",
+        avatarImageId: newAvatarImageId,
       };
 
       const response = await fetch("/api/trainer/profile", {
@@ -291,6 +335,20 @@ export default function TrainerProfileEditPage() {
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "프로필 수정에 실패했습니다.");
+      }
+
+      // 업로드 성공 후 기존 이미지 삭제
+      if (newAvatarImageId && previousImageId && previousImageId !== newAvatarImageId) {
+        try {
+          // 비동기로 기존 이미지 삭제 (UI 블로킹 방지)
+          fetch(`/api/media/images/${previousImageId}`, {
+            method: "DELETE",
+          }).catch(error => {
+            console.error("Failed to delete old avatar image:", error);
+          });
+        } catch (error) {
+          console.error("Error deleting old image:", error);
+        }
       }
 
       // 성공 시 프로필 페이지로 이동
@@ -339,8 +397,7 @@ export default function TrainerProfileEditPage() {
     <PageLayout maxWidth="lg">
       <PageHeader title="프로필 수정" />
 
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="space-y-6">
+      <div className="space-y-6">
           {/* 에러 메시지 */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -468,17 +525,16 @@ export default function TrainerProfileEditPage() {
                   </label>
                   <input
                     type="text"
-                    {...register("username")}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.username ? "border-red-300" : "border-gray-300"
-                    }`}
+                    name="username"
+                    defaultValue={profileData?.username || ""}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300"
                     disabled={isSubmitting}
                   />
 
                   {/* 사용자명 검증 메시지 */}
-                  {errors.username && (
+                  {validationErrors.username && (
                     <p className="text-xs text-red-600 mt-1">
-                      {errors.username.message}
+                      {validationErrors.username}
                     </p>
                   )}
 
@@ -498,18 +554,17 @@ export default function TrainerProfileEditPage() {
             <CardContent>
               <div>
                 <textarea
-                  {...register("introduce")}
+                  name="introduce"
+                  defaultValue={profileData?.introduce || ""}
                   rows={6}
                   placeholder="자신을 소개해보세요..."
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
-                    errors.introduce ? "border-red-300" : "border-gray-300"
-                  }`}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none border-gray-300"
                   disabled={isSubmitting}
                 />
 
-                {errors.introduce && (
+                {validationErrors.introduce && (
                   <p className="text-xs text-red-600 mt-1">
-                    {errors.introduce.message}
+                    {validationErrors.introduce}
                   </p>
                 )}
 
@@ -529,9 +584,9 @@ export default function TrainerProfileEditPage() {
             </Link>
 
             <Button
-              type="submit"
               variant="primary"
-              disabled={isSubmitting || !isValid}
+              onClick={handleProfileUpdate}
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
@@ -544,7 +599,6 @@ export default function TrainerProfileEditPage() {
             </Button>
           </div>
         </div>
-      </form>
 
       {/* 에러 모달 */}
       {showErrorModal && (

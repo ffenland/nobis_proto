@@ -31,11 +31,9 @@ export const getTrainerProfileAction = async () => {
           username: true,
           email: true,
           createdAt: true,
-          avatarMedia: {
+          avatarImage: {
             select: {
-              id: true,
-              publicUrl: true,
-              thumbnailUrl: true,
+              cloudflareId: true,
             },
           },
         },

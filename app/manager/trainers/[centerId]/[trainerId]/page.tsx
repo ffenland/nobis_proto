@@ -37,11 +37,13 @@ import {
 } from "@/app/components/ui/Loading";
 import { PageHeaderWithActions } from "@/app/components/ui/PageHeaderWithActions";
 import { formatTime } from "@/app/lib/utils/time.utils";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import type {
   ITrainerDetail,
   ITrainerPtList,
   ITrainerPtItem,
 } from "@/app/lib/services/trainer-management.service";
+import Image from "next/image";
 
 // 데이터 페처 함수
 const fetcher = async (url: string) => {
@@ -122,16 +124,16 @@ const isDifferentFromCenterDefault = (
   dayOfWeek: string,
   centerDefaults: WorkingHour[]
 ) => {
-  const centerDefault = centerDefaults.find(wh => wh.dayOfWeek === dayOfWeek);
-  
+  const centerDefault = centerDefaults.find((wh) => wh.dayOfWeek === dayOfWeek);
+
   if (!centerDefault) {
     // 센터에 해당 요일 기본값이 없는 경우, 트레이너가 0,0이 아니면 다름
     return !(trainerOpenTime === 0 && trainerCloseTime === 0);
   }
-  
+
   // 센터 기본값과 트레이너 값 비교
   return (
-    trainerOpenTime !== centerDefault.openTime || 
+    trainerOpenTime !== centerDefault.openTime ||
     trainerCloseTime !== centerDefault.closeTime
   );
 };
@@ -213,7 +215,9 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
   const [showFilters, setShowFilters] = useState<boolean>(false);
   const [showWorkingHoursModal, setShowWorkingHoursModal] = useState(false);
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
-  const [centerDefaultWorkingHours, setCenterDefaultWorkingHours] = useState<WorkingHour[]>([]);
+  const [centerDefaultWorkingHours, setCenterDefaultWorkingHours] = useState<
+    WorkingHour[]
+  >([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -250,21 +254,23 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
         const response = await fetch(
           `/api/manager/trainers/${trainerId}/center-default-hours`
         );
-        
+
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.data.defaultWorkingHours) {
-            const centerDefaults = data.data.defaultWorkingHours.map((wh: {
-              id: string;
-              dayOfWeek: string;
-              openTime: number;
-              closeTime: number;
-            }) => ({
-              id: wh.id,
-              dayOfWeek: wh.dayOfWeek,
-              openTime: wh.openTime,
-              closeTime: wh.closeTime,
-            }));
+            const centerDefaults = data.data.defaultWorkingHours.map(
+              (wh: {
+                id: string;
+                dayOfWeek: string;
+                openTime: number;
+                closeTime: number;
+              }) => ({
+                id: wh.id,
+                dayOfWeek: wh.dayOfWeek,
+                openTime: wh.openTime,
+                closeTime: wh.closeTime,
+              })
+            );
             setCenterDefaultWorkingHours(centerDefaults);
           }
         }
@@ -350,22 +356,24 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
       const response = await fetch(
         `/api/manager/trainers/${trainerId}/center-default-hours`
       );
-      
+
       let centerDefaults: WorkingHour[] = [];
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data.defaultWorkingHours) {
-          centerDefaults = data.data.defaultWorkingHours.map((wh: {
-            id: string;
-            dayOfWeek: string;
-            openTime: number;
-            closeTime: number;
-          }) => ({
-            id: wh.id,
-            dayOfWeek: wh.dayOfWeek,
-            openTime: wh.openTime,
-            closeTime: wh.closeTime,
-          }));
+          centerDefaults = data.data.defaultWorkingHours.map(
+            (wh: {
+              id: string;
+              dayOfWeek: string;
+              openTime: number;
+              closeTime: number;
+            }) => ({
+              id: wh.id,
+              dayOfWeek: wh.dayOfWeek,
+              openTime: wh.openTime,
+              closeTime: wh.closeTime,
+            })
+          );
         }
       }
       setCenterDefaultWorkingHours(centerDefaults);
@@ -382,14 +390,14 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
       } else {
         setWorkingHours([]);
       }
-      
+
       setHasChanges(false);
       setShowWorkingHoursModal(true);
     } catch (error) {
       console.error("센터 기본 근무시간 불러오기 오류:", error);
       // 센터 기본값 로드 실패해도 모달은 열기
       setCenterDefaultWorkingHours([]);
-      
+
       if (trainer.workingHours) {
         const formattedWorkingHours = trainer.workingHours.map((wh) => ({
           id: wh.id,
@@ -401,7 +409,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
       } else {
         setWorkingHours([]);
       }
-      
+
       setHasChanges(false);
       setShowWorkingHoursModal(true);
     }
@@ -435,18 +443,16 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
     const centerWorkingHour = centerDefaultWorkingHours.find(
       (wh) => wh.dayOfWeek === dayOfWeek
     );
-    
+
     // 센터 기본값이 있으면 그 값 사용, 없으면 0,0 (휴무)
     const openTime = centerWorkingHour?.openTime || 0;
     const closeTime = centerWorkingHour?.closeTime || 0;
-    
+
     setWorkingHours((prev) => {
       const existing = prev.find((wh) => wh.dayOfWeek === dayOfWeek);
       if (existing) {
         return prev.map((wh) =>
-          wh.dayOfWeek === dayOfWeek 
-            ? { ...wh, openTime, closeTime }
-            : wh
+          wh.dayOfWeek === dayOfWeek ? { ...wh, openTime, closeTime } : wh
         );
       } else {
         return [
@@ -468,9 +474,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
       const existing = prev.find((wh) => wh.dayOfWeek === dayOfWeek);
       if (existing) {
         return prev.map((wh) =>
-          wh.dayOfWeek === dayOfWeek 
-            ? { ...wh, openTime: 0, closeTime: 0 }
-            : wh
+          wh.dayOfWeek === dayOfWeek ? { ...wh, openTime: 0, closeTime: 0 } : wh
         );
       } else {
         return [
@@ -493,14 +497,14 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
       const centerWorkingHour = centerDefaultWorkingHours.find(
         (wh) => wh.dayOfWeek === dayOfWeek
       );
-      
+
       return {
         dayOfWeek,
         openTime: centerWorkingHour?.openTime || 0,
         closeTime: centerWorkingHour?.closeTime || 0,
       };
     });
-    
+
     setWorkingHours(newWorkingHours);
     setHasChanges(true);
   };
@@ -582,9 +586,14 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
               <div>
                 <div className="flex items-center space-x-4 mb-4">
                   <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
-                    {trainer.user.avatarMedia?.thumbnailUrl ? (
-                      <img
-                        src={trainer.user.avatarMedia.thumbnailUrl}
+                    {trainer.user.avatarImage?.cloudflareId ? (
+                      <Image
+                        width={120}
+                        height={120}
+                        src={getOptimizedImageUrl(
+                          trainer.user.avatarImage.cloudflareId,
+                          "avatar"
+                        )}
                         alt={trainer.user.username}
                         className="w-full h-full object-cover"
                       />
@@ -624,8 +633,8 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-medium text-gray-900">근무시간</h3>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={handleOpenWorkingHoursModal}
                   >
@@ -643,7 +652,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
                         workingHour.dayOfWeek,
                         centerDefaultWorkingHours
                       );
-                      
+
                       return (
                         <div
                           key={workingHour.id}
@@ -654,7 +663,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
                               {getWeekDayKorean(workingHour.dayOfWeek)}요일
                             </span>
                             {isDifferent && (
-                              <div 
+                              <div
                                 className="flex items-center justify-center w-5 h-5 bg-orange-100 rounded-full cursor-help"
                                 title="센터 기본 근무시간과 다름"
                               >
@@ -663,7 +672,10 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
                             )}
                           </div>
                           <span className="text-gray-600">
-                            {formatTrainerWorkingTime(workingHour.openTime, workingHour.closeTime)}
+                            {formatTrainerWorkingTime(
+                              workingHour.openTime,
+                              workingHour.closeTime
+                            )}
                           </span>
                         </div>
                       );
@@ -674,7 +686,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
                     근무시간이 설정되지 않았습니다
                   </p>
                 )}
-                
+
                 {/* 아이콘 설명 */}
                 <div className="mt-3 flex items-center space-x-1 text-xs text-gray-500">
                   <AlertTriangle className="w-3 h-3 text-orange-600" />
@@ -1036,9 +1048,17 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
                 const centerWorkingHour = centerDefaultWorkingHours.find(
                   (wh) => wh.dayOfWeek === day.key
                 );
-                const defaultOpenTime = existingHour ? existingHour.openTime : (centerWorkingHour?.openTime || 0);
-                const defaultCloseTime = existingHour ? existingHour.closeTime : (centerWorkingHour?.closeTime || 0);
-                const isWorkingDay = existingHour && !(existingHour.openTime === 0 && existingHour.closeTime === 0);
+                const defaultOpenTime = existingHour
+                  ? existingHour.openTime
+                  : centerWorkingHour?.openTime || 0;
+                const defaultCloseTime = existingHour
+                  ? existingHour.closeTime
+                  : centerWorkingHour?.closeTime || 0;
+                const isWorkingDay =
+                  existingHour &&
+                  !(
+                    existingHour.openTime === 0 && existingHour.closeTime === 0
+                  );
 
                 return (
                   <div key={day.key} className="flex items-center space-x-4">

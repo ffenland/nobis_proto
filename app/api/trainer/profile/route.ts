@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { username, introduce, avatarMediaId } = body;
+    const { username, introduce, avatarImageId } = body;
 
     // 입력값 검증
     if (username && typeof username !== "string") {
@@ -83,9 +83,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (avatarMediaId && typeof avatarMediaId !== "string") {
+    if (avatarImageId && typeof avatarImageId !== "string") {
       return NextResponse.json(
-        { error: "아바타 미디어 ID는 문자열이어야 합니다." },
+        { error: "아바타 이미지 ID는 문자열이어야 합니다." },
         { status: 400 }
       );
     }
@@ -110,7 +110,7 @@ export async function PUT(request: NextRequest) {
     const updatedProfile = await updateTrainerProfileService(session.roleId!, {
       username,
       introduce,
-      avatarMediaId: avatarMediaId === "" ? null : avatarMediaId,
+      avatarImageId: avatarImageId === "" ? null : avatarImageId,
     });
 
     return NextResponse.json({

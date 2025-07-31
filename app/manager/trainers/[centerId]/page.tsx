@@ -11,6 +11,7 @@ import { PageHeaderWithActions } from "@/app/components/ui/PageHeaderWithActions
 import { getCenterWithDetails } from "@/app/lib/services/fitness-center.service";
 import { formatTime } from "@/app/lib/utils/time.utils";
 import { use } from "react";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 // 데이터 페처 함수
 const fetcher = async (url: string) => {
@@ -70,8 +71,8 @@ export default function CenterTrainersPage(props: { params: Params }) {
           id: string;
           username: string;
           email: string;
-          avatarMedia?: {
-            thumbnailUrl: string;
+          avatarImage?: {
+            cloudflareId: string;
           };
         };
         stats: {
@@ -170,6 +171,25 @@ export default function CenterTrainersPage(props: { params: Params }) {
         </CardContent>
       </Card>
 
+      {/* 소속 트레이너 관리 */}
+      <Card className="mb-6">
+        <CardHeader>
+          <h2 className="text-lg font-semibold">소속 트레이너 관리</h2>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <Link href={`/manager/trainers/${centerId}/set-trainers`}>
+              <Button>
+                <span>수정하기</span>
+              </Button>
+            </Link>
+            <p className="text-sm text-gray-600">
+              이 센터에 소속된 트레이너: {trainers.length}명
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 트레이너 목록 */}
       {trainers.length === 0 ? (
         <Card>
@@ -194,9 +214,9 @@ export default function CenterTrainersPage(props: { params: Params }) {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
-                        {trainer.user.avatarMedia?.thumbnailUrl ? (
+                        {trainer.user.avatarImage?.cloudflareId ? (
                           <img
-                            src={trainer.user.avatarMedia.thumbnailUrl}
+                            src={getOptimizedImageUrl(trainer.user.avatarImage.cloudflareId, "avatar")}
                             alt={trainer.user.username}
                             className="w-full h-full object-cover"
                           />

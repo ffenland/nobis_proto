@@ -236,7 +236,8 @@ export async function DELETE(
         machineSetRecords: true,
         freeSetRecords: true,
         stretchingExerciseRecords: true,
-        photos: true,
+        images: true,
+        videos: true,
       },
     });
 
@@ -276,9 +277,17 @@ export async function DELETE(
       });
     }
 
-    // 4. 관련 사진들 (있는 경우)
-    if (ptRecordItem.photos.length > 0) {
-      await prisma.media.deleteMany({
+    // 4. 관련 미디어 (이미지, 비디오) 삭제
+    if (ptRecordItem.images.length > 0) {
+      await prisma.image.deleteMany({
+        where: {
+          ptRecordItemId: itemId,
+        },
+      });
+    }
+    
+    if (ptRecordItem.videos.length > 0) {
+      await prisma.video.deleteMany({
         where: {
           ptRecordItemId: itemId,
         },

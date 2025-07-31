@@ -6,13 +6,8 @@ import { useRouter } from "next/navigation";
 import { useFormState } from "react-dom";
 import {
   createCenterAction,
-  IAvailableTrainer,
   type IServerActionResponse,
 } from "../actions";
-
-interface CenterFormProps {
-  trainers: IAvailableTrainer[];
-}
 
 const initialState: IServerActionResponse = {
   success: false,
@@ -50,11 +45,10 @@ const timeOptions = Array.from({ length: 49 }, (_, i) => {
   };
 });
 
-export default function CenterForm({ trainers }: CenterFormProps) {
+export default function CenterForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, formAction] = useFormState(createCenterAction, initialState);
-  const [selectedTrainers, setSelectedTrainers] = useState<string[]>([]);
   const [closedDays, setClosedDays] = useState<Set<string>>(new Set());
 
   // 폼 제출 성공 시 리다이렉트
@@ -63,14 +57,6 @@ export default function CenterForm({ trainers }: CenterFormProps) {
       router.push("/manager/centers");
     });
   }
-
-  const handleTrainerToggle = (trainerId: string) => {
-    setSelectedTrainers((prev) =>
-      prev.includes(trainerId)
-        ? prev.filter((id) => id !== trainerId)
-        : [...prev, trainerId]
-    );
-  };
 
   const handleDayClosedToggle = (dayKey: string) => {
     setClosedDays((prev) => {
@@ -264,45 +250,6 @@ export default function CenterForm({ trainers }: CenterFormProps) {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* 트레이너 배정 */}
-      <div className="space-y-6">
-        <h2 className="text-lg font-semibold text-gray-900">트레이너 배정</h2>
-
-        {trainers.length === 0 ? (
-          <p className="text-gray-500">배정 가능한 트레이너가 없습니다.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {trainers.map((trainer) => (
-              <div key={trainer.id} className="relative">
-                <label className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    name="trainerIds"
-                    value={trainer.id}
-                    checked={selectedTrainers.includes(trainer.id)}
-                    onChange={() => handleTrainerToggle(trainer.id)}
-                    className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
-                  />
-                  <div className="ml-3">
-                    <div className="text-sm font-medium text-gray-900">
-                      {trainer.user.username}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {trainer.user.email}
-                    </div>
-                    {trainer.fitnessCenter && (
-                      <div className="text-xs text-orange-600">
-                        현재: {trainer.fitnessCenter.title}
-                      </div>
-                    )}
-                  </div>
-                </label>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* 액션 버튼 */}

@@ -671,26 +671,28 @@ export default function PtRecordDetailPage() {
                             )}
 
                             {/* 사진 */}
-                            {item.photos.length > 0 && (
+                            {item.images.length > 0 && (
                               <div>
                                 <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
                                   <Camera className="w-4 h-4 mr-1" />
-                                  사진 ({item.photos.length}장)
+                                  사진 ({item.images.length}장)
                                 </h5>
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                  {item.photos.map((photo) => (
+                                  {item.images.map((image) => (
                                     <div
-                                      key={photo.id}
+                                      key={image.id}
                                       className="aspect-square bg-gray-200 rounded-lg overflow-hidden"
                                     >
                                       <img
-                                        src={
-                                          photo.thumbnailUrl || photo.publicUrl
+                                        src={`https://imagedelivery.net/${process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH}/${image.cloudflareId}/thumbnail`
                                         }
                                         alt="운동 사진"
                                         className="w-full h-full object-cover hover:scale-110 transition-transform cursor-pointer"
                                         onClick={() =>
-                                          window.open(photo.publicUrl, "_blank")
+                                          window.open(
+                                            `https://imagedelivery.net/${process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH}/${image.cloudflareId}/public`,
+                                            "_blank"
+                                          )
                                         }
                                       />
                                     </div>

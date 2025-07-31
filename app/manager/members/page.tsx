@@ -18,6 +18,7 @@ import {
   Award,
   Activity,
 } from "lucide-react";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
@@ -367,9 +368,9 @@ export default function MembersPage() {
                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
                           <div className="flex items-center space-x-4">
                             <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                              {member.user.avatarMedia?.thumbnailUrl ? (
+                              {member.user.avatarImage?.cloudflareId ? (
                                 <img
-                                  src={member.user.avatarMedia.thumbnailUrl}
+                                  src={getOptimizedImageUrl(member.user.avatarImage.cloudflareId, "avatar")}
                                   alt={member.user.username}
                                   className="w-full h-full object-cover"
                                 />

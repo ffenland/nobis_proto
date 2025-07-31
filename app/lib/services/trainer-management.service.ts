@@ -68,11 +68,9 @@ export class TrainerManagementService {
             username: true,
             email: true,
             mobile: true,
-            avatarMedia: {
+            avatarImage: {
               select: {
-                id: true,
-                publicUrl: true,
-                thumbnailUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -223,11 +221,9 @@ export class TrainerManagementService {
             username: true,
             email: true,
             mobile: true,
-            avatarMedia: {
+            avatarImage: {
               select: {
-                id: true,
-                publicUrl: true,
-                thumbnailUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -306,10 +302,9 @@ export class TrainerManagementService {
               select: {
                 id: true,
                 username: true,
-                avatarMedia: {
+                avatarImage: {
                   select: {
-                    publicUrl: true,
-                    thumbnailUrl: true,
+                    cloudflareId: true,
                   },
                 },
               },
@@ -509,11 +504,11 @@ export class TrainerManagementService {
                 },
               },
             },
-            photos: {
+            images: {
               select: {
                 id: true,
-                publicUrl: true,
-                thumbnailUrl: true,
+                cloudflareId: true,
+                originalName: true,
               },
             },
           },

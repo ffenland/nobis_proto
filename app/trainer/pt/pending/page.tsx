@@ -7,6 +7,7 @@ import Image from "next/image";
 import { formatDateThisYear } from "@/app/lib/utils";
 import { User, Calendar, Clock, ChevronRight, BookOpen } from "lucide-react";
 import { getPendingPtsAction, type TPendingPt } from "./actions";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 
 // PT 카드 컴포넌트
@@ -23,9 +24,9 @@ const PtCard = ({ pt }: PtCardProps) => {
             <div className="flex-1 space-y-4">
               {/* 회원 정보 */}
               <div className="flex items-center gap-3">
-                {pt.member?.user.avatarMedia?.thumbnailUrl || pt.member?.user.avatarMedia?.publicUrl ? (
+                {pt.member?.user.avatarImage?.cloudflareId ? (
                   <Image
-                    src={pt.member.user.avatarMedia.thumbnailUrl || pt.member.user.avatarMedia.publicUrl || ''}
+                    src={getOptimizedImageUrl(pt.member.user.avatarImage.cloudflareId, "avatar")}
                     alt={pt.member.user.username}
                     width={40}
                     height={40}

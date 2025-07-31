@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCenterDetail, getCenterStats } from "./actions";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 // 시간 표시 유틸리티
 function displayTime(time: number): string {
@@ -255,9 +256,9 @@ export default async function CenterDetailPage({
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
-                      {trainer.user.avatarMedia?.publicUrl ? (
+                      {trainer.user.avatarImage?.cloudflareId ? (
                         <img
-                          src={trainer.user.avatarMedia.publicUrl}
+                          src={getOptimizedImageUrl(trainer.user.avatarImage.cloudflareId, "avatar")}
                           alt={trainer.user.username}
                           className="w-10 h-10 rounded-full object-cover"
                         />
@@ -311,9 +312,9 @@ export default async function CenterDetailPage({
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
-                      {member.user.avatarMedia?.publicUrl ? (
+                      {member.user.avatarImage?.cloudflareId ? (
                         <img
-                          src={member.user.avatarMedia.publicUrl}
+                          src={getOptimizedImageUrl(member.user.avatarImage.cloudflareId, "avatar")}
                           alt={member.user.username}
                           className="w-10 h-10 rounded-full object-cover"
                         />
@@ -427,9 +428,9 @@ export default async function CenterDetailPage({
                     key={manager.id}
                     className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
                   >
-                    {manager.user.avatarMedia?.publicUrl ? (
+                    {manager.user.avatarImage?.cloudflareId ? (
                       <img
-                        src={manager.user.avatarMedia.publicUrl}
+                        src={getOptimizedImageUrl(manager.user.avatarImage.cloudflareId, "avatar")}
                         alt={manager.user.username}
                         className="w-10 h-10 rounded-full object-cover"
                       />

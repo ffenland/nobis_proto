@@ -98,9 +98,9 @@ const CenterMachinesPage = async ({ params }: PageProps) => {
               >
                 {/* 머신 이미지 */}
                 <div className="aspect-video bg-gray-100 relative overflow-hidden">
-                  {machine.photos.length > 0 ? (
+                  {machine.images.length > 0 ? (
                     <img
-                      src={machine.photos[0].publicUrl}
+                      src={`https://imagedelivery.net/${process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH}/${machine.images[0].cloudflareId}/public`}
                       alt={machine.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />

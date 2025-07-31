@@ -52,10 +52,11 @@ export const getCenterMachines = async (centerId: string) => {
           },
         },
       },
-      photos: {
+      images: {
         select: {
           id: true,
-          publicUrl: true,
+          cloudflareId: true,
+          originalName: true,
         },
         take: 1,
       },

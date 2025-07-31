@@ -4,6 +4,9 @@ import { IMachine } from "@/app/lib/services/pt-record.service";
 import { useEffect, useState } from "react";
 import { matchSearch } from "@/app/components/common/matchSearch";
 import type { MachineRecordSubmitData } from "./types";
+import ExerciseImageUpload from "@/app/components/media/ExerciseImageUpload";
+import ExerciseVideoUpload from "@/app/components/media/ExerciseVideoUpload";
+import { uploadMediaFiles } from "./uploadMedia";
 
 interface MachineRecordProps {
   ptRecordId: string;
@@ -26,6 +29,22 @@ interface MachineRecordProps {
     }>;
   };
   onSubmit?: (data: MachineRecordSubmitData) => Promise<void>;
+  existingImages?: Array<{
+    id: string;
+    cloudflareId: string;
+    originalName: string;
+    size: number;
+  }>;
+  existingVideos?: Array<{
+    id: string;
+    streamId: string;
+    originalName: string;
+    size: number;
+    duration: number;
+    status: string;
+  }>;
+  onRemoveExistingImage?: (imageId: string) => void;
+  onRemoveExistingVideo?: (videoId: string) => void;
 }
 
 interface SetRecord {
@@ -46,6 +65,10 @@ export const MachineRecord = ({
   mode = "create",
   initialData,
   onSubmit,
+  existingImages = [],
+  existingVideos = [],
+  onRemoveExistingImage,
+  onRemoveExistingVideo,
 }: MachineRecordProps) => {
   const [query, setQuery] = useState("");
   const [searchedMachines, setSearchedMachines] = useState<IMachine[]>([]);
@@ -85,6 +108,11 @@ export const MachineRecord = ({
   } | null>(null);
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  
+  // 미디어 파일 상태
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
 
   // 세트 추가
   const addSet = () => {
@@ -221,6 +249,10 @@ export const MachineRecord = ({
           machineName: selectedMachine.title,
           machineSetRecords,
           details,
+          imageFiles,
+          videoFiles,
+          existingImageIds: existingImages.filter(img => !onRemoveExistingImage || existingImages.find(e => e.id === img.id)).map(img => img.id),
+          existingVideoIds: existingVideos.filter(vid => !onRemoveExistingVideo || existingVideos.find(e => e.id === vid.id)).map(vid => vid.id),
         });
       } else if (mode === "create") {
         // 생성 모드: 기존 로직 사용
@@ -241,16 +273,45 @@ export const MachineRecord = ({
         if (!response.ok) {
           throw new Error("머신 운동 기록 생성 실패");
         }
+
+        const result = await response.json();
+        const ptRecordItemId = result.ptRecordItem.id;
+
+        // 미디어 업로드 처리
+        if (imageFiles.length > 0 || videoFiles.length > 0) {
+          setIsUploadingMedia(true);
+          try {
+            const uploadResults = await uploadMediaFiles(
+              ptRecordId,
+              ptRecordItemId,
+              imageFiles,
+              videoFiles
+            );
+
+            if (uploadResults.errors.length > 0) {
+              console.error("일부 미디어 업로드 실패:", uploadResults.errors);
+              const errorMessage = uploadResults.errors.length === 1
+                ? `파일 업로드 실패: ${uploadResults.errors[0]}`
+                : `${uploadResults.errors.length}개 파일 업로드 실패:\n${uploadResults.errors.map((e, i) => `${i + 1}. ${e}`).join('\n')}`;
+              alert(errorMessage);
+            }
+          } catch (error) {
+            console.error("미디어 업로드 중 오류:", error);
+            alert("미디어 업로드 중 오류가 발생했습니다. 다시 시도해주세요.");
+          } finally {
+            setIsUploadingMedia(false);
+          }
+        }
       } else {
         // 수정 모드: onSubmit 핸들러 필요
         throw new Error("수정 모드는 onSubmit 핸들러가 필요합니다");
       }
 
-      alert(`머신 운동이 성공적으로 ${mode === "edit" ? "수정" : "기록"}되었습니다!`);
       onComplete();
     } catch (error) {
       console.error("Error writing machine record:", error);
-      alert(`머신 운동 ${mode === "edit" ? "수정" : "기록"} 중 오류가 발생했습니다.`);
+      const errorMessage = error instanceof Error ? error.message : `머신 운동 ${mode === "edit" ? "수정" : "기록"} 중 오류가 발생했습니다.`;
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -384,20 +445,39 @@ export const MachineRecord = ({
           />
         </div>
 
+        {/* 이미지 업로드 */}
+        <ExerciseImageUpload
+          maxImages={5}
+          onChange={setImageFiles}
+          existingImages={existingImages}
+          onRemoveExisting={onRemoveExistingImage}
+          className="mt-4"
+        />
+
+        {/* 동영상 업로드 */}
+        <ExerciseVideoUpload
+          maxVideos={2}
+          maxDurationSeconds={60}
+          onChange={setVideoFiles}
+          existingVideos={existingVideos}
+          onRemoveExisting={onRemoveExistingVideo}
+          className="mt-4"
+        />
+
         <button
           type="button"
           onClick={handleComplete}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isUploadingMedia}
           className={`w-full py-4 rounded-lg font-semibold transition-all ${
-            isSubmitting
+            isSubmitting || isUploadingMedia
               ? "bg-gray-200 text-gray-400 cursor-not-allowed"
               : "bg-gray-900 text-white hover:bg-gray-800 active:bg-gray-700"
           }`}
         >
-          {isSubmitting ? (
+          {(isSubmitting || isUploadingMedia) ? (
             <div className="flex items-center justify-center space-x-2">
               <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-              <span>기록 저장 중...</span>
+              <span>{isUploadingMedia ? "미디어 업로드 중..." : "기록 저장 중..."}</span>
             </div>
           ) : (
             "운동 완료"
@@ -450,7 +530,17 @@ export const MachineRecord = ({
     );
   } else {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 relative">
+        {/* 업로드 중 오버레이 */}
+        {isUploadingMedia && (
+          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50 rounded-lg">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+              <p className="text-gray-700">미디어 업로드 중...</p>
+            </div>
+          </div>
+        )}
+        
         <div className="text-center mb-6">
           <h3 className="text-xl font-bold text-gray-900 mb-2">
             🏋️ 머신 운동 {mode === "edit" ? "수정" : "기록"}

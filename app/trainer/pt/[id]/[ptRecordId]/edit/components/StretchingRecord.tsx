@@ -8,6 +8,9 @@ import {
 import { matchSearch } from "@/app/components/common/matchSearch";
 import useSWR from "swr";
 import type { StretchingRecordSubmitData } from "./types";
+import ExerciseImageUpload from "@/app/components/media/ExerciseImageUpload";
+import ExerciseVideoUpload from "@/app/components/media/ExerciseVideoUpload";
+import { uploadMediaFiles } from "./uploadMedia";
 
 interface StretchingRecordProps {
   ptRecordId: string;
@@ -21,6 +24,22 @@ interface StretchingRecordProps {
     equipments?: IEquipment[];
   };
   onSubmit?: (data: StretchingRecordSubmitData) => Promise<void>;
+  existingImages?: Array<{
+    id: string;
+    cloudflareId: string;
+    originalName: string;
+    size: number;
+  }>;
+  existingVideos?: Array<{
+    id: string;
+    streamId: string;
+    originalName: string;
+    size: number;
+    duration: number;
+    status: string;
+  }>;
+  onRemoveExistingImage?: (imageId: string) => void;
+  onRemoveExistingVideo?: (videoId: string) => void;
 }
 
 interface StretchingRecordData {
@@ -45,6 +64,10 @@ const StretchingRecord = ({
   mode = "create",
   initialData,
   onSubmit,
+  existingImages = [],
+  existingVideos = [],
+  onRemoveExistingImage,
+  onRemoveExistingVideo,
 }: StretchingRecordProps) => {
   const [selectedExercise, setSelectedExercise] =
     useState<IStretchingExercise | null>(null);
@@ -63,6 +86,11 @@ const StretchingRecord = ({
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  
+  // 미디어 파일 상태
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
 
   // 스트레칭 운동 목록 조회
   const {
@@ -160,6 +188,10 @@ const StretchingRecord = ({
           stretchingExerciseId: selectedExercise.id,
           description,
           equipmentIds: selectedEquipments.map((eq) => eq.id),
+          imageFiles,
+          videoFiles,
+          existingImageIds: existingImages.filter(img => !onRemoveExistingImage || existingImages.find(e => e.id === img.id)).map(img => img.id),
+          existingVideoIds: existingVideos.filter(vid => !onRemoveExistingVideo || existingVideos.find(e => e.id === vid.id)).map(vid => vid.id),
         });
       } else if (mode === "create") {
         // 생성 모드: 기존 로직 사용
@@ -203,6 +235,32 @@ const StretchingRecord = ({
         if (!stretchingRecordResponse.ok) {
           throw new Error("스트레칭 기록 생성 실패");
         }
+
+        // 미디어 업로드 처리
+        if (imageFiles.length > 0 || videoFiles.length > 0) {
+          setIsUploadingMedia(true);
+          try {
+            const uploadResults = await uploadMediaFiles(
+              ptRecordId,
+              ptRecordItem.id,
+              imageFiles,
+              videoFiles
+            );
+
+            if (uploadResults.errors.length > 0) {
+              console.error("일부 미디어 업로드 실패:", uploadResults.errors);
+              const errorMessage = uploadResults.errors.length === 1
+                ? `파일 업로드 실패: ${uploadResults.errors[0]}`
+                : `${uploadResults.errors.length}개 파일 업로드 실패:\n${uploadResults.errors.map((e, i) => `${i + 1}. ${e}`).join('\n')}`;
+              alert(errorMessage);
+            }
+          } catch (error) {
+            console.error("미디어 업로드 중 오류:", error);
+            alert("미디어 업로드 중 오류가 발생했습니다. 다시 시도해주세요.");
+          } finally {
+            setIsUploadingMedia(false);
+          }
+        }
       } else {
         // 수정 모드: onSubmit 핸들러 필요
         throw new Error("수정 모드는 onSubmit 핸들러가 필요합니다");
@@ -217,7 +275,8 @@ const StretchingRecord = ({
       onComplete();
     } catch (error) {
       console.error("스트레칭 기록 처리 실패:", error);
-      alert("기록 처리 중 오류가 발생했습니다.");
+      const errorMessage = error instanceof Error ? error.message : "기록 처리 중 오류가 발생했습니다.";
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -240,7 +299,17 @@ const StretchingRecord = ({
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border">
+    <div className="bg-white p-6 rounded-lg shadow-sm border relative">
+      {/* 업로드 중 오버레이 */}
+      {isUploadingMedia && (
+        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50 rounded-lg">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-700">미디어 업로드 중...</p>
+          </div>
+        </div>
+      )}
+      
       <h3 className="text-lg font-semibold mb-4">
         스트레칭 {mode === "edit" ? "수정" : "기록"}
       </h3>
@@ -292,6 +361,25 @@ const StretchingRecord = ({
           />
         </div>
 
+        {/* 이미지 업로드 */}
+        <ExerciseImageUpload
+          maxImages={5}
+          onChange={setImageFiles}
+          existingImages={existingImages}
+          onRemoveExisting={onRemoveExistingImage}
+          className="mt-4"
+        />
+
+        {/* 동영상 업로드 */}
+        <ExerciseVideoUpload
+          maxVideos={2}
+          maxDurationSeconds={60}
+          onChange={setVideoFiles}
+          existingVideos={existingVideos}
+          onRemoveExisting={onRemoveExistingVideo}
+          className="mt-4"
+        />
+
         {/* 사용 기구 선택 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -336,10 +424,13 @@ const StretchingRecord = ({
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || !selectedExercise}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+            disabled={isSubmitting || isUploadingMedia || !selectedExercise}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isSubmitting ? "저장 중..." : mode === "edit" ? "수정 완료" : "기록 완료"}
+            {(isSubmitting || isUploadingMedia) && (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            )}
+            {isUploadingMedia ? "미디어 업로드 중..." : isSubmitting ? "저장 중..." : mode === "edit" ? "수정 완료" : "기록 완료"}
           </button>
         </div>
       </form>

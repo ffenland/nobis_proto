@@ -461,6 +461,195 @@ await prisma.ptSchedule.create({
 4. Don't trust client-side time checks - always validate server-side
 5. Don't forget to handle edge cases (empty sets, missing equipment, etc.)
 
+## Media Management System (Cloudflare Images & Stream)
+
+### Overview
+
+The application uses Cloudflare Images and Stream services for handling all media uploads (images and videos). The system implements Direct Creator Upload method with custom ID management for systematic organization.
+
+### Architecture Components
+
+#### Service Layer (`/app/lib/services/media/`)
+- **`image.service.ts`**: Cloudflare Images API integration
+- **`stream.service.ts`**: Cloudflare Stream API integration with TUS protocol support
+
+#### Utilities (`/app/lib/utils/media.utils.ts`)
+Core utility functions for media handling:
+- `generateMediaId()`: Creates hierarchical custom IDs
+- `getOptimizedImageUrl()`: Returns CDN-optimized image URLs with variants
+- `validateImageFile()` / `validateVideoFile()`: Client-side validation
+- `formatFileSize()` / `formatVideoDuration()`: Display formatting
+- Type definitions: `MediaType`, `EntityType`, `ImageVariant`
+
+#### API Routes (`/app/api/media/`)
+- **Images**: `/images/upload`, `/images/[id]`
+- **Videos**: `/videos/upload`, `/videos/[id]`
+- **List**: `/list` - Unified endpoint for fetching media
+
+#### Reusable Components (`/app/components/media/`)
+1. **ProfileImageUpload**: Drag-and-drop image upload with preview
+2. **ProfileImagePreview**: Optimized image display with fallback
+3. **VideoUploader**: Video upload with progress tracking and TUS support
+4. **MediaGallery**: Grid gallery with selection and deletion
+
+### Implementation Patterns
+
+#### 1. Custom ID Generation
+```typescript
+// 계층적 ID 구조: userId/entityType/entityId/timestamp/mediaType
+const customId = generateMediaId({
+  userId: session.id,
+  entityType: 'pt-record', // profile, pt-record, exercise, chat, review
+  entityId: recordId,
+  mediaType: 'image',
+  timestamp: true, // 중복 방지
+});
+```
+
+#### 2. Direct Creator Upload Flow
+```typescript
+// 1. 클라이언트가 업로드 URL 요청
+const response = await fetch('/api/media/images/upload', {
+  method: 'POST',
+  body: JSON.stringify({ entityType: 'profile' })
+});
+
+// 2. 서버가 Cloudflare에서 URL 생성
+const { uploadURL, customId } = await createImageUploadUrl({
+  customId,
+  metadata: { userId, entityType, ... },
+  expiry: new Date(Date.now() + 30 * 60 * 1000),
+});
+
+// 3. 클라이언트가 직접 Cloudflare로 업로드
+await fetch(uploadURL, {
+  method: 'POST',
+  body: formData,
+});
+```
+
+#### 3. Metadata Management
+모든 미디어는 구조화된 메타데이터를 포함:
+```typescript
+{
+  userId: string,        // 업로더 ID
+  userRole: UserRole,    // 업로더 역할
+  entityType: string,    // 연관 엔티티 타입
+  entityId: string,      // 연관 엔티티 ID
+  uploadedAt: string,    // ISO 8601 타임스탬프
+  [key: string]: unknown // 추가 커스텀 데이터
+}
+```
+
+#### 4. Role-Based Limits
+```typescript
+// 비디오 업로드 시간 제한 (역할별)
+const maxDurationByRole = {
+  TRAINER: 600,  // 10분
+  MEMBER: 300,   // 5분
+  MANAGER: 600,  // 10분
+};
+```
+
+#### 5. Image Variants
+Cloudflare Images는 자동으로 여러 변형을 생성:
+- `public`: 일반 표시용
+- `thumbnail`: 썸네일 (작은 크기)
+- `avatar`: 프로필 이미지용
+- `cover`: 커버 이미지용
+- `original`: 원본 (서명된 URL 필요)
+
+### Usage Guidelines
+
+#### 1. 이미지 업로드 구현
+```typescript
+import ProfileImageUpload from '@/app/components/media/ProfileImageUpload';
+
+// 사용 예시
+<ProfileImageUpload
+  currentImageId={user.profileImageId}
+  onUploadComplete={(imageId) => {
+    // DB에 imageId 저장
+    updateUserProfile({ profileImageId: imageId });
+  }}
+/>
+```
+
+#### 2. 이미지 표시
+```typescript
+import ProfileImagePreview from '@/app/components/media/ProfileImagePreview';
+
+// 사용 예시
+<ProfileImagePreview
+  imageId={user.profileImageId}
+  variant="avatar"
+  size="lg"
+  fallback={<DefaultAvatar />}
+/>
+```
+
+#### 3. 비디오 업로드
+```typescript
+import VideoUploader from '@/app/components/media/VideoUploader';
+
+// PT 기록 비디오 업로드
+<VideoUploader
+  entityType="pt-record"
+  entityId={ptRecordId}
+  onUploadComplete={(videoId) => {
+    // 업로드 완료 처리
+  }}
+  maxDurationSeconds={600}
+  useTus={true} // 대용량 파일용
+/>
+```
+
+#### 4. 미디어 갤러리
+```typescript
+import MediaGallery from '@/app/components/media/MediaGallery';
+
+// PT 기록의 모든 미디어 표시
+<MediaGallery
+  entityType="pt-record"
+  entityId={ptRecordId}
+  allowDelete={isTrainer}
+  onSelect={(item) => {
+    // 선택된 미디어 처리
+  }}
+/>
+```
+
+### Security Considerations
+
+1. **권한 검증**: 모든 API 엔드포인트에서 세션 기반 권한 확인
+2. **메타데이터 검증**: userId가 현재 세션과 일치하는지 확인
+3. **역할 기반 제한**: PT 기록은 트레이너만, 프로필은 본인만
+4. **서명된 URL**: 민감한 컨텐츠는 requireSignedURLs 옵션 사용
+
+### Environment Variables
+
+필수 환경 변수:
+```env
+CLOUDFLARE_ACCOUNT_ID=your_account_id
+CLOUDFLARE_API_TOKEN=your_api_token
+NEXT_PUBLIC_CLOUDFLARE_IMAGES_DELIVERY_URL=https://imagedelivery.net
+NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH=your_account_hash
+```
+
+### Error Handling
+
+모든 컴포넌트는 일관된 에러 처리:
+- 파일 검증 실패 시 toast 메시지
+- 업로드 실패 시 재시도 옵션
+- 네트워크 에러 시 사용자 친화적 메시지
+
+### Performance Optimization
+
+1. **이미지 최적화**: Cloudflare가 자동으로 WebP 변환 및 크기 최적화
+2. **레이지 로딩**: 갤러리에서 viewport 내 이미지만 로드
+3. **캐싱**: React Query로 미디어 목록 캐싱
+4. **청크 업로드**: TUS 프로토콜로 대용량 비디오 안정적 업로드
+
 ### Git Integration Patterns
 
 - Clear commit messages with business context

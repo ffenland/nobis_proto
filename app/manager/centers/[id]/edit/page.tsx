@@ -1,6 +1,6 @@
 // app/manager/centers/[id]/edit/page.tsx
 import { notFound } from "next/navigation";
-import { getCenterData, getAvailableTrainersData } from "../../actions";
+import { getCenterData } from "../../actions";
 import CenterEditForm from "./CenterEditForm";
 
 interface CenterEditPageProps {
@@ -11,10 +11,7 @@ export default async function CenterEditPage({ params }: CenterEditPageProps) {
   const { id } = await params;
 
   try {
-    const [center, trainers] = await Promise.all([
-      getCenterData(id),
-      getAvailableTrainersData(),
-    ]);
+    const center = await getCenterData(id);
 
     if (!center) {
       notFound();
@@ -32,7 +29,7 @@ export default async function CenterEditPage({ params }: CenterEditPageProps) {
 
         {/* 폼 */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <CenterEditForm center={center} trainers={trainers} />
+          <CenterEditForm center={center} />
         </div>
       </div>
     );

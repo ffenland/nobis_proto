@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { getPtRecordDetailAction, type TPtRecordDetail } from "./actions";
 import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
+import PtRecordDetailClient from "./PtRecordDetailClient";
 
 interface PageProps {
   params: Promise<{ id: string; ptRecordId: string }>;
@@ -63,7 +64,8 @@ const MemberPtRecordDetailPage = async ({ params }: PageProps) => {
 
     const classStart = new Date(classDate);
     classStart.setHours(startHour, startMinute, 0, 0);
-
+    // for test
+    return "참석";
     // 미래 수업인 경우
     if (classStart > now) {
       return "예정";
@@ -341,107 +343,7 @@ const MemberPtRecordDetailPage = async ({ params }: PageProps) => {
             <h2 className="text-lg font-semibold">운동 기록</h2>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {ptRecordDetail.items.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="border border-gray-200 rounded-lg p-4"
-                >
-                  <h3 className="font-medium text-gray-900 mb-3">
-                    {index + 1}. {item.title || "운동"}
-                  </h3>
-
-                  {/* 머신 운동 */}
-                  {item.type === "MACHINE" &&
-                    item.machineSetRecords.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium text-gray-700">
-                          {item.machineSetRecords[0].settingValues[0]
-                            ?.machineSetting?.machine?.title || "머신"}
-                        </div>
-                        {item.machineSetRecords.map((record) => (
-                          <div
-                            key={record.id}
-                            className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded"
-                          >
-                            <span>{record.set}세트</span>
-                            <span className="font-medium">{record.reps}회</span>
-                            <span className="text-gray-600">
-                              {record.settingValues
-                                .map(
-                                  (sv) =>
-                                    `${sv.machineSetting.title}: ${sv.value}${sv.machineSetting.unit}`
-                                )
-                                .join(", ")}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                  {/* 프리웨이트 */}
-                  {item.type === "FREE" && item.freeSetRecords.length > 0 && (
-                    <div className="space-y-2">
-                      {item.freeSetRecords[0].freeExercise && (
-                        <div className="text-sm font-medium text-gray-700">
-                          {item.freeSetRecords[0].freeExercise.title}
-                        </div>
-                      )}
-                      {item.freeSetRecords.map((record) => (
-                        <div
-                          key={record.id}
-                          className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded"
-                        >
-                          <span>{record.set}세트</span>
-                          <span className="font-medium">{record.reps}회</span>
-                          <span className="text-gray-600">
-                            {record.equipments
-                              .map(
-                                (eq) =>
-                                  `${eq.title} ${eq.primaryValue}${eq.primaryUnit}`
-                              )
-                              .join(", ")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* 스트레칭 */}
-                  {item.type === "STRETCHING" &&
-                    item.stretchingExerciseRecords.length > 0 && (
-                      <div className="space-y-2">
-                        {item.stretchingExerciseRecords.map((record) => (
-                          <div key={record.id} className="text-sm">
-                            <div className="font-medium text-gray-700 mb-1">
-                              {record.stretchingExercise.title}
-                            </div>
-                            {record.stretchingExercise.description && (
-                              <p className="text-gray-600 text-xs">
-                                {record.stretchingExercise.description}
-                              </p>
-                            )}
-                            {record.equipments.length > 0 && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                사용 기구:{" "}
-                                {record.equipments
-                                  .map((eq) => eq.title)
-                                  .join(", ")}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                  {item.description && (
-                    <p className="text-sm text-gray-600 mt-2 pt-2 border-t">
-                      {item.description}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+            <PtRecordDetailClient ptRecordDetail={ptRecordDetail} />
           </CardContent>
         </Card>
       )}

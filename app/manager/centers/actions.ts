@@ -20,7 +20,6 @@ export interface ICenterFormData {
   address: string;
   phone: string;
   description: string;
-  trainerIds: string[];
   // 영업시간
   MON_open: string;
   MON_close: string;
@@ -114,6 +113,11 @@ export async function getCenterData(centerId: string) {
               id: true,
               username: true,
               email: true,
+              avatarImage: {
+                select: {
+                  cloudflareId: true,
+                },
+              },
             },
           },
         },
@@ -163,37 +167,6 @@ export async function getCenterData(centerId: string) {
   return center;
 }
 
-export async function getAvailableTrainersData() {
-  const session = await getSession();
-  if (!session || session.role !== "MANAGER") {
-    throw new Error("권한이 없습니다.");
-  }
-
-  return await prisma.trainer.findMany({
-    select: {
-      id: true,
-      user: {
-        select: {
-          id: true,
-          username: true,
-          email: true,
-        },
-      },
-      fitnessCenter: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-    },
-    orderBy: {
-      user: {
-        username: "asc",
-      },
-    },
-  });
-}
-
 export async function getCenterStatsData(centerId: string) {
   const session = await getSession();
   if (!session || session.role !== "MANAGER") {
@@ -224,7 +197,6 @@ function validateCenterForm(formData: FormData): {
     address: string;
     phone: string;
     description: string;
-    trainerIds: string[];
     openingHours: {
       dayOfWeek: WeekDay;
       openTime: number;
@@ -240,7 +212,6 @@ function validateCenterForm(formData: FormData): {
   const address = formData.get("address") as string;
   const phone = formData.get("phone") as string;
   const description = formData.get("description") as string;
-  const trainerIds = formData.getAll("trainerIds") as string[];
 
   // 필수 필드 검증
   if (!title?.trim()) {
@@ -310,7 +281,6 @@ function validateCenterForm(formData: FormData): {
       address: address.trim(),
       phone: phone.trim(),
       description: description?.trim() || "",
-      trainerIds,
       openingHours,
     },
   };
@@ -322,7 +292,6 @@ async function createCenter(data: {
   address: string;
   phone: string;
   description: string;
-  trainerIds: string[];
   openingHours: {
     dayOfWeek: WeekDay;
     openTime: number;
@@ -338,12 +307,6 @@ async function createCenter(data: {
         address: data.address,
         phone: data.phone,
         description: data.description,
-        trainers:
-          data.trainerIds.length > 0
-            ? {
-                connect: data.trainerIds.map((id) => ({ id })),
-              }
-            : undefined,
       },
       select: {
         id: true,
@@ -397,7 +360,6 @@ async function updateCenter(
     address?: string;
     phone?: string;
     description?: string;
-    trainerIds?: string[];
     openingHours?: {
       dayOfWeek: WeekDay;
       openTime: number;
@@ -412,9 +374,6 @@ async function updateCenter(
       address?: string;
       phone?: string;
       description?: string;
-      trainers?: {
-        set: { id: string }[];
-      };
     }
 
     const updateData: IUpdateData = {};
@@ -425,13 +384,6 @@ async function updateCenter(
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.description !== undefined)
       updateData.description = data.description;
-
-    // 트레이너 관계 업데이트
-    if (data.trainerIds !== undefined) {
-      updateData.trainers = {
-        set: data.trainerIds.map((id) => ({ id })),
-      };
-    }
 
     // 센터 기본 정보 업데이트
     const updatedCenter = await tx.fitnessCenter.update({
@@ -503,7 +455,7 @@ async function updateCenter(
 
 // 서버 액션들
 export async function createCenterAction(
-  prevState: IServerActionResponse,
+  _prevState: IServerActionResponse,
   formData: FormData
 ): Promise<IServerActionResponse> {
   try {
@@ -547,7 +499,7 @@ export async function createCenterAction(
 
 export async function updateCenterAction(
   centerId: string,
-  prevState: IServerActionResponse,
+  _prevState: IServerActionResponse,
   formData: FormData
 ): Promise<IServerActionResponse> {
   try {
@@ -604,7 +556,7 @@ export async function deleteCenterAction(
     }
 
     // 센터 삭제
-    const center = await prisma.fitnessCenter.delete({
+    await prisma.fitnessCenter.delete({
       where: { id: centerId },
       select: {
         id: true,
@@ -627,14 +579,10 @@ export async function deleteCenterAction(
 // 타입 추출을 위한 더미 함수들 (실제로는 호출되지 않음)
 const _getCentersData = getCentersData;
 const _getCenterData = getCenterData;
-const _getAvailableTrainersData = getAvailableTrainersData;
 const _getCenterStatsData = getCenterStatsData;
 
 export type ICenterSummary = Awaited<
   ReturnType<typeof _getCentersData>
 >[number];
 export type ICenterDetail = Awaited<ReturnType<typeof _getCenterData>>;
-export type IAvailableTrainer = Awaited<
-  ReturnType<typeof _getAvailableTrainersData>
->[number];
 export type ICenterStats = Awaited<ReturnType<typeof _getCenterStatsData>>;

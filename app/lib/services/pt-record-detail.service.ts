@@ -132,6 +132,29 @@ export const getPtRecordDetailForMemberService = async (
               },
             },
           },
+          images: {
+            where: {
+              status: 'ACTIVE',
+            },
+            select: {
+              id: true,
+              cloudflareId: true,
+              originalName: true,
+              size: true,
+              createdAt: true,
+            },
+          },
+          videos: {
+            select: {
+              id: true,
+              streamId: true,
+              originalName: true,
+              size: true,
+              duration: true,
+              createdAt: true,
+              status: true,
+            },
+          },
         },
         orderBy: {
           entry: "asc",

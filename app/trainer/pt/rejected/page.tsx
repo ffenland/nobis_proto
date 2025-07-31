@@ -16,6 +16,7 @@ import {
   ArrowLeft 
 } from "lucide-react";
 import { getRejectedPtsAction, type TRejectedPt } from "./actions";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 // PT 카드 컴포넌트
 interface RejectedPtCardProps {
@@ -36,9 +37,9 @@ const RejectedPtCard = ({ pt }: RejectedPtCardProps) => {
           {/* 헤더 - 회원 정보와 상태 */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              {pt.member!.user.avatarMedia?.thumbnailUrl || pt.member!.user.avatarMedia?.publicUrl ? (
+              {pt.member!.user.avatarImage?.cloudflareId ? (
                 <Image
-                  src={pt.member!.user.avatarMedia.thumbnailUrl || pt.member!.user.avatarMedia.publicUrl || ''}
+                  src={getOptimizedImageUrl(pt.member!.user.avatarImage.cloudflareId, "avatar")}
                   alt={pt.member!.user.username}
                   width={40}
                   height={40}

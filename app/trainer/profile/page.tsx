@@ -5,6 +5,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import Link from "next/link";
 import Image from "next/image";
+import { getCloudflareImageUrl } from "@/app/lib/utils/media.utils";
 
 export default async function TrainerProfilePage() {
   let trainerProfile: ITrainerProfile;
@@ -63,13 +64,17 @@ export default async function TrainerProfilePage() {
               <div className="flex items-start space-x-6">
                 {/* 프로필 사진 */}
                 <div className="flex-shrink-0">
-                  {trainerProfile.user.avatarMedia ? (
+                  {trainerProfile.user.avatarImage?.cloudflareId ? (
                     <Image
-                      src={trainerProfile.user.avatarMedia.publicUrl}
+                      src={getCloudflareImageUrl(
+                        trainerProfile.user.avatarImage.cloudflareId,
+                        "avatarSM"
+                      )}
                       alt="프로필 사진"
                       width={120}
                       height={120}
                       className="w-30 h-30 rounded-full object-cover border-4 border-gray-100"
+                      priority
                     />
                   ) : (
                     <div className="w-30 h-30 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-100">

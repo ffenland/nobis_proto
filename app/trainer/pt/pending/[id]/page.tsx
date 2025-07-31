@@ -18,6 +18,7 @@ import {
 import { getPendingPtDetailAction, type TPendingPtDetail } from "./actions";
 import ApprovalForm from "./ApprovalForm";
 import RejectionForm from "./RejectionForm";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -72,15 +73,12 @@ const TrainerPendingPtDetailPage = async ({ params }: PageProps) => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              {ptDetail.member &&
-              (ptDetail.member.user.avatarMedia?.thumbnailUrl ||
-                ptDetail.member.user.avatarMedia?.publicUrl) ? (
+              {ptDetail.member?.user.avatarImage?.cloudflareId ? (
                 <Image
-                  src={
-                    ptDetail.member.user.avatarMedia.thumbnailUrl ||
-                    ptDetail.member.user.avatarMedia.publicUrl ||
-                    ""
-                  }
+                  src={getOptimizedImageUrl(
+                    ptDetail.member.user.avatarImage.cloudflareId,
+                    "avatar"
+                  )}
                   alt={ptDetail.member.user.username}
                   width={64}
                   height={64}

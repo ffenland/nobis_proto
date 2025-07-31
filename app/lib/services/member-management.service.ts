@@ -60,11 +60,9 @@ export class MemberManagementService {
             email: true,
             mobile: true,
             createdAt: true,
-            avatarMedia: {
+            avatarImage: {
               select: {
-                id: true,
-                publicUrl: true,
-                thumbnailUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -247,11 +245,9 @@ export class MemberManagementService {
             email: true,
             mobile: true,
             createdAt: true,
-            avatarMedia: {
+            avatarImage: {
               select: {
-                id: true,
-                publicUrl: true,
-                thumbnailUrl: true,
+                cloudflareId: true,
               },
             },
           },
@@ -291,11 +287,9 @@ export class MemberManagementService {
                     username: true,
                     email: true,
                     mobile: true,
-                    avatarMedia: {
+                    avatarImage: {
                       select: {
-                        id: true,
-                        publicUrl: true,
-                        thumbnailUrl: true,
+                        cloudflareId: true,
                       },
                     },
                   },

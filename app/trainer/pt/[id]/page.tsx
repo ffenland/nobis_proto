@@ -15,6 +15,7 @@ import {
   XCircle,
   ChevronRight,
 } from "lucide-react";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -246,9 +247,9 @@ const TrainerPtDetailPage = async ({ params }: PageProps) => {
           <h3 className="font-medium text-gray-900 mb-3">회원 정보</h3>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              {ptDetail.member?.user.avatarMedia?.thumbnailUrl || ptDetail.member?.user.avatarMedia?.publicUrl ? (
+              {ptDetail.member?.user.avatarImage?.cloudflareId ? (
                 <Image
-                  src={ptDetail.member.user.avatarMedia.thumbnailUrl || ptDetail.member.user.avatarMedia.publicUrl || ''}
+                  src={getOptimizedImageUrl(ptDetail.member.user.avatarImage.cloudflareId, "avatar")}
                   alt={ptDetail.member.user.username}
                   width={40}
                   height={40}

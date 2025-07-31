@@ -25,6 +25,7 @@ import {
   getAttendanceDisplayInfo,
   calculateAttendanceStats,
 } from "@/app/lib/utils/pt.utils";
+import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
 
 // NextJS 15 dynamic route params 타입 정의
 type Params = Promise<{ id: string }>;
@@ -248,11 +249,9 @@ const PtDetailPage = (props: { params: Params }) => {
             </Button>
           )}
         </div>
-        <h1 className="text-lg font-bold text-gray-900 truncate">
-          {pt.ptProduct.title}
-        </h1>
+
         <div className="flex items-center justify-between mt-1">
-          <span className="text-sm text-gray-600">PT 상세</span>
+          <h1 className="font-bold text-gray-600">PT 상세</h1>
           <Badge variant={status.variant}>{status.text}</Badge>
         </div>
       </div>
@@ -266,7 +265,7 @@ const PtDetailPage = (props: { params: Params }) => {
                 {pt.ptProduct.title}
               </h2>
               <div className="grid grid-cols-1 gap-1 text-sm text-gray-600">
-                <span>회당 {pt.ptProduct.time}시간</span>
+                <span>회당 {formatMinutesToKorean(pt.ptProduct.time)}</span>
                 <span>총 {pt.ptProduct.totalCount}회</span>
                 <span className="font-medium text-gray-900">
                   {pt.ptProduct.price.toLocaleString()}원
@@ -328,10 +327,12 @@ const PtDetailPage = (props: { params: Params }) => {
                   </Button>
                 </Link>
                 {pt.trainer.user.mobile && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
-                    onClick={() => window.location.href = `tel:${pt.trainer.user.mobile}`}
+                    onClick={() =>
+                      (window.location.href = `tel:${pt.trainer?.user.mobile}`)
+                    }
                   >
                     <Phone className="w-4 h-4" />
                   </Button>
@@ -420,17 +421,26 @@ const PtDetailPage = (props: { params: Params }) => {
                                   {attendanceInfo.text}
                                 </Badge>
                                 {/* 일정 변경 배지 - 상태별로 다르게 표시 */}
-                                {record.scheduleChangeRequest.some(req => req.state === "PENDING") && (
+                                {record.scheduleChangeRequest.some(
+                                  (req) => req.state === "PENDING"
+                                ) && (
                                   <Badge variant="warning" className="text-xs">
                                     일정 변경중
                                   </Badge>
                                 )}
-                                {record.scheduleChangeRequest.some(req => req.state === "APPROVED") && 
-                                 !record.scheduleChangeRequest.some(req => req.state === "PENDING") && (
-                                  <Badge variant="success" className="text-xs">
-                                    일정 변경완료
-                                  </Badge>
-                                )}
+                                {record.scheduleChangeRequest.some(
+                                  (req) => req.state === "APPROVED"
+                                ) &&
+                                  !record.scheduleChangeRequest.some(
+                                    (req) => req.state === "PENDING"
+                                  ) && (
+                                    <Badge
+                                      variant="success"
+                                      className="text-xs"
+                                    >
+                                      일정 변경완료
+                                    </Badge>
+                                  )}
                               </div>
                               <span className="text-xs text-gray-600">
                                 {formatTime(record.ptSchedule.startTime)} -{" "}

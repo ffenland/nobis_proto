@@ -33,10 +33,9 @@ export const getPendingPtDetailAction = async (ptId: string) => {
           user: {
             select: {
               username: true,
-              avatarMedia: {
+              avatarImage: {
                 select: {
-                  publicUrl: true,
-                  thumbnailUrl: true,
+                  cloudflareId: true,
                 },
               },
             },

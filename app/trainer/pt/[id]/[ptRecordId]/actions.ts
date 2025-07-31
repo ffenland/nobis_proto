@@ -119,6 +119,27 @@ export const getPtRecordDetailAction = async (ptRecordId: string) => {
               },
             },
           },
+          // 미디어 데이터 추가
+          images: {
+            select: {
+              id: true,
+              cloudflareId: true,
+              originalName: true,
+              size: true,
+              createdAt: true,
+            },
+          },
+          videos: {
+            select: {
+              id: true,
+              streamId: true,
+              originalName: true,
+              size: true,
+              duration: true,
+              createdAt: true,
+              status: true,
+            },
+          },
         },
         orderBy: {
           entry: "asc",
@@ -140,6 +161,7 @@ export const getPtRecordDetailAction = async (ptRecordId: string) => {
           ptProduct: {
             select: {
               title: true,
+              time: true,
             },
           },
         },

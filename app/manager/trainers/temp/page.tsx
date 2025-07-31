@@ -21,6 +21,7 @@ import {
   Award,
   TrendingUp,
 } from "lucide-react";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
@@ -243,9 +244,9 @@ export default function TrainerDetailPage(props: { params: Params }) {
               {/* 프로필 이미지 */}
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
-                  {trainer.user.avatarMedia?.thumbnailUrl ? (
+                  {trainer.user.avatarImage?.cloudflareId ? (
                     <img
-                      src={trainer.user.avatarMedia.thumbnailUrl}
+                      src={getOptimizedImageUrl(trainer.user.avatarImage.cloudflareId, "avatar")}
                       alt={trainer.user.username}
                       className="w-full h-full object-cover"
                     />

@@ -16,6 +16,26 @@ export const getPtRecordDetailService = async (ptRecordId: string) => {
           description: true,
           entry: true,
           type: true,
+          images: {
+            select: {
+              id: true,
+              cloudflareId: true,
+              originalName: true,
+              mimeType: true,
+              size: true,
+            },
+          },
+          videos: {
+            select: {
+              id: true,
+              streamId: true,
+              originalName: true,
+              mimeType: true,
+              size: true,
+              duration: true,
+              status: true,
+            },
+          },
           machineSetRecords: {
             select: {
               id: true,

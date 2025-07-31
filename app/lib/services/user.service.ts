@@ -4,7 +4,7 @@ import prisma from "@/app/lib/prisma";
 // ========== 입력 타입만 정의 ==========
 export interface IUpdateProfileRequest {
   username?: string;
-  avatarMediaId?: string | null;
+  avatarImageId?: string | null;
 }
 
 // ========== 서비스 구현 ==========
@@ -33,11 +33,9 @@ export class UserService {
         kakaoId: true,
         usernameChangeCount: true,
         lastUsernameChangeAt: true,
-        avatarMedia: {
+        avatarImage: {
           select: {
-            id: true,
-            publicUrl: true,
-            thumbnailUrl: true,
+            cloudflareId: true,
           },
         },
         memberProfile: {
@@ -114,7 +112,7 @@ export class UserService {
       email: user.email,
       role: user.role,
       createdAt: user.createdAt,
-      avatarMedia: user.avatarMedia,
+      avatarImage: user.avatarImage,
       snsProvider,
       usernameChangeCount: user.usernameChangeCount || 0,
       lastUsernameChangeAt: user.lastUsernameChangeAt,
@@ -129,7 +127,7 @@ export class UserService {
       username?: string;
       usernameChangeCount?: { increment: number };
       lastUsernameChangeAt?: Date;
-      avatarMediaId?: string | null;
+      avatarImageId?: string | null;
     } = {};
 
     if (data.username) {
@@ -164,8 +162,8 @@ export class UserService {
       updateData.lastUsernameChangeAt = new Date();
     }
 
-    if (data.avatarMediaId !== undefined) {
-      updateData.avatarMediaId = data.avatarMediaId;
+    if (data.avatarImageId !== undefined) {
+      updateData.avatarImageId = data.avatarImageId;
     }
 
     const updatedUser = await prisma.user.update({
@@ -181,11 +179,15 @@ export class UserService {
         kakaoId: true,
         usernameChangeCount: true,
         lastUsernameChangeAt: true,
-        avatarMedia: {
+        avatarImage: {
           select: {
             id: true,
-            publicUrl: true,
-            thumbnailUrl: true,
+            cloudflareId: true,
+            originalName: true,
+            mimeType: true,
+            size: true,
+            type: true,
+            createdAt: true,
           },
         },
       },
@@ -203,7 +205,7 @@ export class UserService {
       email: updatedUser.email,
       role: updatedUser.role,
       createdAt: updatedUser.createdAt,
-      avatarMedia: updatedUser.avatarMedia,
+      avatarImage: updatedUser.avatarImage,
       snsProvider,
       usernameChangeCount: updatedUser.usernameChangeCount || 0,
       lastUsernameChangeAt: updatedUser.lastUsernameChangeAt,
@@ -285,28 +287,28 @@ export class UserService {
   async removeAvatar(userId: string): Promise<void> {
     await prisma.user.update({
       where: { id: userId },
-      data: { avatarMediaId: null },
+      data: { avatarImageId: null },
     });
   }
 
-  async setAvatar(userId: string, mediaId: string): Promise<void> {
-    // 미디어가 해당 사용자가 업로드한 것인지 확인
-    const media = await prisma.media.findFirst({
+  async setAvatar(userId: string, imageId: string): Promise<void> {
+    // 이미지가 해당 사용자가 업로드한 것인지 확인
+    const image = await prisma.image.findFirst({
       where: {
-        id: mediaId,
+        id: imageId,
         uploadedById: userId,
         type: "PROFILE",
-        status: "ACTIVE",
+        deletedAt: null,
       },
     });
 
-    if (!media) {
-      throw new Error("유효하지 않은 미디어입니다.");
+    if (!image) {
+      throw new Error("유효하지 않은 이미지입니다.");
     }
 
     await prisma.user.update({
       where: { id: userId },
-      data: { avatarMediaId: mediaId },
+      data: { avatarImageId: imageId },
     });
   }
 }

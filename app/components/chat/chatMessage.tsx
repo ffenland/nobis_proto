@@ -4,6 +4,7 @@ import React from "react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { IMessageData } from "@/app/lib/services/chat.service";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 interface IChatMessageProps {
   message: IMessageData;
@@ -24,13 +25,12 @@ export function ChatMessage({
       {showAvatar && !isOwn && (
         <div className="flex-shrink-0">
           <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
-            {message.sender?.avatarMedia?.thumbnailUrl ||
-            message.sender?.avatarMedia?.publicUrl ? (
+            {message.sender?.avatarImage?.cloudflareId ? (
               <img
-                src={
-                  message.sender.avatarMedia.thumbnailUrl ||
-                  message.sender.avatarMedia.publicUrl
-                }
+                src={getOptimizedImageUrl(
+                  message.sender.avatarImage.cloudflareId,
+                  "avatar"
+                )}
                 alt={message.sender.username || "사용자"}
                 className="w-full h-full object-cover"
               />

@@ -39,8 +39,8 @@ model User {
   naverId                  String?                   @unique
   kakaoId                  String?                   @unique
   mobile                   String                    @unique
-  avatarMediaId            String?                   @unique @db.Uuid
-  avatarMedia              Media?                    @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  avatarImageId            String?                   @unique @db.Uuid
+  avatarImage              Image?                    @relation("UserAvatar", fields: [avatarImageId], references: [id], onDelete: SetNull)
   usernameChangeCount      Int                       @default(0) // 변경 횟수
   lastUsernameChangeAt     DateTime? // 마지막 변경 시간
   role                     UserRole                  @default(MEMBER)
@@ -57,7 +57,8 @@ model User {
   respondedScheduleChanges PtScheduleChangeRequest[] @relation("ScheduleChangeResponder")
 
   // 업로드한 모든 미디어 (다대일 관계)
-  uploadedMedia Media[] @relation("UploadedMedia")
+  uploadedVideo Video[]
+  uploadedImage Image[]
 
   // 미디어 사용량
   mediaUsage MediaUsage[]
@@ -65,7 +66,7 @@ model User {
   // 구독 정보
   isPremiumUser      Boolean       @default(false)
   subscriptionExpiry DateTime?
-  MessageRead        MessageRead[]
+  messageRead        MessageRead[]
 }
 
 model UserData {
@@ -268,7 +269,7 @@ model PtRecord {
   ptId                  String                    @db.Uuid
   ptSchedule            PtSchedule                @relation(fields: [ptScheduleId], references: [id])
   ptScheduleId          String                    @db.Uuid
-  fitnessCeneter        FitnessCenter             @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenter         FitnessCenter             @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId       String                    @db.Uuid
   items                 PtRecordItem[]
   memo                  String                    @default("")
@@ -283,6 +284,7 @@ enum RecordType {
 
 model PtRecordItem {
   id                        String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt                 DateTime                   @default(now())
   ptRecord                  PtRecord                   @relation(fields: [ptRecordId], references: [id])
   ptRecordId                String                     @db.Uuid
   entry                     Int
@@ -292,8 +294,9 @@ model PtRecordItem {
   machineSetRecords         MachineSetRecord[]
   freeSetRecords            FreeSetRecord[]
   stretchingExerciseRecords StretchingExerciseRecord[]
-  photos                    Media[]
+  images                    Image[]
   isActive                  Boolean                    @default(true) // 현재 유효한 기록인지 여부
+  videos                    Video[]
 }
 
 model Machine {
@@ -302,7 +305,7 @@ model Machine {
   machineSetting  MachineSetting[]
   fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId String?          @db.Uuid
-  photos          Media[]
+  images          Image[]
 }
 
 model MachineSetting {
@@ -378,7 +381,7 @@ model Equipment {
   stretchingExerciseRecord StretchingExerciseRecord[]
 
   // 미디어 (사진)
-  photos Media[]
+  images Image[]
 
   @@index([fitnessCenterId, category])
 }
@@ -388,7 +391,7 @@ model FreeExercise {
   createdAt      DateTime        @default(now())
   title          String
   description    String?
-  photos         Media[]
+  images         Image[]
   freeSetRecords FreeSetRecord[]
 }
 
@@ -409,7 +412,7 @@ model StretchingExercise {
   createdAt                DateTime                   @default(now())
   title                    String
   description              String
-  photos                   Media[]
+  images                   Image[]
   stretchingExerciseRecord StretchingExerciseRecord[]
 }
 
@@ -597,7 +600,7 @@ model FitnessCenter {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   equipments          Equipment[]
-  media               Media[]
+  images              Image[]
   ptRecords           PtRecord[]
   inOperation         Boolean       @default(true)
 }
@@ -662,7 +665,7 @@ model Message {
   content     String
   messageType MessageType   @default(TEXT)
   isRead      Boolean       @default(false) // 추가된 필드
-  MessageRead MessageRead[]
+  messageRead MessageRead[]
 }
 
 model MessageRead {
@@ -678,102 +681,130 @@ model MessageRead {
 
 // 기존 모델을 확장하여 통합된 미디어 관리 시스템 구축
 
-enum PhotoType {
-  PROFILE // 프로필 사진
-  MACHINE // 장비 사진  
-  CENTER // 센터 사진
-  EXERCISE // 운동 기록 사진
-  STRETCHING // 스트레칭 사진
-  PT_RECORD // PT 기록 사진
-  BEFORE_AFTER // 전후 비교 사진
-  ACHIEVEMENT // 성과 사진
-}
-
-enum VideoType {
-  EXERCISE_DEMO // 운동 시연
-  PT_RECORD // PT 기록
-  FORM_CHECK // 폼 체크
-  PROGRESS // 진행 과정
-  INSTRUCTION // 운동 설명
-}
-
-enum MediaStatus {
-  UPLOADING
-  PROCESSING
-  ACTIVE
-  SCHEDULED_DELETE
-  DELETED
-}
-
-// 통합 미디어 모델
-model Media {
+model Image {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  // 파일 정보
-  filename     String
+  // Cloudflare Images ID (custom ID)                                  
+  cloudflareId String @unique
+
+  // 파일 정보                                                         
   originalName String
   mimeType     String
   size         Int
 
-  // 타입 및 상태
-  type      PhotoType? // 이미지인 경우
-  videoType VideoType? // 비디오인 경우
-  status    MediaStatus @default(UPLOADING)
+  // 이미지 타입                                                       
+  type ImageType
 
-  // 저장소 정보
-  r2Key        String? // R2 저장소 키
-  streamId     String? // Cloudflare Stream ID
-  cloudflareId String? // Cloudflare Images ID (이미지용)
-  publicUrl    String
-  thumbnailUrl String?
+  // 상태                                                              
+  status ImageStatus @default(ACTIVE)
 
-  // 비디오 전용 필드
-  duration   Int? // 초 단위
-  resolution String? // "1920x1080"
-  embedUrl   String?
-
-  // 자동 삭제 관련
-  scheduledDeleteAt DateTime?
-  autoDeleteEnabled Boolean   @default(false)
-
-  // 관계
-  uploadedBy   User   @relation("UploadedMedia", fields: [uploadedById], references: [id])
+  // 핵심 관계: 누가 업로드했는지 (필수)
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
   uploadedById String @db.Uuid
 
-  // 연관 엔티티 (옵셔널)
-  avatar User? @relation("UserAvatar")
+  // 아바타로 사용되는 경우 (User 모델의 avatarMedia와 연결)
+  avatarUser User? @relation("UserAvatar")
 
-  machineId String?  @db.Uuid
+  // 다양한 엔티티와의 선택적 관계들
   machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  machineId String?  @db.Uuid
 
-  fitnessCenterId String?        @db.Uuid
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
+  fitnessCenterId String?        @db.Uuid
 
-  ptRecordItemId String?       @db.Uuid
   ptRecordItem   PtRecordItem? @relation(fields: [ptRecordItemId], references: [id], onDelete: SetNull)
+  ptRecordItemId String?       @db.Uuid
 
-  stretchingExerciseId String?             @db.Uuid
-  stretchingExercise   StretchingExercise? @relation(fields: [stretchingExerciseId], references: [id], onDelete: SetNull)
-
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id])
   equipmentId String?    @db.Uuid
-  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
-  // 메타데이터 (JSON)
-  metadata       Json? // 추가 정보를 위한 유연한 필드
   freeExercise   FreeExercise? @relation(fields: [freeExerciseId], references: [id])
   freeExerciseId String?       @db.Uuid
 
+  stretchingExercise   StretchingExercise? @relation(fields: [stretchingExerciseId], references: [id])
+  stretchingExerciseId String?             @db.Uuid
+
+  // 메타데이터                                                           
+  metadata Json?
+
+  // 불필요한 user 관계 제거됨!
+
   @@index([uploadedById])
   @@index([type])
-  @@index([videoType])
   @@index([status])
-  @@index([scheduledDeleteAt])
-  @@index([machineId])
-  @@index([fitnessCenterId])
-  @@index([stretchingExerciseId])
-  @@index([freeExerciseId])
+  @@index([cloudflareId])
+}
+
+enum ImageType {
+  PROFILE
+  MACHINE
+  CENTER
+  EXERCISE
+  STRETCHING
+  PT_RECORD
+  BEFORE_AFTER
+  ACHIEVEMENT
+}
+
+enum ImageStatus {
+  ACTIVE
+  DELETED
+}
+
+model Video {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Cloudflare Stream ID                                                 
+  streamId String @unique
+
+  // 파일 정보                                                            
+  originalName String
+  mimeType     String
+  size         Int
+
+  // 비디오 정보                                                          
+  duration   Int // 초 단위                                           
+  resolution String? // "1920x1080"                                       
+
+  // 비디오 타입                                                          
+  type VideoType
+
+  // 상태                                                                 
+  status VideoStatus @default(PROCESSING)
+
+  // 관계                                                                 
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  uploadedById String @db.Uuid
+
+  // 선택적 관계                                                          
+  ptRecordItem   PtRecordItem? @relation(fields: [ptRecordItemId], references: [id], onDelete: SetNull)
+  ptRecordItemId String?       @db.Uuid
+
+  // 메타데이터                                                           
+  metadata Json?
+
+  @@index([uploadedById])
+  @@index([type])
+  @@index([status])
+  @@index([streamId])
+}
+
+enum VideoType {
+  EXERCISE_DEMO
+  PT_RECORD
+  FORM_CHECK
+  PROGRESS
+  INSTRUCTION
+}
+
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  DELETED
 }
 
 // 사용자별 미디어 사용량 추적

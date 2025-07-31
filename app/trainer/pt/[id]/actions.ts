@@ -46,10 +46,9 @@ export const getPtDetailAction = async (ptId: string) => {
             select: {
               id: true,
               username: true,
-              avatarMedia: {
+              avatarImage: {
                 select: {
-                  publicUrl: true,
-                  thumbnailUrl: true,
+                  cloudflareId: true,
                 },
               },
             },

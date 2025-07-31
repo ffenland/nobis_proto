@@ -17,7 +17,11 @@ export const getProfile = async () => {
     select: {
       username: true,
       email: true,
-      avatar: true,
+      avatarImage: {
+        select: {
+          cloudflareId: true,
+        },
+      },
       memberProfile: {
         select: {
           membership: {
@@ -41,9 +45,9 @@ export const getProfile = async () => {
           pt: {
             where: {
               OR: [
-                { isActive: true },
+                { state: "CONFIRMED" },
                 {
-                  isActive: false,
+                  state: "PENDING",
                   startDate: { gt: new Date() }, // startDate가 미래
                 },
               ],
@@ -51,7 +55,7 @@ export const getProfile = async () => {
             select: {
               id: true,
               startDate: true,
-              isActive: true,
+              state: true,
               trainer: { select: { user: { select: { username: true } } } },
               ptProduct: {
                 select: {

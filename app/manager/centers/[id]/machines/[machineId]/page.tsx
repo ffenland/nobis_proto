@@ -31,9 +31,10 @@ interface MachineDetail {
     title: string;
   } | null;
   machineSetting: MachineSetting[];
-  photos?: {
+  images?: {
     id: string;
-    publicUrl: string;
+    cloudflareId: string;
+    originalName: string;
   }[];
 }
 

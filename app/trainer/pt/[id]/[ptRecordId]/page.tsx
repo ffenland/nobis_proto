@@ -9,15 +9,15 @@ import {
   Clock,
   FileText,
   ArrowLeft,
-  Eye,
-  Edit,
   Calendar,
   User,
   CheckCircle,
   XCircle,
   Circle,
+  Play,
 } from "lucide-react";
 import { getPtRecordDetailAction, type TPtRecordDetail } from "./actions";
+import ActionButtons from "./ActionButtons";
 
 interface PageProps {
   params: Promise<{ id: string; ptRecordId: string }>;
@@ -62,12 +62,24 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
     const startHour = Math.floor(ptRecordDetail.ptSchedule.startTime / 100);
     const startMinute = ptRecordDetail.ptSchedule.startTime % 100;
     scheduleDateTime.setHours(startHour, startMinute, 0, 0);
-
+    
+    // 수업 종료 시간 계산 (수업시간 + 10분)
+    const endDateTime = new Date(scheduleDateTime);
+    const classTimeMinutes = ptRecordDetail.pt.ptProduct.time || 60; // 기본 60분
+    endDateTime.setMinutes(endDateTime.getMinutes() + classTimeMinutes + 10);
+    
+    // 미래 수업인 경우
     if (scheduleDateTime > now) {
       return "예정";
-    } else {
-      return ptRecordDetail.items.length > 0 ? "참석" : "불참";
     }
+    
+    // 수업 중인 경우
+    if (now >= scheduleDateTime && now <= endDateTime) {
+      return "수업중";
+    }
+    
+    // 과거 수업인 경우 - 기록이 있으면 참석, 없으면 불참
+    return ptRecordDetail.items.length > 0 ? "참석" : "불참";
   };
 
   const attendanceStatus = calculateAttendanceStatus();
@@ -79,6 +91,8 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
         return <CheckCircle className="w-6 h-6 text-green-600" />;
       case "불참":
         return <XCircle className="w-6 h-6 text-red-600" />;
+      case "수업중":
+        return <Play className="w-6 h-6 text-orange-600" />;
       default:
         return <Circle className="w-6 h-6 text-blue-600" />;
     }
@@ -90,6 +104,8 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
         return <Badge variant="success">참석</Badge>;
       case "불참":
         return <Badge variant="error">불참</Badge>;
+      case "수업중":
+        return <Badge variant="warning">수업중</Badge>;
       default:
         return <Badge variant="default">예정</Badge>;
     }
@@ -140,7 +156,7 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
                 </div>
               </div>
             </div>
-            
+
             {ptRecordDetail.memo && (
               <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                 <div className="text-sm font-medium text-gray-700 mb-1">
@@ -170,22 +186,32 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
                       <div className="flex items-start gap-3">
                         <Calendar className="w-5 h-5 text-orange-600 mt-0.5" />
                         <div>
-                          <div className="font-medium text-orange-900">일정 변경 요청됨</div>
+                          <div className="font-medium text-orange-900">
+                            일정 변경 요청됨
+                          </div>
                           <div className="text-sm text-orange-800 mt-1">
                             현재 일정을{" "}
                             <strong>
-                              {formatDateThisYear(ptRecordDetail.scheduleChangeRequest[0].requestedDate)}
-                              {" "}
+                              {formatDateThisYear(
+                                ptRecordDetail.scheduleChangeRequest[0]
+                                  .requestedDate
+                              )}{" "}
                               {formatTimeToString(
-                                Math.floor(ptRecordDetail.scheduleChangeRequest[0].requestedStartTime / 100),
-                                ptRecordDetail.scheduleChangeRequest[0].requestedStartTime % 100
+                                Math.floor(
+                                  ptRecordDetail.scheduleChangeRequest[0]
+                                    .requestedStartTime / 100
+                                ),
+                                ptRecordDetail.scheduleChangeRequest[0]
+                                  .requestedStartTime % 100
                               )}
                             </strong>
-                            으로 변경해달라고 요청을 보낸 상태입니다.
-                            빠른 확인이 필요한 경우 직접 연락하세요.
+                            으로 변경해달라고 요청을 보낸 상태입니다. 빠른
+                            확인이 필요한 경우 직접 연락하세요.
                           </div>
                           <div className="mt-2">
-                            <Link href={`/trainer/pt/${ptId}/${ptRecordId}/scheduleChange`}>
+                            <Link
+                              href={`/trainer/pt/${ptId}/${ptRecordId}/scheduleChange`}
+                            >
                               <Button variant="outline" size="sm">
                                 <Calendar className="w-4 h-4 mr-1" />
                                 일정 변경 관리
@@ -196,14 +222,17 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start gap-3">
                       <Circle className="w-5 h-5 text-blue-600 mt-0.5" />
                       <div>
-                        <div className="font-medium text-blue-900">예정된 수업</div>
+                        <div className="font-medium text-blue-900">
+                          예정된 수업
+                        </div>
                         <div className="text-sm text-blue-800 mt-1">
-                          아직 진행되지 않은 수업입니다. 필요시 일정을 변경할 수 있습니다.
+                          아직 진행되지 않은 수업입니다. 필요시 일정을 변경할 수
+                          있습니다.
                         </div>
                       </div>
                     </div>
@@ -211,14 +240,33 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
                 </>
               )}
 
+              {attendanceStatus === "수업중" && (
+                <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Play className="w-5 h-5 text-orange-600 mt-0.5" />
+                    <div>
+                      <div className="font-medium text-orange-900">
+                        수업 진행 중
+                      </div>
+                      <div className="text-sm text-orange-800 mt-1">
+                        현재 수업이 진행 중입니다. 운동 기록을 작성할 수 있습니다.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {attendanceStatus === "참석" && (
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
                     <div>
-                      <div className="font-medium text-green-900">참석 완료</div>
+                      <div className="font-medium text-green-900">
+                        참석 완료
+                      </div>
                       <div className="text-sm text-green-800 mt-1">
-                        수업이 완료되었고 운동 기록이 있습니다. 기록을 조회하거나 편집할 수 있습니다.
+                        수업이 완료되었고 운동 기록이 있습니다. 기록을
+                        조회하거나 편집할 수 있습니다.
                       </div>
                     </div>
                   </div>
@@ -232,7 +280,8 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
                     <div>
                       <div className="font-medium text-red-900">불참</div>
                       <div className="text-sm text-red-800 mt-1">
-                        수업 시간이 지났지만 운동 기록이 없습니다. 필요시 운동 기록을 추가할 수 있습니다.
+                        수업 시간이 지났지만 운동 기록이 없습니다. 필요시 운동
+                        기록을 추가할 수 있습니다.
                       </div>
                     </div>
                   </div>
@@ -240,45 +289,12 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
               )}
 
               {/* 액션 버튼들 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 예정된 수업: 일정 변경 */}
-                {attendanceStatus === "예정" && (
-                  <Link href={`/trainer/pt/${ptId}/${ptRecordId}/scheduleChange`}>
-                    <Button variant="primary" className="w-full">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      일정 변경
-                    </Button>
-                  </Link>
-                )}
-
-                {/* 참석한 수업: 기록 조회 */}
-                {attendanceStatus === "참석" && (
-                  <>
-                    <Link href={`/trainer/pt/${ptId}/${ptRecordId}/view`}>
-                      <Button variant="primary" className="w-full">
-                        <Eye className="w-4 h-4 mr-2" />
-                        운동 기록 조회
-                      </Button>
-                    </Link>
-                    <Link href={`/trainer/pt/${ptId}/${ptRecordId}/edit`}>
-                      <Button variant="outline" className="w-full">
-                        <Edit className="w-4 h-4 mr-2" />
-                        기록 편집
-                      </Button>
-                    </Link>
-                  </>
-                )}
-
-                {/* 불참한 수업: 기록 작성 */}
-                {attendanceStatus === "불참" && (
-                  <Link href={`/trainer/pt/${ptId}/${ptRecordId}/record`}>
-                    <Button variant="primary" className="w-full">
-                      <Edit className="w-4 h-4 mr-2" />
-                      운동 기록 작성
-                    </Button>
-                  </Link>
-                )}
-              </div>
+              <ActionButtons 
+                ptId={ptId}
+                ptRecordId={ptRecordId}
+                attendanceStatus={attendanceStatus}
+                hasRecords={ptRecordDetail.items.length > 0}
+              />
             </div>
           </CardContent>
         </Card>
@@ -296,13 +312,23 @@ const TrainerPtRecordHubPage = async ({ params }: PageProps) => {
                 </div>
                 <div className="text-sm text-gray-600">운동 항목</div>
               </div>
-              
+
               <div className="grid grid-cols-3 gap-4 mt-4">
                 {["MACHINE", "FREE", "STRETCHING"].map((type) => {
-                  const count = ptRecordDetail.items.filter(item => item.type === type).length;
-                  const label = type === "MACHINE" ? "머신" : type === "FREE" ? "프리웨이트" : "스트레칭";
+                  const count = ptRecordDetail.items.filter(
+                    (item) => item.type === type
+                  ).length;
+                  const label =
+                    type === "MACHINE"
+                      ? "머신"
+                      : type === "FREE"
+                      ? "프리웨이트"
+                      : "스트레칭";
                   return (
-                    <div key={type} className="text-center p-3 bg-gray-50 rounded-lg">
+                    <div
+                      key={type}
+                      className="text-center p-3 bg-gray-50 rounded-lg"
+                    >
                       <div className="font-medium text-gray-900">{count}개</div>
                       <div className="text-xs text-gray-600">{label}</div>
                     </div>

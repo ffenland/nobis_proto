@@ -6,7 +6,28 @@ import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import Image from "next/image";
 import Link from "next/link";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { IMemberProfileData } from "@/app/lib/services/user.service";
+import { getOptimizedImageUrl, validateImageFile } from "@/app/lib/utils/media.utils";
+import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
+import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { LoadingSpinner } from "@/app/components/ui/Loading";
+
+// 폼 스키마
+const profileEditSchema = z.object({
+  username: z
+    .string()
+    .min(2, "사용자명은 최소 2자 이상이어야 합니다.")
+    .max(20, "사용자명은 최대 20자까지 가능합니다.")
+    .regex(
+      /^[a-zA-Z0-9가-힣_-]+$/,
+      "사용자명에는 특수문자를 사용할 수 없습니다."
+    ),
+});
+
+type ProfileEditForm = z.infer<typeof profileEditSchema>;
 
 const fetcher = async (
   url: string
@@ -26,11 +47,15 @@ export default function EditProfilePage() {
   const [isUsernameChanged, setIsUsernameChanged] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [currentCloudflareImageId, setCurrentCloudflareImageId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{
+    username?: string;
+  }>({});
+
+  // 에러 모달 상태
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorModalMessage, setErrorModalMessage] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,19 +66,43 @@ export default function EditProfilePage() {
     }
   }, [data?.profile, isUsernameChanged]);
 
+  // 현재 아바타 이미지 설정
+  useEffect(() => {
+    if (data?.profile?.avatarImage) {
+      setCurrentCloudflareImageId(data.profile.avatarImage.cloudflareId);
+    }
+  }, [data?.profile]);
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">프로필을 불러오는 중...</div>
-      </div>
+      <PageLayout maxWidth="lg">
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="lg" />
+        </div>
+      </PageLayout>
     );
   }
 
   if (error || !data?.profile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-red-500">프로필을 불러올 수 없습니다.</div>
-      </div>
+      <PageLayout maxWidth="lg">
+        <div className="text-center py-12">
+          <div className="text-red-600 mb-4">
+            <span className="text-4xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            프로필을 불러올 수 없습니다
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {error instanceof Error
+              ? error.message
+              : "알 수 없는 오류가 발생했습니다."}
+          </p>
+          <Link href="/member/profile">
+            <Button variant="primary">프로필로 돌아가기</Button>
+          </Link>
+        </div>
+      </PageLayout>
     );
   }
 
@@ -68,18 +117,11 @@ export default function EditProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 파일 크기 확인 (10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setMessage({
-        type: "error",
-        text: "파일 크기는 10MB를 초과할 수 없습니다.",
-      });
-      return;
-    }
-
-    // 파일 타입 확인
-    if (!file.type.startsWith("image/")) {
-      setMessage({ type: "error", text: "이미지 파일만 업로드 가능합니다." });
+    // 파일 검증
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setErrorModalMessage(validation.error || "유효하지 않은 파일입니다.");
+      setShowErrorModal(true);
       return;
     }
 
@@ -91,307 +133,375 @@ export default function EditProfilePage() {
       setAvatarPreview(e.target?.result as string);
     };
     reader.readAsDataURL(file);
-    setMessage(null);
   };
 
-  const handleRemoveAvatar = async () => {
-    try {
-      const response = await fetch("/api/member/profile/avatar", {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("아바타 제거에 실패했습니다.");
-      }
-
-      setAvatarFile(null);
-      setAvatarPreview(null);
-      setMessage({ type: "success", text: "아바타가 제거되었습니다." });
-
-      // 프로필 데이터 새로고침
-      mutate("/api/member/profile");
-    } catch (error) {
-      setMessage({
-        type: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "아바타 제거 중 오류가 발생했습니다.",
-      });
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleSubmit = async () => {
     setIsSubmitting(true);
-    setMessage(null);
+    setValidationErrors({});
 
     try {
-      let avatarMediaId = profile.avatarMedia?.id || null;
+      // Form validation
+      const validationResult = profileEditSchema.safeParse({ username });
+      if (!validationResult.success) {
+        const errors: { username?: string } = {};
+        validationResult.error.errors.forEach((err) => {
+          if (err.path[0] === 'username') {
+            errors.username = err.message;
+          }
+        });
+        setValidationErrors(errors);
+        setIsSubmitting(false);
+        return;
+      }
+
+      let newAvatarImageId: string | null = null;
 
       // 아바타 파일이 선택된 경우 먼저 업로드
       if (avatarFile) {
+        // 1. Cloudflare 업로드 URL 생성
+        const uploadUrlResponse = await fetch("/api/media/images/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entityType: "profile",
+            entityId: profile.id,
+          }),
+        });
+
+        if (!uploadUrlResponse.ok) {
+          const error = await uploadUrlResponse.json();
+          throw new Error(error.error || "업로드 URL 생성 실패");
+        }
+
+        const { uploadURL, customId } = await uploadUrlResponse.json();
+
+        // 2. Cloudflare Images에 직접 업로드
         const formData = new FormData();
         formData.append("file", avatarFile);
-        formData.append("type", "PROFILE");
 
-        const uploadResponse = await fetch("/api/media/upload/image", {
+        const uploadResponse = await fetch(uploadURL, {
           method: "POST",
           body: formData,
         });
 
         if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json();
-          throw new Error(errorData.error || "이미지 업로드에 실패했습니다.");
+          throw new Error("이미지 업로드 실패");
         }
 
-        const uploadResult = await uploadResponse.json();
-        avatarMediaId = uploadResult.media.id;
-
-        // 아바타로 설정
-        const avatarResponse = await fetch("/api/member/profile/avatar", {
-          method: "PATCH",
+        // 3. 업로드 확인 및 DB 레코드 생성
+        const confirmResponse = await fetch("/api/media/images/confirm", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mediaId: avatarMediaId }),
+          body: JSON.stringify({
+            cloudflareId: customId,
+            originalName: avatarFile.name,
+            mimeType: avatarFile.type,
+            size: avatarFile.size,
+            type: "PROFILE",
+          }),
         });
 
-        if (!avatarResponse.ok) {
-          throw new Error("아바타 설정에 실패했습니다.");
+        if (!confirmResponse.ok) {
+          const error = await confirmResponse.json();
+          throw new Error(error.error || "이미지 확인 실패");
         }
+
+        const { id: imageId } = await confirmResponse.json();
+        newAvatarImageId = imageId;
       }
 
+      // 프로필 업데이트 데이터 준비
+      const updateData: any = {};
+      
       // 사용자명 변경이 있는 경우
       if (isUsernameChanged && username !== profile.username) {
-        const usernameResponse = await fetch("/api/member/profile/username", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: username.trim() }),
-        });
-
-        if (!usernameResponse.ok) {
-          const errorData = await usernameResponse.json();
-          throw new Error(errorData.error || "사용자명 변경에 실패했습니다.");
-        }
+        updateData.username = username.trim();
       }
 
-      setMessage({
-        type: "success",
-        text: "프로필이 성공적으로 업데이트되었습니다.",
-      });
+      // 아바타 이미지 변경이 있는 경우
+      if (newAvatarImageId) {
+        updateData.avatarImageId = newAvatarImageId;
+      }
+
+      // 변경사항이 있는 경우에만 업데이트
+      if (Object.keys(updateData).length > 0) {
+        const response = await fetch("/api/member/profile", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "프로필 업데이트에 실패했습니다.");
+        }
+
+        // 이전 이미지 삭제 (성공 후에만)
+        if (newAvatarImageId && profile.avatarImageId && profile.avatarImageId !== newAvatarImageId) {
+          // 비동기로 이전 이미지 삭제 (UI 블로킹 방지)
+          fetch(`/api/media/images/${profile.avatarImageId}`, {
+            method: "DELETE",
+          }).catch(error => {
+            console.error("Failed to delete old avatar image:", error);
+          });
+        }
+      }
 
       // 프로필 데이터 새로고침
       mutate("/api/member/profile");
 
-      // 2초 후 프로필 페이지로 이동
-      setTimeout(() => {
-        router.push("/member/profile");
-      }, 2000);
+      // 성공 시 프로필 페이지로 이동
+      router.push("/member/profile");
     } catch (error) {
-      setMessage({
-        type: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "프로필 업데이트 중 오류가 발생했습니다.",
-      });
+      setErrorModalMessage(
+        error instanceof Error
+          ? error.message
+          : "프로필 업데이트 중 오류가 발생했습니다."
+      );
+      setShowErrorModal(true);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const currentAvatarUrl =
-    avatarPreview ||
-    profile.avatarMedia?.publicUrl ||
-    "/images/default_profile.jpg";
+  // 현재 표시할 아바타 이미지 URL
+  const currentAvatarUrl = avatarPreview || 
+    (currentCloudflareImageId ? getOptimizedImageUrl(currentCloudflareImageId, 'avatar') : null);
+
+  const canChangeUsername = profile.canChangeUsername;
+  const remainingChanges = 2 - profile.usernameChangeCount;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-2xl mx-auto py-8 px-4">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-4 mb-4">
-            <Link
-              href="/member/profile"
-              className="text-gray-600 hover:text-gray-900"
-            >
-              ← 뒤로가기
-            </Link>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">프로필 수정</h1>
-          <p className="text-gray-600">
-            사용자명과 프로필 사진을 변경할 수 있습니다.
-          </p>
-        </div>
+    <PageLayout maxWidth="lg">
+      <PageHeader title="프로필 수정" />
 
-        {/* 메시지 */}
-        {message && (
-          <div
-            className={`mb-6 p-4 rounded-lg ${
-              message.type === "success"
-                ? "bg-green-50 text-green-700 border border-green-200"
-                : "bg-red-50 text-red-700 border border-red-200"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
+      <div className="space-y-6">
+        {/* 아바타 이미지 */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-gray-900">프로필 사진</h2>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                프로필에 표시될 사진을 업로드하세요. (최대 10MB)
+              </p>
 
-        {/* 수정 폼 */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-lg shadow-sm border border-gray-200"
-        >
-          <div className="p-6 space-y-6">
-            {/* 아바타 섹션 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                프로필 사진
-              </label>
-
-              <div className="flex items-start space-x-6">
-                {/* 현재 아바타 */}
+              {/* 아바타 미리보기 및 업로드 */}
+              <div className="flex items-center space-x-6">
+                {/* 아바타 미리보기 */}
                 <div className="flex-shrink-0">
-                  <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100 border-4 border-gray-200">
-                    <Image
-                      src={currentAvatarUrl}
-                      alt="프로필 사진"
-                      width={128}
-                      height={128}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-
-                {/* 아바타 컨트롤 */}
-                <div className="flex-1 space-y-3">
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-                    >
-                      사진 선택
-                    </button>
-                  </div>
-
-                  {(profile.avatarMedia || avatarPreview) && (
-                    <button
-                      type="button"
-                      onClick={handleRemoveAvatar}
-                      className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
-                    >
-                      사진 제거
-                    </button>
+                  {currentAvatarUrl ? (
+                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-100">
+                      <Image
+                        src={currentAvatarUrl}
+                        alt="아바타 미리보기"
+                        width={128}
+                        height={128}
+                        className="w-full h-full object-cover"
+                        unoptimized={currentAvatarUrl.startsWith("data:")}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-100">
+                      <span className="text-4xl text-gray-400">👤</span>
+                    </div>
                   )}
+                </div>
 
-                  <div className="text-xs text-gray-500">
-                    JPG, PNG, WEBP 파일 (최대 10MB)
+                {/* 업로드 컨트롤 */}
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    disabled={isSubmitting}
+                  />
+
+                  <div className="space-y-3">
+                    <div className="flex space-x-3">
+                      <button
+                        type="button"
+                        onClick={handleAvatarClick}
+                        disabled={isSubmitting}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        {currentCloudflareImageId || avatarPreview ? "사진 변경" : "사진 선택"}
+                      </button>
+
+                      {(currentCloudflareImageId || avatarPreview) && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveAvatar}
+                          disabled={isSubmitting}
+                          className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          {avatarPreview ? "선택 취소" : "제거"}
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      JPEG, PNG, WebP 형식, 최대 10MB
+                    </p>
+
+                    {avatarFile && (
+                      <p className="text-xs text-green-600">
+                        새 파일 선택됨: {avatarFile.name}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* 사용자명 섹션 */}
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                사용자명
-              </label>
-              <input
-                type="text"
-                id="username"
-                value={username}
-                onChange={handleUsernameChange}
-                disabled={!profile.canChangeUsername}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  !profile.canChangeUsername
-                    ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                    : "bg-white"
-                }`}
-                placeholder="사용자명을 입력하세요"
-                minLength={2}
-                maxLength={20}
-              />
-              <div className="mt-2 text-xs text-gray-500">
-                {profile.canChangeUsername ? (
-                  <>
-                    변경 가능 횟수: {2 - profile.usernameChangeCount}회 남음
-                    {profile.lastUsernameChangeAt && (
-                      <div className="mt-1">
-                        마지막 변경:{" "}
-                        {new Date(
-                          profile.lastUsernameChangeAt
-                        ).toLocaleDateString("ko-KR")}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  "사용자명 변경 횟수를 모두 사용했습니다. (최대 2회)"
-                )}
-              </div>
-            </div>
-
-            {/* 읽기 전용 정보 */}
-            <div className="border-t pt-6 space-y-4">
+        {/* 기본 정보 */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-gray-900">기본 정보</h2>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* 이메일 (읽기 전용) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   이메일
                 </label>
-                <div className="px-3 py-2 bg-gray-50 border rounded-lg text-gray-600">
-                  {profile.email}
-                </div>
-                <div className="mt-1 text-xs text-gray-500">
+                <input
+                  type="email"
+                  value={profile.email}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
                   이메일은 변경할 수 없습니다.
+                </p>
+              </div>
+
+              {/* 사용자명 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  사용자명 *
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={handleUsernameChange}
+                  disabled={!canChangeUsername || isSubmitting}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    !canChangeUsername
+                      ? "bg-gray-50 text-gray-500 cursor-not-allowed"
+                      : "border-gray-300"
+                  }`}
+                  placeholder="사용자명을 입력하세요"
+                />
+
+                {/* 사용자명 검증 메시지 */}
+                {validationErrors.username && (
+                  <p className="text-xs text-red-600 mt-1">
+                    {validationErrors.username}
+                  </p>
+                )}
+
+                <div className="mt-2 text-xs text-gray-500">
+                  {canChangeUsername ? (
+                    <>
+                      <p>2-20자, 영문/한글/숫자/하이픈/언더스코어만 사용 가능</p>
+                      <p className="mt-1">변경 가능 횟수: {remainingChanges}회 남음</p>
+                      {profile.lastUsernameChangeAt && (
+                        <p className="mt-1">
+                          마지막 변경: {new Date(profile.lastUsernameChangeAt).toLocaleDateString("ko-KR")}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-red-600">
+                      사용자명 변경 횟수를 모두 사용했습니다. (최대 2회)
+                    </p>
+                  )}
                 </div>
               </div>
 
+              {/* 가입 유형 (읽기 전용) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   가입 유형
                 </label>
-                <div className="px-3 py-2 bg-gray-50 border rounded-lg text-gray-600">
+                <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-600">
                   {profile.snsProvider === "naver"
                     ? "네이버"
                     : profile.snsProvider === "kakao"
                     ? "카카오"
                     : "일반"}{" "}
                   계정
+                  {profile.snsProvider && (
+                    <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                      SNS 연동
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* 버튼 영역 */}
-          <div className="px-6 py-4 bg-gray-50 border-t flex justify-end space-x-3">
-            <Link
-              href="/member/profile"
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
+        {/* 버튼 */}
+        <div className="flex justify-end space-x-4">
+          <Link href="/member/profile">
+            <Button variant="outline" disabled={isSubmitting}>
               취소
-            </Link>
+            </Button>
+          </Link>
+
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={isSubmitting || (!isUsernameChanged && !avatarFile)}
+          >
+            {isSubmitting ? (
+              <>
+                <LoadingSpinner size="sm" className="mr-2" />
+                저장 중...
+              </>
+            ) : (
+              "저장하기"
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* 에러 모달 */}
+      {showErrorModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold mb-4">알림</h3>
+            <p className="text-gray-700 mb-6">{errorModalMessage}</p>
             <button
-              type="submit"
-              disabled={isSubmitting || (!isUsernameChanged && !avatarFile)}
-              className={`px-6 py-2 rounded-lg transition-colors ${
-                isSubmitting || (!isUsernameChanged && !avatarFile)
-                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                  : "bg-gray-900 text-white hover:bg-gray-800"
-              }`}
+              onClick={() => setShowErrorModal(false)}
+              className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
             >
-              {isSubmitting ? "저장 중..." : "저장하기"}
+              확인
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      )}
+    </PageLayout>
   );
 }

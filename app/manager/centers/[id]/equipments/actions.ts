@@ -46,10 +46,11 @@ export const getCenterEquipments = async (centerId: string) => {
       primaryUnit: true,
       quantity: true,
       description: true,
-      photos: {
+      images: {
         select: {
           id: true,
-          publicUrl: true,
+          cloudflareId: true,
+          originalName: true,
         },
         take: 1,
       },

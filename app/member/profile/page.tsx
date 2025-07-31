@@ -1,11 +1,15 @@
 // app/member/profile/page.tsx
 "use client";
 
-import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import Image from "next/image";
 import { IMemberProfileData } from "@/app/lib/services/user.service";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
+import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
+import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
+import { LoadingSpinner } from "@/app/components/ui/Loading";
 
 const fetcher = async (
   url: string
@@ -22,29 +26,38 @@ export default function MemberProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">프로필을 불러오는 중...</div>
-      </div>
+      <PageLayout maxWidth="lg">
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="lg" />
+        </div>
+      </PageLayout>
     );
   }
 
-  if (error) {
+  if (error || !data?.profile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-red-500">프로필을 불러올 수 없습니다.</div>
-      </div>
+      <PageLayout maxWidth="lg">
+        <div className="text-center py-12">
+          <div className="text-red-600 mb-4">
+            <span className="text-4xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            프로필을 불러올 수 없습니다
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {error instanceof Error
+              ? error.message
+              : "알 수 없는 오류가 발생했습니다."}
+          </p>
+          <Link href="/member">
+            <Button variant="primary">대시보드로 돌아가기</Button>
+          </Link>
+        </div>
+      </PageLayout>
     );
   }
 
-  const profile = data?.profile;
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">프로필 정보가 없습니다.</div>
-      </div>
-    );
-  }
+  const profile = data.profile;
 
   const formatDate = (date: Date | null) => {
     if (!date) return "-";
@@ -67,193 +80,100 @@ export default function MemberProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-2xl mx-auto py-8 px-4">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">프로필</h1>
-          <p className="text-gray-600">
-            회원님의 프로필 정보를 확인하고 수정할 수 있습니다.
-          </p>
-        </div>
+    <PageLayout maxWidth="lg">
+      <PageHeader title="내 프로필" />
 
-        {/* 기본 정보 카드 */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
+      <div className="space-y-6">
+        {/* 기본 정보 */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">기본 정보</h2>
-              <Link
-                href="/member/profile/edit"
-                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
-              >
-                수정하기
+              <Link href="/member/profile/edit">
+                <Button variant="outline">프로필 수정</Button>
               </Link>
             </div>
-
-            <div className="flex items-start space-x-6">
-              {/* 아바타 */}
-              <div className="flex-shrink-0">
-                <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100">
+          </CardHeader>
+          <CardContent>
+            {/* 프로필 사진과 기본 정보 */}
+            <div className="flex flex-col w-full gap-2">
+              {/* 프로필 사진 */}
+              <div className="flex-shrink-0 w-full flex justify-center">
+                {profile.avatarImage?.cloudflareId ? (
                   <Image
-                    src={
-                      profile.avatarMedia?.publicUrl ||
-                      "/images/default_profile.jpg"
-                    }
+                    src={getOptimizedImageUrl(
+                      profile.avatarImage.cloudflareId,
+                      "avatarSM"
+                    )}
                     alt="프로필 사진"
-                    width={96}
-                    height={96}
-                    className="w-full h-full object-cover"
+                    width={120}
+                    height={120}
+                    className="w-30 h-30 rounded-full object-cover border-4 border-gray-100"
+                    priority
                   />
-                </div>
+                ) : (
+                  <div className="w-30 h-30 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-100">
+                    <span className="text-3xl text-gray-400">👤</span>
+                  </div>
+                )}
               </div>
 
-              {/* 정보 */}
-              <div className="flex-1 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    사용자명
-                  </label>
-                  <div className="text-gray-900">{profile.username}</div>
-                  {profile.canChangeUsername && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      변경 가능 횟수: {2 - profile.usernameChangeCount}회 남음
-                    </div>
-                  )}
+              {/* 기본 정보 */}
+              <div className="flex-1">
+                <div className="w-full flex justify-center">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    {profile.username}
+                  </h3>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    이메일
-                  </label>
-                  <div className="text-gray-900">{profile.email}</div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    가입 유형
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-gray-900">
-                      {getSnsProviderText(profile.snsProvider)}
-                    </span>
+                <div className="space-y-2 text-gray-600">
+                  <p>
+                    <span className="font-medium">이메일:</span> {profile.email}
+                  </p>
+                  <p>
+                    <span className="font-medium">가입일:</span>{" "}
+                    {formatDate(profile.createdAt)}
+                  </p>
+                  <p>
+                    <span className="font-medium">가입 유형:</span>{" "}
+                    {getSnsProviderText(profile.snsProvider)}
                     {profile.snsProvider && (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                      <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
                         SNS 연동
                       </span>
                     )}
-                  </div>
+                  </p>
+                  {profile.canChangeUsername && (
+                    <p className="text-sm text-blue-600">
+                      사용자명 변경 가능 (남은 횟수:{" "}
+                      {2 - profile.usernameChangeCount}회)
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* 멤버십 정보 카드 */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              멤버십 정보
-            </h2>
-
-            {profile.membership.isActive ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">이용권</span>
-                  <span className="font-medium text-gray-900">
-                    {profile.membership.productTitle || "기본 이용권"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">남은 기간</span>
-                  <span
-                    className={`font-medium ${
-                      profile.membership.daysRemaining <= 7
-                        ? "text-red-600"
-                        : profile.membership.daysRemaining <= 30
-                        ? "text-orange-600"
-                        : "text-green-600"
-                    }`}
-                  >
-                    {profile.membership.daysRemaining}일 남음
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">만료일</span>
-                  <span className="text-gray-900">
-                    {formatDate(profile.membership.expiryDate)}
-                  </span>
-                </div>
+        {/* 사용자명 변경 이력 */}
+        {profile.lastUsernameChangeAt && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-semibold text-gray-900">계정 정보</h2>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-gray-600">
+                <p>
+                  마지막 사용자명 변경:{" "}
+                  {formatDate(profile.lastUsernameChangeAt)}
+                </p>
+                <p className="mt-1">
+                  변경 횟수: {profile.usernameChangeCount} / 2회
+                </p>
               </div>
-            ) : (
-              <div className="text-center py-4">
-                <div className="text-gray-500 mb-2">
-                  활성화된 멤버십이 없습니다.
-                </div>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                  멤버십 구매하기
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* PT 정보 카드 */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              PT 정보
-            </h2>
-
-            {profile.pt.isActive ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">수업 종류</span>
-                  <span className="font-medium text-gray-900">
-                    {profile.pt.productTitle}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">담당 트레이너</span>
-                  <span className="text-gray-900">
-                    {profile.pt.trainerName}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">수업 진행 상황</span>
-                  <span className="font-medium text-blue-600">
-                    총 {profile.pt.totalSessions}회 수업 중{" "}
-                    {profile.pt.remainingSessions}회 남음
-                  </span>
-                </div>
-                <div className="mt-4">
-                  <Link
-                    href="/member/pt"
-                    className="inline-flex items-center text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    PT 상세 정보 보기 →
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-4">
-                <div className="text-gray-500 mb-2">
-                  진행 중인 PT가 없습니다.
-                </div>
-                <Link href={"/member/pt/new"}>
-                  <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
-                    PT 신청하기
-                  </button>
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 가입일 정보 */}
-        <div className="mt-6 text-center text-sm text-gray-500">
-          {formatDate(profile.createdAt)}에 가입하셨습니다.
-        </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

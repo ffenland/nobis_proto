@@ -90,6 +90,32 @@ export const getPtRecordItemAction = async (itemId: string) => {
           equipments: true,
         },
       },
+      images: {
+        select: {
+          id: true,
+          cloudflareId: true,
+          originalName: true,
+          mimeType: true,
+          size: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+      videos: {
+        select: {
+          id: true,
+          streamId: true,
+          originalName: true,
+          mimeType: true,
+          size: true,
+          duration: true,
+          status: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
     },
   });
 

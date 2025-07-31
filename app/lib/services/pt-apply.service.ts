@@ -95,12 +95,9 @@ export const getPtProgramsByCenterService = cache(async (centerId: string) => {
             select: {
               id: true,
               username: true,
-              avatarMedia: {
+              avatarImage: {
                 select: {
-                  id: true,
-                  publicUrl: true,
-                  thumbnailUrl: true,
-                  filename: true,
+                  cloudflareId: true,
                 },
               },
             },

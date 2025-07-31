@@ -1,7 +1,7 @@
 // app/trainer/chat/connect/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -17,54 +17,74 @@ export default function TrainerChatConnectPage() {
     created: boolean;
     memberName: string;
   } | null>(null);
+  const hasConnectedRef = useRef(false);
 
   const opponentId = searchParams.get("opp");
 
   useEffect(() => {
-    let isCanceled = false;
+    let mounted = true;
+    
+    // 개발 모드 확인 - StrictMode 이슈 회피를 위한 지연
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const delay = isDevelopment ? 50 : 0; // 개발 모드에서만 50ms 지연
 
-    const connectToChat = async () => {
-      if (!opponentId) {
-        setError("회원 ID가 필요합니다.");
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/trainer/chat/connect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ opponentId }),
-        });
-
-        if (isCanceled) return;
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "채팅방 연결 실패");
-        }
-
-        setConnectionResult(result);
-
-        // 1초 후 채팅방으로 이동
-        setTimeout(() => {
-          if (!isCanceled) {
-            router.push(`/trainer/chat/${result.roomId}`);
-          }
-        }, 1000);
-      } catch (err) {
-        if (!isCanceled) {
-          setError(err instanceof Error ? err.message : "채팅 연결 중 오류 발생");
+    const timer = setTimeout(() => {
+      if (!mounted) return;
+      
+      const connectToChat = async () => {
+        if (!opponentId) {
+          setError("회원 ID가 필요합니다.");
           setIsLoading(false);
+          return;
         }
-      }
-    };
 
-    connectToChat();
+        // 이미 연결했으면 중복 요청 방지
+        if (hasConnectedRef.current) return;
+        hasConnectedRef.current = true;
+
+        try {
+          console.log(`[TrainerChatConnect] API 요청 시작 (delay: ${delay}ms)`);
+          
+          const response = await fetch("/api/trainer/chat/connect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ opponentId }),
+          });
+
+          if (!mounted) return;
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || "채팅방 연결 실패");
+          }
+
+          setConnectionResult(result);
+
+          // 1초 후 채팅방으로 이동
+          setTimeout(() => {
+            if (mounted) {
+              router.push(`/trainer/chat/${result.roomId}`);
+            }
+          }, 1000);
+        } catch (err) {
+          if (mounted) {
+            setError(err instanceof Error ? err.message : "채팅 연결 중 오류 발생");
+            hasConnectedRef.current = false; // 에러 발생 시 재시도 가능하도록
+          }
+        } finally {
+          if (mounted) {
+            setIsLoading(false);
+          }
+        }
+      };
+
+      connectToChat();
+    }, delay);
 
     return () => {
-      isCanceled = true;
+      mounted = false;
+      clearTimeout(timer);
     };
   }, [opponentId, router]);
 

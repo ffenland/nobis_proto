@@ -4,11 +4,10 @@
 import { useState, useEffect, useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { updateCenterAction, type IServerActionResponse } from "../../actions";
-import type { ICenterDetail, IAvailableTrainer } from "../../actions";
+import type { ICenterDetail } from "../../actions";
 
 interface CenterEditFormProps {
   center: ICenterDetail;
-  trainers: IAvailableTrainer[];
 }
 
 const initialState: IServerActionResponse = {
@@ -49,18 +48,12 @@ const timeOptions = Array.from({ length: 49 }, (_, i) => {
 
 export default function CenterEditForm({
   center,
-  trainers,
 }: CenterEditFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [state, formAction] = useActionState(
     updateCenterAction.bind(null, center.id),
     initialState
-  );
-
-  // 현재 배정된 트레이너 ID 배열
-  const [selectedTrainers, setSelectedTrainers] = useState<string[]>(
-    center.trainers.map((t) => t.id)
   );
 
   // 현재 휴무일 설정 - 기존 데이터에서 휴무일인 요일들을 찾아서 Set으로 만듦
@@ -89,15 +82,6 @@ export default function CenterEditForm({
       router.push(`/manager/centers/${center.id}`);
     }
   }, [state.success, state.data, center.id, router]);
-
-  // 트레이너 선택/해제
-  const handleTrainerToggle = (trainerId: string) => {
-    setSelectedTrainers((prev) =>
-      prev.includes(trainerId)
-        ? prev.filter((id) => id !== trainerId)
-        : [...prev, trainerId]
-    );
-  };
 
   // 휴무일 토글
   const handleDayClosedToggle = (dayKey: string) => {
@@ -342,66 +326,6 @@ export default function CenterEditForm({
             );
           })}
         </div>
-      </div>
-
-      {/* 트레이너 배정 */}
-      <div className="space-y-6">
-        <h2 className="text-lg font-semibold text-gray-900">트레이너 배정</h2>
-
-        {trainers.length === 0 ? (
-          <p className="text-gray-500">배정 가능한 트레이너가 없습니다.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {trainers.map((trainer) => {
-              const isCurrentlyAssigned = selectedTrainers.includes(trainer.id);
-              const hasOtherCenter =
-                trainer.fitnessCenter && trainer.fitnessCenter.id !== center.id;
-
-              return (
-                <div key={trainer.id} className="relative">
-                  <label
-                    className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                      isCurrentlyAssigned
-                        ? "border-gray-500 bg-gray-50"
-                        : hasOtherCenter
-                        ? "border-orange-200 bg-orange-50"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      name="trainerIds"
-                      value={trainer.id}
-                      checked={isCurrentlyAssigned}
-                      onChange={() => handleTrainerToggle(trainer.id)}
-                      className="h-4 w-4 text-gray-600 focus:ring-gray-500 border-gray-300 rounded"
-                    />
-                    <div className="ml-3">
-                      <div className="text-sm font-medium text-gray-900">
-                        {trainer.user.username}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {trainer.user.email}
-                      </div>
-                      {trainer.fitnessCenter &&
-                        trainer.fitnessCenter.id !== center.id && (
-                          <div className="text-xs text-orange-600">
-                            현재: {trainer.fitnessCenter.title}
-                          </div>
-                        )}
-                      {trainer.fitnessCenter &&
-                        trainer.fitnessCenter.id === center.id && (
-                          <div className="text-xs text-green-600">
-                            현재 센터 소속
-                          </div>
-                        )}
-                    </div>
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* 액션 버튼 */}

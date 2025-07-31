@@ -49,10 +49,11 @@ export const getEquipmentDetail = async (
           title: true,
         },
       },
-      photos: {
+      images: {
         select: {
           id: true,
-          publicUrl: true,
+          cloudflareId: true,
+          originalName: true,
         },
       },
     },

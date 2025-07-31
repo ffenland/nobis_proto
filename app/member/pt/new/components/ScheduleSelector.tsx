@@ -308,10 +308,9 @@ const ScheduleSelector = ({
       }
     }
 
-    // 9. 새로운 날짜 추가 시 최대 개수 제한 (Regular 패턴)
+    // 9. 새로운 날짜 추가 시 최대 개수 제한
     const isNewDate = !chosenSchedule[dateKey];
     if (
-      pattern.regular &&
       isNewDate &&
       Object.keys(chosenSchedule).length >= pattern.count
     ) {
