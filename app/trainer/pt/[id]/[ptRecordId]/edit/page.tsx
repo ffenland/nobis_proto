@@ -1,13 +1,15 @@
 // app/trainer/pt/[id]/[ptRecordId]/edit/page.tsx
-import { checkEditTimePermissionAction } from "../actions";
 import EditTimeRestrictionNotice from "./components/EditTimeRestrictionNotice";
 import EditForm from "./components/EditForm";
+import { checkEditTimePermissionAction } from "@/app/trainer/pt/[id]/[ptRecordId]/actions";
 
 interface PtRecordEditPageProps {
   params: Promise<{ id: string; ptRecordId: string }>;
 }
 
-export default async function PtRecordEditPage({ params }: PtRecordEditPageProps) {
+export default async function PtRecordEditPage({
+  params,
+}: PtRecordEditPageProps) {
   const resolvedParams = await params;
   const { id: ptId, ptRecordId } = resolvedParams;
 
@@ -28,7 +30,6 @@ export default async function PtRecordEditPage({ params }: PtRecordEditPageProps
 
     // 편집 가능 시간인 경우 기존 편집 폼 표시
     return <EditForm ptId={ptId} ptRecordId={ptRecordId} />;
-
   } catch (error) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

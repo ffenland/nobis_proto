@@ -1,17 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { toast } from "react-hot-toast";
-import {
-  Edit2,
-  X,
-  Plus,
-  Camera,
-} from "lucide-react";
+import { Edit2, X, Plus, Camera } from "lucide-react";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import FullscreenImageViewer from "@/app/components/media/FullscreenImageViewer";
 import type { MachineDetail } from "@/app/lib/services/machine.service";
@@ -87,15 +82,14 @@ export default function MachineDetailClient({
   const router = useRouter();
 
   // SWR로 데이터 관리
-  const {
-    data: originalMachine,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR<MachineDetailData>(`/api/manager/machines/${machineId}`, fetcher, {
-    fallbackData: initialData as MachineDetailData,
-    revalidateOnFocus: false,
-  });
+  const { data: originalMachine, mutate } = useSWR<MachineDetailData>(
+    `/api/manager/machines/${machineId}`,
+    fetcher,
+    {
+      fallbackData: initialData as MachineDetailData,
+      revalidateOnFocus: false,
+    }
+  );
 
   // 로컬 상태
   const [machine, setMachine] = useState<MachineDetailData | null>(
@@ -178,6 +172,7 @@ export default function MachineDetailClient({
       toast.success("이미지가 삭제되었습니다.");
       await mutate();
     } catch (error) {
+      console.log(error);
       toast.error("이미지 삭제 중 오류가 발생했습니다.");
     }
   };
@@ -244,7 +239,7 @@ export default function MachineDetailClient({
   };
 
   // 새 설정 추가
-  const handleAddSetting = useCallback(() => {
+  const handleAddSetting = () => {
     const newSetting: MachineSetting = {
       id: `temp-${Date.now()}`,
       title: "",
@@ -254,19 +249,19 @@ export default function MachineDetailClient({
     };
     setEditingSetting(newSetting);
     setShowSettingModal(true);
-  }, []);
+  };
 
   // 기존 설정 수정
-  const handleEditSetting = useCallback((setting: MachineSetting) => {
+  const handleEditSetting = (setting: MachineSetting) => {
     setEditingSetting({
       ...setting,
       values: setting.values.map((v) => ({ ...v })),
     });
     setShowSettingModal(true);
-  }, []);
+  };
 
   // 설정에 값 추가
-  const addValueToSetting = useCallback(() => {
+  const addValueToSetting = () => {
     if (!editingSetting) return;
 
     const newValue: MachineSettingValue = {
@@ -279,38 +274,32 @@ export default function MachineDetailClient({
       ...editingSetting,
       values: [...editingSetting.values, newValue],
     });
-  }, [editingSetting]);
+  };
 
   // 설정 값 수정
-  const updateSettingValue = useCallback(
-    (valueId: string, newValue: string) => {
-      if (!editingSetting) return;
+  const updateSettingValue = (valueId: string, newValue: string) => {
+    if (!editingSetting) return;
 
-      setEditingSetting({
-        ...editingSetting,
-        values: editingSetting.values.map((v) =>
-          v.id === valueId ? { ...v, value: newValue } : v
-        ),
-      });
-    },
-    [editingSetting]
-  );
+    setEditingSetting({
+      ...editingSetting,
+      values: editingSetting.values.map((v) =>
+        v.id === valueId ? { ...v, value: newValue } : v
+      ),
+    });
+  };
 
   // 설정 값 삭제
-  const removeValueFromSetting = useCallback(
-    (valueId: string) => {
-      if (!editingSetting) return;
+  const removeValueFromSetting = (valueId: string) => {
+    if (!editingSetting) return;
 
-      setEditingSetting({
-        ...editingSetting,
-        values: editingSetting.values.filter((v) => v.id !== valueId),
-      });
-    },
-    [editingSetting]
-  );
+    setEditingSetting({
+      ...editingSetting,
+      values: editingSetting.values.filter((v) => v.id !== valueId),
+    });
+  };
 
   // 설정 저장
-  const saveSetting = useCallback(() => {
+  const saveSetting = () => {
     if (!editingSetting || !machine) return;
 
     if (!editingSetting.title.trim()) {
@@ -353,27 +342,24 @@ export default function MachineDetailClient({
 
     setEditingSetting(null);
     setShowSettingModal(false);
-  }, [editingSetting, machine]);
+  };
 
   // 설정 삭제
-  const deleteSetting = useCallback(
-    (settingId: string) => {
-      if (!machine) return;
+  const deleteSetting = (settingId: string) => {
+    if (!machine) return;
 
-      if (confirm("이 설정을 삭제하시겠습니까?")) {
-        setMachine({
-          ...machine,
-          machineSetting: machine.machineSetting.filter(
-            (s) => s.id !== settingId
-          ),
-        });
-      }
-    },
-    [machine]
-  );
+    if (confirm("이 설정을 삭제하시겠습니까?")) {
+      setMachine({
+        ...machine,
+        machineSetting: machine.machineSetting.filter(
+          (s) => s.id !== settingId
+        ),
+      });
+    }
+  };
 
   // 변경사항 확인
-  const hasChanges = useCallback(() => {
+  const hasChanges = useMemo(() => {
     if (!originalMachine || !machine) return false;
 
     if (originalMachine.title !== machine.title) return true;
@@ -410,8 +396,8 @@ export default function MachineDetailClient({
   }, [originalMachine, machine]);
 
   // 머신 저장
-  const saveMachine = useCallback(async () => {
-    if (!machine || (!hasChanges() && selectedImages.length === 0)) {
+  const saveMachine = async () => {
+    if (!machine || (!hasChanges && selectedImages.length === 0)) {
       toast.error("변경된 내용이 없습니다.");
       return;
     }
@@ -420,7 +406,7 @@ export default function MachineDetailClient({
 
     try {
       // 변경사항이 있으면 머신 정보 업데이트
-      if (hasChanges()) {
+      if (hasChanges) {
         const updateData: MachineUpdateData = {
           title: machine.title,
           machineSetting: machine.machineSetting.map((setting) => ({
@@ -462,8 +448,10 @@ export default function MachineDetailClient({
 
       // 이미지 상태 초기화
       setSelectedImages([]);
-      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
-      setImagePreviews([]);
+      setImagePreviews((prevPreviews) => {
+        prevPreviews.forEach((url) => URL.revokeObjectURL(url));
+        return [];
+      });
 
       // 머신 목록 페이지로 이동
       router.push(`/manager/centers/${centerId}/machines`);
@@ -475,10 +463,10 @@ export default function MachineDetailClient({
     } finally {
       setIsUpdating(false);
     }
-  }, [machine, hasChanges, selectedImages, machineId, mutate, imagePreviews]);
+  };
 
   // 머신 삭제
-  const deleteMachine = useCallback(async () => {
+  const deleteMachine = async () => {
     if (!machine) return;
 
     setIsDeleting(true);
@@ -503,7 +491,7 @@ export default function MachineDetailClient({
       setIsDeleting(false);
       setShowDeleteModal(false);
     }
-  }, [machine, machineId, router, centerId]);
+  };
 
   if (!machine) return null;
 
@@ -695,9 +683,7 @@ export default function MachineDetailClient({
         <Button
           variant="primary"
           onClick={saveMachine}
-          disabled={
-            isUpdating || (!hasChanges() && selectedImages.length === 0)
-          }
+          disabled={isUpdating || (!hasChanges && selectedImages.length === 0)}
         >
           {isUpdating ? "저장 중..." : "변경사항 저장"}
         </Button>

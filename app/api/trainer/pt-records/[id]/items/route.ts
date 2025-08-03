@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPtRecordItemsService } from "@/app/lib/services/trainer/pt-record.service";
 import { getSession } from "@/app/lib/session";
 import { createAuditLog } from "@/app/lib/services/audit/pt-record-audit.service";
-import { 
+import {
   getPtRecordItemDetailForAudit,
   createPtRecordItem,
-  checkPtRecordItemPermission,
-  checkPtRecordPermission
+  checkPtRecordPermission,
 } from "@/app/lib/services/trainer/pt-record-item.service";
 
 // PT Record Items 조회
@@ -17,17 +16,11 @@ export async function GET(
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await params;
@@ -50,17 +43,11 @@ export async function POST(
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id: ptRecordId } = await params;
@@ -94,14 +81,16 @@ export async function POST(
       trainerId: session.roleId!,
       ptRecordId: ptRecordId,
       ptRecordItemId: ptRecordItem.id,
-      action: 'CREATE_ITEM',
+      action: "CREATE_ITEM",
       actionDetails: {
         type,
         createdData,
       },
       scheduledTime: ptRecord.ptSchedule.date,
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
-      userAgent: request.headers.get('user-agent'),
+      ipAddress:
+        request.headers.get("x-forwarded-for") ||
+        request.headers.get("x-real-ip"),
+      userAgent: request.headers.get("user-agent"),
     });
 
     return NextResponse.json(ptRecordItem);

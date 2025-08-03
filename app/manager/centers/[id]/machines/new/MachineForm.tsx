@@ -29,11 +29,12 @@ export default function MachineForm({ centerId }: MachineFormProps) {
     machineSetting: [],
   });
   const [showAddSettingModal, setShowAddSettingModal] = useState(false);
-  const [selectedSetting, setSelectedSetting] = useState<IMachineSetting | null>(null);
+  const [selectedSetting, setSelectedSetting] =
+    useState<IMachineSetting | null>(null);
   const [lastAddedValueId, setLastAddedValueId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // 사진 관련 상태
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -50,22 +51,22 @@ export default function MachineForm({ centerId }: MachineFormProps) {
   // 이미지 미리보기 정리
   useEffect(() => {
     return () => {
-      imagePreviews.forEach(url => URL.revokeObjectURL(url));
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [imagePreviews]);
 
   // 이미지 파일 처리
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
-    const validFiles = files.filter(file => {
+
+    const validFiles = files.filter((file) => {
       // 파일 크기 검증 (10MB)
       if (file.size > 10 * 1024 * 1024) {
         toast.error(`${file.name}은(는) 10MB를 초과합니다.`);
         return false;
       }
       // 파일 타입 검증
-      if (!file.type.startsWith('image/')) {
+      if (!file.type.startsWith("image/")) {
         toast.error(`${file.name}은(는) 이미지 파일이 아닙니다.`);
         return false;
       }
@@ -74,22 +75,22 @@ export default function MachineForm({ centerId }: MachineFormProps) {
 
     if (validFiles.length > 0) {
       // 기존 미리보기 URL 정리
-      imagePreviews.forEach(url => URL.revokeObjectURL(url));
-      
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+
       // 새로운 이미지 설정
-      setSelectedImages(prev => [...prev, ...validFiles]);
-      
+      setSelectedImages((prev) => [...prev, ...validFiles]);
+
       // 새로운 미리보기 생성
-      const newPreviews = validFiles.map(file => URL.createObjectURL(file));
-      setImagePreviews(prev => [...prev, ...newPreviews]);
+      const newPreviews = validFiles.map((file) => URL.createObjectURL(file));
+      setImagePreviews((prev) => [...prev, ...newPreviews]);
     }
   };
 
   // 이미지 제거
   const removeImage = (index: number) => {
     URL.revokeObjectURL(imagePreviews[index]);
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 머신 설정 추가
@@ -193,9 +194,9 @@ export default function MachineForm({ centerId }: MachineFormProps) {
 
   // 머신 설정 삭제
   const removeSetting = (settingId: string) => {
-    setMachine(prev => ({
+    setMachine((prev) => ({
       ...prev,
-      machineSetting: prev.machineSetting.filter(s => s.id !== settingId)
+      machineSetting: prev.machineSetting.filter((s) => s.id !== settingId),
     }));
   };
 
@@ -220,14 +221,16 @@ export default function MachineForm({ centerId }: MachineFormProps) {
     }
 
     // 기존 세팅 수정
-    if (machine.machineSetting.find(s => s.id === updatedSetting.id)) {
+    if (machine.machineSetting.find((s) => s.id === updatedSetting.id)) {
       setMachine({
         ...machine,
-        machineSetting: machine.machineSetting.map(s => 
-          s.id === updatedSetting.id 
+        machineSetting: machine.machineSetting.map((s) =>
+          s.id === updatedSetting.id
             ? {
                 ...updatedSetting,
-                values: updatedSetting.values.filter((v) => v.value.trim() !== ""),
+                values: updatedSetting.values.filter(
+                  (v) => v.value.trim() !== ""
+                ),
               }
             : s
         ),
@@ -245,7 +248,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
         ],
       });
     }
-    
+
     setSelectedSetting(null);
     setShowAddSettingModal(false);
   };
@@ -257,17 +260,14 @@ export default function MachineForm({ centerId }: MachineFormProps) {
     for (const imageFile of selectedImages) {
       try {
         // 1. 업로드 URL 가져오기
-        const uploadUrlResponse = await fetch(
-          `/api/media/images/upload`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              entityType: "machine",
-              entityId: machineId 
-            }),
-          }
-        );
+        const uploadUrlResponse = await fetch(`/api/media/images/upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entityType: "machine",
+            entityId: machineId,
+          }),
+        });
 
         if (!uploadUrlResponse.ok) {
           throw new Error("이미지 업로드 URL 생성 실패");
@@ -305,7 +305,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
     }
 
     setIsSubmitting(true);
-    
+
     try {
       const result = await createMachine(centerId, machine);
       if (result.ok && result.data?.machineId) {
@@ -314,15 +314,18 @@ export default function MachineForm({ centerId }: MachineFormProps) {
           toast.loading("이미지 업로드 중...");
           await uploadMachineImages(result.data.machineId);
         }
-        
+
         toast.success("머신이 등록되었습니다.");
         router.push(
           `/manager/centers/${centerId}/machines/${result.data.machineId}`
         );
       } else {
-        toast.error(result.error?.message || "머신 생성 중 오류가 발생했습니다.");
+        toast.error(
+          result.error?.message || "머신 생성 중 오류가 발생했습니다."
+        );
       }
     } catch (error) {
+      console.log(error);
       toast.error("머신 생성 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
@@ -358,7 +361,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 머신 사진
               </label>
-              
+
               {/* 이미지 미리보기 */}
               {imagePreviews.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
@@ -380,7 +383,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
                   ))}
                 </div>
               )}
-              
+
               {/* 사진 추가 버튼 */}
               <input
                 ref={fileInputRef}
@@ -410,11 +413,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">머신 설정</h2>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleAddSetting}
-            >
+            <Button variant="outline" size="sm" onClick={handleAddSetting}>
               <Plus className="w-4 h-4 mr-1" />
               설정 추가
             </Button>
@@ -429,11 +428,16 @@ export default function MachineForm({ centerId }: MachineFormProps) {
           ) : (
             <div className="space-y-3">
               {machine.machineSetting.map((setting) => (
-                <div key={setting.id} className="border border-gray-200 rounded-lg p-3">
+                <div
+                  key={setting.id}
+                  className="border border-gray-200 rounded-lg p-3"
+                >
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <h4 className="font-medium">{setting.title}</h4>
-                      <p className="text-sm text-gray-600">단위: {setting.unit}</p>
+                      <p className="text-sm text-gray-600">
+                        단위: {setting.unit}
+                      </p>
                     </div>
                     <div className="flex gap-1">
                       <button
@@ -453,7 +457,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
                       </button>
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-wrap gap-1">
                     {setting.values.map((value) => (
                       <span
@@ -479,11 +483,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
             취소
           </Button>
         </Link>
-        <Button 
-          variant="primary" 
-          onClick={handleSave}
-          disabled={isSubmitting}
-        >
+        <Button variant="primary" onClick={handleSave} disabled={isSubmitting}>
           {isSubmitting ? "저장 중..." : "머신 등록"}
         </Button>
       </div>
@@ -551,16 +551,11 @@ export default function MachineForm({ centerId }: MachineFormProps) {
                 <label className="label">
                   <span className="label-text">설정 값</span>
                 </label>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={addSettingValue}
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  값 추가
+                <Button size="sm" variant="outline" onClick={addSettingValue}>
+                  <Plus className="w-4 h-4 mr-1" />값 추가
                 </Button>
               </div>
-              
+
               {selectedSetting.values.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-lg">
                   <p>설정 값을 추가해주세요.</p>
@@ -591,9 +586,7 @@ export default function MachineForm({ centerId }: MachineFormProps) {
                         }`}
                       >
                         <input
-                          ref={
-                            value.id === lastAddedValueId ? inputRef : null
-                          }
+                          ref={value.id === lastAddedValueId ? inputRef : null}
                           type="text"
                           value={value.value}
                           onChange={(e) =>
@@ -618,10 +611,13 @@ export default function MachineForm({ centerId }: MachineFormProps) {
             </div>
 
             <div className="modal-action">
-              <Button variant="outline" onClick={() => {
-                setSelectedSetting(null);
-                setShowAddSettingModal(false);
-              }}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedSetting(null);
+                  setShowAddSettingModal(false);
+                }}
+              >
                 취소
               </Button>
               <Button variant="primary" onClick={saveSettingValues}>

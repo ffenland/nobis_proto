@@ -26,6 +26,103 @@ dayjs.extend(isoWeek);
 dayjs.extend(weekday);
 dayjs.locale("ko");
 
+// 컴포넌트 외부에 정의된 순수 함수들 - 리렌더링 시 재생성되지 않음
+const getDateKey = (date: dayjs.Dayjs) => date.format("YYYY-MM-DD");
+
+const getWeekDates = (week: dayjs.Dayjs) => {
+  return Array.from({ length: 7 }, (_, i) => {
+    return week.add(i, "day").format("YYYY-MM-DD");
+  });
+};
+
+const getBlockStyle = (
+  schedule: IScheduleViewItem | undefined,
+  off: IOffViewItem | undefined,
+  isTimeColumn: boolean,
+  isPastDate: boolean
+) => {
+  if (schedule) {
+    switch (schedule.status) {
+      case "ATTENDED":
+        return "bg-green-200 text-green-900 font-bold";
+      case "ABSENT":
+        return "bg-red-200 text-red-900 font-bold";
+      case "RESERVED":
+        return "bg-blue-200 text-blue-900 font-bold";
+      default:
+        return "bg-gray-200 text-gray-900";
+    }
+  }
+
+  if (off) {
+    switch (off.type) {
+      case "TRAINER_OFF":
+        return "bg-orange-200 text-orange-900 font-bold";
+      case "CENTER_REGULAR_OFF":
+        return "bg-gray-300 text-gray-800 font-bold";
+      case "CENTER_SPECIAL_OFF":
+        return "bg-purple-200 text-purple-900 font-bold";
+      default:
+        return "bg-gray-200 text-gray-900";
+    }
+  }
+
+  if (isTimeColumn) return "bg-gray-100";
+  if (isPastDate) return "bg-gray-100";
+
+  return "bg-white hover:bg-gray-50";
+};
+
+const getBlockContent = (
+  schedule: IScheduleViewItem | undefined,
+  off: IOffViewItem | undefined
+): string => {
+  if (schedule) {
+    return schedule.pt.member?.user.username ?? "PT";
+  }
+
+  if (off) {
+    switch (off.type) {
+      case "TRAINER_OFF":
+        return "개인 OFF";
+      case "CENTER_REGULAR_OFF":
+        return "휴관";
+      case "CENTER_SPECIAL_OFF":
+        return "특별 휴무";
+      default:
+        return "휴무";
+    }
+  }
+
+  return "";
+};
+
+const getTooltipText = (
+  schedule: IScheduleViewItem | undefined,
+  off: IOffViewItem | undefined
+): string => {
+  if (schedule) {
+    const statusText = {
+      ATTENDED: "완료",
+      ABSENT: "결석",
+      RESERVED: "예정",
+    }[schedule.status];
+    return `${schedule.pt.member?.user.username} - ${statusText}`;
+  }
+
+  if (off) {
+    const typeText = {
+      TRAINER_OFF: "개인 휴무",
+      CENTER_REGULAR_OFF: "센터 정기 휴무",
+      CENTER_SPECIAL_OFF: "센터 특별 휴무",
+    }[off.type];
+
+    return off.description ? `${typeText}: ${off.description}` : typeText;
+  }
+
+  return "";
+};
+
 interface IScheduleCalendarProps {
   trainerId: string;
   forManager?: boolean;
@@ -70,106 +167,83 @@ export function ScheduleCalendar({
 
   const today = dayjs();
 
-  // API 엔드포인트 결정 - unused function but kept for potential future use
-  // const getApiEndpoint = useCallback(() => {
-  //   return forManager ? "/api/manager/schedule" : "/api/trainer/schedule";
-  // }, [forManager]);
-
-  // 날짜 키 생성 (YYYY-MM-DD 형식) - unused function but kept for potential future use
-  // const getDateKey = useCallback((date: dayjs.Dayjs) => {
-  //   return date.format("YYYY-MM-DD");
-  // }, []);
-
-  // 특정 주의 날짜들 가져오기 - unused function but kept for potential future use
-  // const getWeekDates = useCallback((week: dayjs.Dayjs) => {
-  //   return Array.from({ length: 7 }, (_, i) => {
-  //     return week.add(i, "day").format("YYYY-MM-DD");
-  //   });
-  // }, []);
-
   // 특정 날짜 범위의 데이터 로드
-  const loadScheduleData = useCallback(
-    async (startDate: dayjs.Dayjs, endDate: dayjs.Dayjs) => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  const loadScheduleData = async (startDate: dayjs.Dayjs, endDate: dayjs.Dayjs) => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        const endpoint = forManager
-          ? "/api/manager/schedule"
-          : "/api/trainer/schedule";
-        const params = new URLSearchParams({
-          startDate: startDate.format("YYYY-MM-DD"),
-          endDate: endDate.format("YYYY-MM-DD"),
-          ...(forManager && { trainerId }),
-        });
+      const endpoint = forManager
+        ? "/api/manager/schedule"
+        : "/api/trainer/schedule";
+      const params = new URLSearchParams({
+        startDate: startDate.format("YYYY-MM-DD"),
+        endDate: endDate.format("YYYY-MM-DD"),
+        ...(forManager && { trainerId }),
+      });
 
-        const response = await fetch(`${endpoint}?${params}`);
+      const response = await fetch(`${endpoint}?${params}`);
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "스케줄 조회에 실패했습니다.");
-        }
-
-        const data: ITrainerScheduleViewData = await response.json();
-        return data;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error
-            ? err.message
-            : "알 수 없는 오류가 발생했습니다.";
-        setError(errorMessage);
-        throw err;
-      } finally {
-        setIsLoading(false);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "스케줄 조회에 실패했습니다.");
       }
-    },
-    [forManager, trainerId]
-  );
+
+      const data: ITrainerScheduleViewData = await response.json();
+      return data;
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "알 수 없는 오류가 발생했습니다.";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // 서버 데이터를 loadedWeekData에 반영
-  const updateLoadedWeekData = useCallback(
-    (
-      data: ITrainerScheduleViewData,
-      startDate: dayjs.Dayjs,
-      endDate: dayjs.Dayjs
-    ) => {
-      setLoadedWeekData((prev) => {
-        const updated = { ...prev };
+  const updateLoadedWeekData = (
+    data: ITrainerScheduleViewData,
+    startDate: dayjs.Dayjs,
+    endDate: dayjs.Dayjs
+  ) => {
+    setLoadedWeekData((prev) => {
+      const updated = { ...prev };
 
-        // 날짜 범위 내의 모든 날짜에 대해 빈 배열로 초기화
-        let currentDate = startDate;
-        while (
-          currentDate.isBefore(endDate) ||
-          currentDate.isSame(endDate, "day")
-        ) {
-          const dateKey = currentDate.format("YYYY-MM-DD");
-          if (updated[dateKey] === null) {
-            updated[dateKey] = { schedules: [], offs: [] };
-          }
-          currentDate = currentDate.add(1, "day");
+      // 날짜 범위 내의 모든 날짜에 대해 빈 배열로 초기화
+      let currentDate = startDate;
+      while (
+        currentDate.isBefore(endDate) ||
+        currentDate.isSame(endDate, "day")
+      ) {
+        const dateKey = getDateKey(currentDate);
+        if (updated[dateKey] === null) {
+          updated[dateKey] = { schedules: [], offs: [] };
         }
+        currentDate = currentDate.add(1, "day");
+      }
 
-        // 스케줄 데이터 분배
-        data.schedules.forEach((schedule) => {
-          const dateKey = dayjs(schedule.ptSchedule.date).format("YYYY-MM-DD");
-          if (updated[dateKey]) {
-            updated[dateKey]!.schedules.push(schedule);
-          }
-        });
-
-        // 오프 데이터 분배
-        data.offs.forEach((off) => {
-          const dateKey = dayjs(off.date).format("YYYY-MM-DD");
-          if (updated[dateKey]) {
-            updated[dateKey]!.offs.push(off);
-          }
-        });
-
-        return updated;
+      // 스케줄 데이터 분배
+      data.schedules.forEach((schedule) => {
+        const dateKey = getDateKey(dayjs(schedule.ptSchedule.date));
+        if (updated[dateKey]) {
+          updated[dateKey]!.schedules.push(schedule);
+        }
       });
-    },
-    []
-  );
+
+      // 오프 데이터 분배
+      data.offs.forEach((off) => {
+        const dateKey = getDateKey(dayjs(off.date));
+        if (updated[dateKey]) {
+          updated[dateKey]!.offs.push(off);
+        }
+      });
+
+      return updated;
+    });
+  };
 
   // 초기 데이터 로드
   useEffect(() => {
@@ -207,53 +281,46 @@ export function ScheduleCalendar({
     };
 
     loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trainerId, forManager]);
 
   // 특정 주가 로드되었는지 확인
-  const isWeekLoaded = useCallback(
-    (week: dayjs.Dayjs) => {
-      const weekDates = Array.from({ length: 7 }, (_, i) => {
-        return week.add(i, "day").format("YYYY-MM-DD");
-      });
-      return weekDates.every(
-        (dateKey) => loadedWeekData[dateKey] !== undefined
-      );
-    },
-    [loadedWeekData]
-  );
+  const isWeekLoaded = (week: dayjs.Dayjs) => {
+    const weekDates = getWeekDates(week);
+    return weekDates.every(
+      (dateKey) => loadedWeekData[dateKey] !== undefined
+    );
+  };
 
   // 누락된 주차 데이터 로드
-  const loadMissingWeekData = useCallback(
-    async (week: dayjs.Dayjs) => {
-      const startDate = week;
-      const endDate = week.add(6, "day");
+  const loadMissingWeekData = async (week: dayjs.Dayjs) => {
+    const startDate = week;
+    const endDate = week.add(6, "day");
 
-      // 날짜 키 추가
-      setLoadedWeekData((prev) => {
-        const updated = { ...prev };
-        let currentDate = startDate;
-        while (
-          currentDate.isBefore(endDate) ||
-          currentDate.isSame(endDate, "day")
-        ) {
-          const dateKey = currentDate.format("YYYY-MM-DD");
-          if (updated[dateKey] === undefined) {
-            updated[dateKey] = null;
-          }
-          currentDate = currentDate.add(1, "day");
+    // 날짜 키 추가
+    setLoadedWeekData((prev) => {
+      const updated = { ...prev };
+      let currentDate = startDate;
+      while (
+        currentDate.isBefore(endDate) ||
+        currentDate.isSame(endDate, "day")
+      ) {
+        const dateKey = getDateKey(currentDate);
+        if (updated[dateKey] === undefined) {
+          updated[dateKey] = null;
         }
-        return updated;
-      });
+        currentDate = currentDate.add(1, "day");
+      }
+      return updated;
+    });
 
-      // 서버에서 데이터 로드
-      const data = await loadScheduleData(startDate, endDate);
-      updateLoadedWeekData(data, startDate, endDate);
-    },
-    [loadScheduleData, updateLoadedWeekData]
-  );
+    // 서버에서 데이터 로드
+    const data = await loadScheduleData(startDate, endDate);
+    updateLoadedWeekData(data, startDate, endDate);
+  };
 
   // 이전 주로 이동
-  const handlePrevWeek = useCallback(async () => {
+  const handlePrevWeek = async () => {
     const prevWeek = currentWeek.subtract(1, "week");
 
     // 과거 3개월 이전은 불가
@@ -271,10 +338,10 @@ export function ScheduleCalendar({
         setShowErrorModal(true);
       }
     }
-  }, [currentWeek, today, isWeekLoaded, loadMissingWeekData]);
+  };
 
   // 다음 주로 이동
-  const handleNextWeek = useCallback(async () => {
+  const handleNextWeek = async () => {
     const nextWeek = currentWeek.add(1, "week");
 
     // 12주 제한 확인
@@ -298,7 +365,7 @@ export function ScheduleCalendar({
         setShowErrorModal(true);
       }
     }
-  }, [currentWeek, today, isWeekLoaded, loadMissingWeekData]);
+  };
 
   // 현재 주의 요일들 계산
   const weekDays = useMemo(
@@ -308,139 +375,36 @@ export function ScheduleCalendar({
         return {
           date,
           dayInfo: getWeekDayMapData(date.toDate()),
-          dateKey: date.format("YYYY-MM-DD"),
+          dateKey: getDateKey(date),
         };
       }),
     [currentWeek]
   );
 
   // 특정 날짜, 시간의 PT 스케줄 찾기
-  const getScheduleBlock = useCallback(
-    (dateKey: string, time: number): IScheduleViewItem | undefined => {
-      const dayData = loadedWeekData[dateKey];
-      if (!dayData) return undefined;
+  const getScheduleBlock = (dateKey: string, time: number): IScheduleViewItem | undefined => {
+    const dayData = loadedWeekData[dateKey];
+    if (!dayData) return undefined;
 
-      return dayData.schedules.find(
-        (schedule) =>
-          schedule.ptSchedule.startTime <= time &&
-          schedule.ptSchedule.endTime > time
-      );
-    },
-    [loadedWeekData]
-  );
+    return dayData.schedules.find(
+      (schedule) =>
+        schedule.ptSchedule.startTime <= time &&
+        schedule.ptSchedule.endTime > time
+    );
+  };
 
   // 특정 날짜, 시간의 오프 스케줄 찾기
-  const getOffBlock = useCallback(
-    (dateKey: string, time: number): IOffViewItem | undefined => {
-      const dayData = loadedWeekData[dateKey];
-      if (!dayData) return undefined;
+  const getOffBlock = (dateKey: string, time: number): IOffViewItem | undefined => {
+    const dayData = loadedWeekData[dateKey];
+    if (!dayData) return undefined;
 
-      return dayData.offs.find(
-        (off) => off.startTime <= time && off.endTime > time
-      );
-    },
-    [loadedWeekData]
-  );
+    return dayData.offs.find(
+      (off) => off.startTime <= time && off.endTime > time
+    );
+  };
 
-  // 스케줄 블록 스타일링
-  const getBlockStyle = useCallback(
-    (
-      schedule: IScheduleViewItem | undefined,
-      off: IOffViewItem | undefined,
-      isTimeColumn: boolean,
-      isPastDate: boolean
-    ) => {
-      if (schedule) {
-        switch (schedule.status) {
-          case "ATTENDED":
-            return "bg-green-200 text-green-900 font-bold";
-          case "ABSENT":
-            return "bg-red-200 text-red-900 font-bold";
-          case "RESERVED":
-            return "bg-blue-200 text-blue-900 font-bold";
-          default:
-            return "bg-gray-200 text-gray-900";
-        }
-      }
 
-      if (off) {
-        switch (off.type) {
-          case "TRAINER_OFF":
-            return "bg-orange-200 text-orange-900 font-bold";
-          case "CENTER_REGULAR_OFF":
-            return "bg-gray-300 text-gray-800 font-bold";
-          case "CENTER_SPECIAL_OFF":
-            return "bg-purple-200 text-purple-900 font-bold";
-          default:
-            return "bg-gray-200 text-gray-900";
-        }
-      }
 
-      if (isTimeColumn) return "bg-gray-100";
-      if (isPastDate) return "bg-gray-100";
-
-      return "bg-white hover:bg-gray-50";
-    },
-    []
-  );
-
-  // 블록 내용 텍스트
-  const getBlockContent = useCallback(
-    (
-      schedule: IScheduleViewItem | undefined,
-      off: IOffViewItem | undefined
-    ): string => {
-      if (schedule) {
-        return schedule.pt.member?.user.username ?? "PT";
-      }
-
-      if (off) {
-        switch (off.type) {
-          case "TRAINER_OFF":
-            return "개인 OFF";
-          case "CENTER_REGULAR_OFF":
-            return "휴관";
-          case "CENTER_SPECIAL_OFF":
-            return "특별 휴무";
-          default:
-            return "휴무";
-        }
-      }
-
-      return "";
-    },
-    []
-  );
-
-  // 툴팁 텍스트 생성
-  const getTooltipText = useCallback(
-    (
-      schedule: IScheduleViewItem | undefined,
-      off: IOffViewItem | undefined
-    ): string => {
-      if (schedule) {
-        const statusText = {
-          ATTENDED: "완료",
-          ABSENT: "결석",
-          RESERVED: "예정",
-        }[schedule.status];
-        return `${schedule.pt.member?.user.username} - ${statusText}`;
-      }
-
-      if (off) {
-        const typeText = {
-          TRAINER_OFF: "개인 휴무",
-          CENTER_REGULAR_OFF: "센터 정기 휴무",
-          CENTER_SPECIAL_OFF: "센터 특별 휴무",
-        }[off.type];
-
-        return off.description ? `${typeText}: ${off.description}` : typeText;
-      }
-
-      return "";
-    },
-    []
-  );
 
   // 네비게이션 가능 여부 확인
   const canGoPrev = currentWeek.isAfter(
