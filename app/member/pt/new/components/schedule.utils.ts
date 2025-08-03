@@ -54,7 +54,8 @@ export const validateCasualSchedule = (
 // 정기 스케줄 유효성 검증
 export const validateRegularSchedule = (
   chosenSchedule: IDaySchedule,
-  requiredCount: number
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _requiredCount: number
 ): {
   isValid: boolean;
   error?: string;

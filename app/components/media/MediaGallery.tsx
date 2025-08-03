@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import useSWR from 'swr';
 import useSWRMutation from 'swr/mutation';
 import { getOptimizedImageUrl, formatFileSize, formatVideoDuration } from '@/app/lib/utils/media.utils';
@@ -17,7 +18,7 @@ interface MediaItem {
     uploadedAt?: string;
     size?: number;
     duration?: number;
-    [key: string]: any;
+    [key: string]: string | number | boolean | undefined;
   };
 }
 
@@ -74,7 +75,7 @@ export default function MediaGallery({
   const url = `/api/media/list?${params.toString()}`;
 
   // 미디어 목록 조회
-  const { data: items = [], error, isLoading, mutate } = useSWR<MediaItem[]>(
+  const { data: items = [], isLoading, mutate } = useSWR<MediaItem[]>(
     url,
     fetcher
   );
@@ -143,18 +144,22 @@ export default function MediaGallery({
             {/* 썸네일 */}
             <div className="aspect-square bg-base-200">
               {item.type === 'image' ? (
-                <img
+                <Image
                   src={item.thumbnailUrl || getOptimizedImageUrl(item.id, 'thumbnail')}
                   alt=""
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
+                  unoptimized={true}
                 />
               ) : (
                 <div className="relative w-full h-full">
                   {item.thumbnailUrl ? (
-                    <img
+                    <Image
                       src={item.thumbnailUrl}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
+                      unoptimized={true}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full bg-base-300">

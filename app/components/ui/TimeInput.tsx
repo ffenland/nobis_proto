@@ -1,7 +1,7 @@
 // app/components/ui/TimeInput.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import React from "react";
 import {
   formatTimeForInput,
   generateTimeSlots,

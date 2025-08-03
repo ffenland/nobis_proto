@@ -78,9 +78,9 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       // Delete from Cloudflare first
       try {
         await deleteCloudflareImage(image.cloudflareId);
-      } catch (error: any) {
+      } catch (error) {
         // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-        if (!error.message?.includes('404')) {
+        if (!(error instanceof Error && error.message?.includes('404'))) {
           console.error('Failed to delete from Cloudflare:', error);
           throw new Error('Failed to delete image from Cloudflare');
         }
@@ -115,9 +115,9 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       // Delete from Cloudflare first
       try {
         await deleteCloudflareVideo(video.cloudflareId);
-      } catch (error: any) {
+      } catch (error) {
         // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-        if (!error.message?.includes('404')) {
+        if (!(error instanceof Error && error.message?.includes('404'))) {
           console.error('Failed to delete from Cloudflare:', error);
           throw new Error('Failed to delete video from Cloudflare');
         }

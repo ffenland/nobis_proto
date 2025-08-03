@@ -1,4 +1,4 @@
-const PTPreview = ({ trainerName }: { trainerName: string }) => {
+const PTPreview = () => {
   return <div>PTPreview</div>;
 };
 

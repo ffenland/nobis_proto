@@ -111,8 +111,8 @@ export async function DELETE(
     // DB와 Cloudflare에서 모두 삭제
     try {
       await deleteImageWithCloudflare(id, session.id);
-    } catch (error: any) {
-      if (error.message === 'Image not found') {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Image not found') {
         return NextResponse.json(
           { error: 'Image not found' },
           { status: 404 }

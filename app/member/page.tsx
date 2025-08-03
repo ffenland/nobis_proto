@@ -1,14 +1,13 @@
 // app/member/page.tsx
 "use client";
 
-import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
-import ClientLogoutButton from "@/app/components/base/c_logout_button";
+import UserDropdownMenu from "@/app/components/base/UserDropdownMenu";
 import { MemberDashboardStats } from "@/app/lib/services/member/member-dashboard.service";
 import { formatDateWithConditionalYear } from "@/app/lib/utils/time.utils";
 import { ChevronRight } from "lucide-react";
@@ -54,12 +53,10 @@ const MemberDashboardPage = () => {
         <div>
           <PageHeader title="대시보드" subtitle="나의 PT 현황을 확인하세요" />
         </div>
-        <div className="flex flex-col items-end space-y-2">
-          <div className="text-sm text-gray-600">
-            <span className="font-medium text-gray-900">{stats?.username}</span>님 안녕하세요
-          </div>
-          <ClientLogoutButton />
-        </div>
+        <UserDropdownMenu 
+          username={stats?.username || ''}
+          showRoleSwitch={false}
+        />
       </div>
 
       {/* 메인 PT 카드 */}

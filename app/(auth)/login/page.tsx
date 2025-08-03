@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import TestLogin from "./test/testLogin";
 
-type Params = Promise<{ slug: string }>;
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 const Login = async ({ searchParams }: { searchParams: SearchParams }) => {

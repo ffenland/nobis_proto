@@ -1,7 +1,7 @@
 "use server";
 
 import { getSession } from "@/app/lib/session";
-import { getPtRecordDetailForMemberService } from "@/app/lib/services/pt-record-detail.service";
+import { getPtRecordDetailForMemberService } from "@/app/lib/services/member/pt-record-detail.service";
 import { Prisma } from "@prisma/client";
 
 // PT 기록 상세 조회 액션

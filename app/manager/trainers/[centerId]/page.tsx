@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
-import { Users, Mail, ChevronRight, ChevronLeft } from "lucide-react";
+import { Users, Mail, ChevronRight } from "lucide-react";
 import { PageLayout } from "@/app/components/ui/Dropdown";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -215,10 +216,13 @@ export default function CenterTrainersPage(props: { params: Params }) {
                     <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
                         {trainer.user.avatarImage?.cloudflareId ? (
-                          <img
+                          <Image
                             src={getOptimizedImageUrl(trainer.user.avatarImage.cloudflareId, "avatar")}
                             alt={trainer.user.username}
+                            width={48}
+                            height={48}
                             className="w-full h-full object-cover"
+                            unoptimized={true}
                           />
                         ) : (
                           <Users className="w-6 h-6 text-gray-400" />

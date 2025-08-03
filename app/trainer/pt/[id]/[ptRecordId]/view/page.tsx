@@ -13,7 +13,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { getPtRecordDetailAction, type TPtRecordDetail } from "../actions";
-import PtRecordViewClient from "./PtRecordViewClient";
+import PtRecordItemMedia from "./PtRecordItemMedia";
 
 interface PageProps {
   params: Promise<{ id: string; ptRecordId: string }>;
@@ -93,6 +93,9 @@ const TrainerPtRecordViewPage = async ({ params }: PageProps) => {
                   ))}
                 </div>
               )}
+              
+              {/* 미디어 갤러리 */}
+              <PtRecordItemMedia item={item} />
             </CardContent>
           </Card>
         );
@@ -140,6 +143,9 @@ const TrainerPtRecordViewPage = async ({ params }: PageProps) => {
                   ))}
                 </div>
               )}
+              
+              {/* 미디어 갤러리 */}
+              <PtRecordItemMedia item={item} />
             </CardContent>
           </Card>
         );
@@ -177,6 +183,9 @@ const TrainerPtRecordViewPage = async ({ params }: PageProps) => {
                   ))}
                 </div>
               )}
+              
+              {/* 미디어 갤러리 */}
+              <PtRecordItemMedia item={item} />
             </CardContent>
           </Card>
         );
@@ -266,9 +275,6 @@ const TrainerPtRecordViewPage = async ({ params }: PageProps) => {
             </div>
           )}
         </div>
-
-        {/* 미디어 갤러리 - 클라이언트 컴포넌트 */}
-        <PtRecordViewClient items={ptRecordDetail.items} />
 
         {/* 뒤로가기 버튼 */}
         <div className="flex gap-4">

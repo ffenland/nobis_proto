@@ -154,7 +154,7 @@ export function TrainerOffManager({
       onOffsChange();
       resetForm();
       alert(editingOffId ? "휴무가 수정되었습니다." : "휴무가 등록되었습니다.");
-    } catch (error) {
+    } catch {
       alert(
         editingOffId ? "휴무 수정에 실패했습니다." : "휴무 등록에 실패했습니다."
       );
@@ -181,7 +181,7 @@ export function TrainerOffManager({
       await removeTrainerOff(offId);
       onOffsChange();
       alert("휴무가 삭제되었습니다.");
-    } catch (error) {
+    } catch {
       alert("휴무 삭제에 실패했습니다.");
     } finally {
       setIsLoading(false);

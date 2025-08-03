@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { 
   validateVideoFile, 
   formatFileSize,
@@ -133,6 +134,7 @@ export default function ExerciseVideoUpload({
           thumbnailUrl,
           duration,
         });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         alert(`${file.name}: 썸네일 생성 실패`);
       }
@@ -252,10 +254,12 @@ export default function ExerciseVideoUpload({
           <div key={video.id} className="relative aspect-video group">
             <div className="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center relative overflow-hidden">
               {video.status === 'ready' ? (
-                <img
+                <Image
                   src={`https://customer-${process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH}.cloudflarestream.com/${video.streamId}/thumbnails/thumbnail.jpg`}
                   alt={video.originalName}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  fill
+                  className="object-cover"
+                  unoptimized={true}
                 />
               ) : (
                 <div className="flex flex-col items-center">
@@ -287,10 +291,12 @@ export default function ExerciseVideoUpload({
         {/* 미리보기 비디오 */}
         {previews.map((preview) => (
           <div key={preview.id} className="relative aspect-video group">
-            <img
+            <Image
               src={preview.thumbnailUrl}
               alt={preview.file.name}
-              className="w-full h-full object-cover rounded-lg"
+              fill
+              className="object-cover rounded-lg"
+              unoptimized={true}
             />
             <button
               type="button"

@@ -6,7 +6,7 @@ import {
   type IUpdateProfileRequest,
 } from "@/app/lib/services/user.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSessionOrRedirect();
 

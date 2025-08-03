@@ -1,62 +1,29 @@
 // app/api/trainer/free-set-records/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/app/lib/prisma";
+import { getSession } from "@/app/lib/session";
+import { createFreeSetRecord, getFreeSetRecords } from "@/app/lib/services/trainer/exercise-set-record.service";
 
 // 프리웨이트 세트 기록 생성
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || session.role !== "TRAINER") {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { ptRecordItemId, freeExerciseId, reps, set, equipmentIds } = body;
 
-    if (!freeExerciseId) {
-      return NextResponse.json(
-        { error: "freeExerciseId가 필요합니다." },
-        { status: 400 }
-      );
-    }
-
-    if (!equipmentIds || !Array.isArray(equipmentIds)) {
-      return NextResponse.json(
-        { error: "equipmentIds가 필요합니다." },
-        { status: 400 }
-      );
-    }
-
-    const freeSetRecord = await prisma.freeSetRecord.create({
-      data: {
-        reps,
-        set,
-        ptRecordItemId,
-        freeExerciseId,
-        equipments: {
-          connect: equipmentIds.map((equipmentId: string) => ({
-            id: equipmentId,
-          })),
-        },
-      },
-      select: {
-        id: true,
-        reps: true,
-        set: true,
-        freeExercise: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-          },
-        },
-        equipments: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            primaryValue: true,
-            primaryUnit: true,
-            secondaryValue: true,
-            secondaryUnit: true,
-          },
-        },
-      },
+    // 서비스 함수 호출
+    const freeSetRecord = await createFreeSetRecord({
+      ptRecordItemId,
+      freeExerciseId,
+      reps,
+      set,
+      equipmentIds,
     });
 
     return NextResponse.json(freeSetRecord);
@@ -72,6 +39,14 @@ export async function POST(request: NextRequest) {
 // 프리웨이트 세트 기록 조회
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || session.role !== "TRAINER") {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const ptRecordItemId = searchParams.get("ptRecordItemId");
 
@@ -82,35 +57,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const freeSetRecords = await prisma.freeSetRecord.findMany({
-      where: {
-        ptRecordItemId,
-      },
-      select: {
-        id: true,
-        reps: true,
-        set: true,
-        freeExercise: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-          },
-        },
-        equipments: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            primaryValue: true,
-            primaryUnit: true,
-          },
-        },
-      },
-      orderBy: {
-        set: "asc",
-      },
-    });
+    // 서비스 함수 호출
+    const freeSetRecords = await getFreeSetRecords(ptRecordItemId);
 
     return NextResponse.json(freeSetRecords);
   } catch (error) {

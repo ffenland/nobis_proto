@@ -3,7 +3,7 @@ import { getSession } from "@/app/lib/session";
 import { generateMediaId } from "@/app/lib/utils/media.utils";
 import { createImageUploadUrl } from "@/app/lib/services/media/image.service";
 import { createVideoUploadUrl } from "@/app/lib/services/media/stream.service";
-import prisma from "@/app/lib/prisma";
+import { checkPtRecordItemMediaOwnership } from "@/app/lib/services/media/image-db.service";
 
 // 미디어 업로드 URL 생성
 export async function POST(
@@ -30,40 +30,17 @@ export async function POST(
     const body = await request.json();
     const { mediaType } = body; // "image" or "video"
 
-    // PT Record Item 확인
-    const ptRecordItem = await prisma.ptRecordItem.findUnique({
-      where: { id: ptRecordItemId },
-      select: {
-        id: true,
-        ptRecord: {
-          select: {
-            pt: {
-              select: {
-                trainerId: true,
-              },
-            },
-          },
-        },
-      },
+    // PT Record Item 권한 확인
+    const ownership = await checkPtRecordItemMediaOwnership({
+      ptRecordId,
+      ptRecordItemId,
+      trainerId: session.roleId!,
     });
 
-    if (!ptRecordItem) {
+    if (!ownership) {
       return NextResponse.json(
-        { error: "PT Record Item not found" },
+        { error: "PT Record Item을 찾을 수 없거나 권한이 없습니다." },
         { status: 404 }
-      );
-    }
-
-    // 권한 확인 (해당 PT의 트레이너인지)
-    const trainer = await prisma.trainer.findUnique({
-      where: { userId: session.id },
-      select: { id: true },
-    });
-
-    if (!trainer || trainer.id !== ptRecordItem.ptRecord.pt.trainerId) {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
       );
     }
 

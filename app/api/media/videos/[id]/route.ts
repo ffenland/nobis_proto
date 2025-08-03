@@ -137,9 +137,9 @@ export async function DELETE(
     // Cloudflare에서 먼저 삭제
     try {
       await deleteVideo(videoStreamId);
-    } catch (error: any) {
+    } catch (error) {
       // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-      if (!error.message?.includes('404')) {
+      if (!(error instanceof Error && error.message?.includes('404'))) {
         console.error('Failed to delete from Cloudflare:', error);
         throw new Error('Failed to delete video from Cloudflare');
       }

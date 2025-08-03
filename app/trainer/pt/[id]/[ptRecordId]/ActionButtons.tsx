@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/app/components/ui/Button';
-import { Calendar, Edit, Eye, AlertCircle } from 'lucide-react';
+import { Calendar, Edit, Eye } from 'lucide-react';
 
 interface ActionButtonsProps {
   ptId: string;
@@ -13,7 +12,6 @@ interface ActionButtonsProps {
 }
 
 export default function ActionButtons({ ptId, ptRecordId, attendanceStatus, hasRecords }: ActionButtonsProps) {
-  const [showWarning, setShowWarning] = useState(false);
 
   const handleRecordClick = () => {
     if (attendanceStatus === '불참') {

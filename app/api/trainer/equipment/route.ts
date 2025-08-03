@@ -1,6 +1,6 @@
 // app/api/trainer/equipment/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getEquipmentListService } from "@/app/lib/services/pt-record.service";
+import { getEquipmentListService } from "@/app/lib/services/trainer/pt-record.service";
 import { EquipmentCategory } from "@prisma/client";
 
 export async function GET(request: NextRequest) {

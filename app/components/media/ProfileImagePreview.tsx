@@ -1,6 +1,7 @@
 // app/components/media/ProfileImagePreview.tsx
 'use client';
 
+import Image from 'next/image';
 import { getOptimizedImageUrl, type ImageVariant } from '@/app/lib/utils/media.utils';
 
 interface ProfileImagePreviewProps {
@@ -51,11 +52,23 @@ export default function ProfileImagePreview({
     );
   }
 
+  const sizeMap = {
+    sm: { width: 32, height: 32 },
+    md: { width: 48, height: 48 },
+    lg: { width: 80, height: 80 },
+    xl: { width: 128, height: 128 },
+  };
+
   return (
-    <img
-      src={imageUrl}
-      alt="프로필 이미지"
-      className={`${sizeClass} ${className} rounded-full object-cover`}
-    />
+    <div className={`${sizeClass} ${className} rounded-full overflow-hidden relative`}>
+      <Image
+        src={imageUrl}
+        alt="프로필 이미지"
+        width={sizeMap[size].width}
+        height={sizeMap[size].height}
+        className="object-cover"
+        unoptimized={true}
+      />
+    </div>
   );
 }

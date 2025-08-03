@@ -1,6 +1,6 @@
 // app/api/trainer/pt-records/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getPtRecordDetailService } from "@/app/lib/services/pt-record.service";
+import { getPtRecordDetailService } from "@/app/lib/services/trainer/pt-record.service";
 
 export async function GET(
   request: NextRequest,

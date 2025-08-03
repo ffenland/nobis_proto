@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  getAllCentersWithStats,
-  ICentersWithStats,
-} from "@/app/lib/services/fitness-center.service";
+import { getAllCentersWithStats } from "@/app/lib/services/fitness-center.service";
 import { getSession } from "@/app/lib/session";
 
 // GET: 모든 센터 목록 조회 (통계 포함)

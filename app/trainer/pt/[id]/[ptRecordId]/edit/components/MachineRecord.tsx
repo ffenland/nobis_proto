@@ -1,6 +1,6 @@
 "use client";
 
-import { IMachine } from "@/app/lib/services/pt-record.service";
+import { IMachine } from "@/app/lib/services/trainer/pt-record.service";
 import { useEffect, useState } from "react";
 import { matchSearch } from "@/app/components/common/matchSearch";
 import type { MachineRecordSubmitData } from "./types";
@@ -14,6 +14,7 @@ interface MachineRecordProps {
   machineList: IMachine[];
   mode?: "create" | "edit";
   ptRecordItemId?: string;
+  nextEntry?: number;
   initialData?: {
     title?: string;
     description?: string;
@@ -64,6 +65,7 @@ export const MachineRecord = ({
   machineList,
   mode = "create",
   initialData,
+  nextEntry,
   onSubmit,
   existingImages = [],
   existingVideos = [],
@@ -267,6 +269,7 @@ export const MachineRecord = ({
             machineName: selectedMachine.title,
             machineSetRecords,
             details,
+            entry: nextEntry,
           }),
         });
 

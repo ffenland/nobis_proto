@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   IEquipment,
   IStretchingExercise,
-} from "@/app/lib/services/pt-record.service";
+} from "@/app/lib/services/trainer/pt-record.service";
 import { matchSearch } from "@/app/components/common/matchSearch";
 import useSWR from "swr";
 import type { StretchingRecordSubmitData } from "./types";
@@ -18,6 +18,7 @@ interface StretchingRecordProps {
   equipmentList: IEquipment[];
   mode?: "create" | "edit";
   ptRecordItemId?: string;
+  nextEntry?: number;
   initialData?: {
     stretchingExerciseId?: string;
     description?: string;
@@ -42,11 +43,6 @@ interface StretchingRecordProps {
   onRemoveExistingVideo?: (videoId: string) => void;
 }
 
-interface StretchingRecordData {
-  stretchingExerciseId: string;
-  description: string;
-  selectedEquipments: IEquipment[];
-}
 
 // API fetcher 함수
 const fetcher = (url: string) =>
@@ -63,6 +59,7 @@ const StretchingRecord = ({
   equipmentList,
   mode = "create",
   initialData,
+  nextEntry,
   onSubmit,
   existingImages = [],
   existingVideos = [],
@@ -204,6 +201,7 @@ const StretchingRecord = ({
             title: selectedExercise.title,
             description,
             type: "STRETCHING",
+            entry: nextEntry,
           }),
         });
 

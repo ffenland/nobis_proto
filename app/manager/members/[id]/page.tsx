@@ -2,25 +2,21 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 import {
   ArrowLeft,
-  Users,
   Calendar,
   Target,
-  Award,
-  Activity,
+  CheckCircle,
+  User,
+  Gift,
   Phone,
   Mail,
   MapPin,
   Clock,
   TrendingUp,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  User,
-  CreditCard,
-  Gift,
+  Activity,
 } from "lucide-react";
 
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
@@ -155,10 +151,12 @@ export default function MemberDetailPage(props: { params: Params }) {
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
                   {member.user.avatarMedia?.thumbnailUrl ? (
-                    <img
+                    <Image
                       src={member.user.avatarMedia.thumbnailUrl}
                       alt={member.user.username}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
+                      unoptimized={true}
                     />
                   ) : (
                     <User className="w-10 h-10 text-gray-400" />

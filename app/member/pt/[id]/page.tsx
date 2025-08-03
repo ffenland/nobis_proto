@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, use } from "react";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
-import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { PageLayout } from "@/app/components/ui/Dropdown";
+import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
@@ -18,7 +18,6 @@ import {
 import { ChevronRight, Phone } from "lucide-react";
 import {
   IPtDetailForMember,
-  IPtRecordItemFromPtDetail,
 } from "@/app/lib/services/pt-detail.service";
 import {
   calculateAttendanceStatus,
@@ -74,9 +73,6 @@ const PtDetailPage = (props: { params: Params }) => {
 
       // 성공 시 PT 목록 페이지로 이동
       router.push("/member/pt");
-
-      // PT 목록 캐시 갱신
-      mutate("/api/member/pt-list");
     } catch (error) {
       console.error("PT 삭제 실패:", error);
       alert(error instanceof Error ? error.message : "삭제에 실패했습니다.");
@@ -117,47 +113,6 @@ const PtDetailPage = (props: { params: Params }) => {
     }
   };
 
-  // 운동 기록 포맷팅 함수
-  const formatExerciseRecord = (item: IPtRecordItemFromPtDetail) => {
-    switch (item.type) {
-      case "MACHINE":
-        return item.machineSetRecords.map((record) => ({
-          name: item.title || "머신 운동",
-          details: `${record.set}세트 × ${record.reps}회`,
-          settings: record.settingValues
-            .map(
-              (sv) =>
-                `${sv.machineSetting.title}: ${sv.value}${sv.machineSetting.unit}`
-            )
-            .join(", "),
-        }));
-
-      case "FREE":
-        return item.freeSetRecords.map((record) => ({
-          name: item.title || "프리웨이트",
-          details: `${record.set}세트 × ${record.reps}회`,
-          settings: record.equipments
-            .map((w) => `${w.title}: ${w.primaryValue}${w.primaryUnit}`)
-            .join(", "),
-        }));
-
-      case "STRETCHING":
-        return item.stretchingExerciseRecords.map((record) => ({
-          name: record.stretchingExercise.title,
-          details: "", // 나중에 개선하자.
-          settings: record.stretchingExercise.description,
-        }));
-
-      default:
-        return [
-          {
-            name: item.title || "운동",
-            details: item.description || "",
-            settings: "",
-          },
-        ];
-    }
-  };
 
   // PT 상태 결정 (계산된 출석 상태 사용)
   const getPtStatus = (pt: IPtDetailForMember["pt"]) => {
@@ -214,7 +169,7 @@ const PtDetailPage = (props: { params: Params }) => {
     );
   }
 
-  const { pt, userId } = ptDetail;
+  const { pt } = ptDetail;
   const status = getPtStatus(pt);
   const expiryDate = getExpiryDate(pt.startDate, pt.ptProduct.totalCount);
 

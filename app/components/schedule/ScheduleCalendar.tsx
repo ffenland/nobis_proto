@@ -70,22 +70,22 @@ export function ScheduleCalendar({
 
   const today = dayjs();
 
-  // API 엔드포인트 결정
-  const getApiEndpoint = useCallback(() => {
-    return forManager ? "/api/manager/schedule" : "/api/trainer/schedule";
-  }, [forManager]);
+  // API 엔드포인트 결정 - unused function but kept for potential future use
+  // const getApiEndpoint = useCallback(() => {
+  //   return forManager ? "/api/manager/schedule" : "/api/trainer/schedule";
+  // }, [forManager]);
 
-  // 날짜 키 생성 (YYYY-MM-DD 형식)
-  const getDateKey = useCallback((date: dayjs.Dayjs) => {
-    return date.format("YYYY-MM-DD");
-  }, []);
+  // 날짜 키 생성 (YYYY-MM-DD 형식) - unused function but kept for potential future use
+  // const getDateKey = useCallback((date: dayjs.Dayjs) => {
+  //   return date.format("YYYY-MM-DD");
+  // }, []);
 
-  // 특정 주의 날짜들 가져오기
-  const getWeekDates = useCallback((week: dayjs.Dayjs) => {
-    return Array.from({ length: 7 }, (_, i) => {
-      return week.add(i, "day").format("YYYY-MM-DD"); // getDateKey 인라인화
-    });
-  }, []);
+  // 특정 주의 날짜들 가져오기 - unused function but kept for potential future use
+  // const getWeekDates = useCallback((week: dayjs.Dayjs) => {
+  //   return Array.from({ length: 7 }, (_, i) => {
+  //     return week.add(i, "day").format("YYYY-MM-DD");
+  //   });
+  // }, []);
 
   // 특정 날짜 범위의 데이터 로드
   const loadScheduleData = useCallback(
@@ -123,7 +123,7 @@ export function ScheduleCalendar({
         setIsLoading(false);
       }
     },
-    [forManager, trainerId] // getApiEndpoint 함수 인라인화
+    [forManager, trainerId]
   );
 
   // 서버 데이터를 loadedWeekData에 반영
@@ -142,7 +142,7 @@ export function ScheduleCalendar({
           currentDate.isBefore(endDate) ||
           currentDate.isSame(endDate, "day")
         ) {
-          const dateKey = currentDate.format("YYYY-MM-DD"); // getDateKey 인라인화
+          const dateKey = currentDate.format("YYYY-MM-DD");
           if (updated[dateKey] === null) {
             updated[dateKey] = { schedules: [], offs: [] };
           }
@@ -168,7 +168,7 @@ export function ScheduleCalendar({
         return updated;
       });
     },
-    [] // 의존성 제거
+    []
   );
 
   // 초기 데이터 로드
@@ -193,7 +193,7 @@ export function ScheduleCalendar({
           currentDate.isBefore(endDate) ||
           currentDate.isSame(endDate, "day")
         ) {
-          dateRange[getDateKey(currentDate)] = null;
+          dateRange[currentDate.format("YYYY-MM-DD")] = null;
           currentDate = currentDate.add(1, "day");
         }
 
@@ -201,23 +201,25 @@ export function ScheduleCalendar({
 
         const data = await loadScheduleData(startDate, endDate);
         updateLoadedWeekData(data, startDate, endDate);
-      } catch (err) {
+      } catch {
         setShowErrorModal(true);
       }
     };
 
     loadInitialData();
-  }, [trainerId, forManager]); // 최소한의 의존성만 포함
+  }, [trainerId, forManager]);
 
   // 특정 주가 로드되었는지 확인
   const isWeekLoaded = useCallback(
     (week: dayjs.Dayjs) => {
-      const weekDates = getWeekDates(week);
+      const weekDates = Array.from({ length: 7 }, (_, i) => {
+        return week.add(i, "day").format("YYYY-MM-DD");
+      });
       return weekDates.every(
         (dateKey) => loadedWeekData[dateKey] !== undefined
       );
     },
-    [loadedWeekData, getWeekDates]
+    [loadedWeekData]
   );
 
   // 누락된 주차 데이터 로드
@@ -234,7 +236,7 @@ export function ScheduleCalendar({
           currentDate.isBefore(endDate) ||
           currentDate.isSame(endDate, "day")
         ) {
-          const dateKey = currentDate.format("YYYY-MM-DD"); // getDateKey 인라인화
+          const dateKey = currentDate.format("YYYY-MM-DD");
           if (updated[dateKey] === undefined) {
             updated[dateKey] = null;
           }
@@ -247,7 +249,7 @@ export function ScheduleCalendar({
       const data = await loadScheduleData(startDate, endDate);
       updateLoadedWeekData(data, startDate, endDate);
     },
-    [loadScheduleData, updateLoadedWeekData] // getDateKey 의존성 제거
+    [loadScheduleData, updateLoadedWeekData]
   );
 
   // 이전 주로 이동
@@ -265,7 +267,7 @@ export function ScheduleCalendar({
     if (!isWeekLoaded(prevWeek)) {
       try {
         await loadMissingWeekData(prevWeek);
-      } catch (err) {
+      } catch {
         setShowErrorModal(true);
       }
     }
@@ -292,7 +294,7 @@ export function ScheduleCalendar({
     if (!isWeekLoaded(nextWeek)) {
       try {
         await loadMissingWeekData(nextWeek);
-      } catch (err) {
+      } catch {
         setShowErrorModal(true);
       }
     }
@@ -306,10 +308,10 @@ export function ScheduleCalendar({
         return {
           date,
           dayInfo: getWeekDayMapData(date.toDate()),
-          dateKey: date.format("YYYY-MM-DD"), // getDateKey 인라인화
+          dateKey: date.format("YYYY-MM-DD"),
         };
       }),
-    [currentWeek] // getDateKey 의존성 제거
+    [currentWeek]
   );
 
   // 특정 날짜, 시간의 PT 스케줄 찾기

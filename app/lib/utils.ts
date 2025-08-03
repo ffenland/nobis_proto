@@ -1,6 +1,6 @@
 import { WeekDay } from "@prisma/client";
 import { weekDayNumberStringMap } from "./constants";
-import { addThirtyMinutes, addThirtyMinutesString } from "./utils/time.utils";
+import { addThirtyMinutes } from "./utils/time.utils";
 
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";

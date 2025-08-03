@@ -14,7 +14,6 @@ import { Badge } from "@/app/components/ui/Loading";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   IDaySchedule,
-  IFitnessCenters,
   ITrainerSchedule,
 } from "@/app/lib/services/pt-apply.service";
 import {
@@ -65,7 +64,7 @@ const ScheduleSelector = ({
   const [timeError, setTimeError] = useState<string>();
 
   // 트레이너 스케줄 조회
-  const { data: trainerSchedule, error: scheduleError } =
+  const { data: trainerSchedule } =
     useSWR<ITrainerSchedule>(
       `/api/member/trainer-schedule?trainerId=${trainerId}`,
       fetcher

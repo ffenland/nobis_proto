@@ -6,7 +6,7 @@ import {
   updateEquipment,
   deleteEquipment,
 } from "./actions";
-import { categoryLabels, categoryColors } from "../constants";
+import { categoryLabels } from "../constants";
 
 interface PageProps {
   params: Promise<{
@@ -35,7 +35,7 @@ const EquipmentEditPage = async ({ params }: PageProps) => {
     };
 
     // 삭제 액션
-    const handleDelete = async (formData: FormData) => {
+    const handleDelete = async () => {
       "use server";
 
       try {

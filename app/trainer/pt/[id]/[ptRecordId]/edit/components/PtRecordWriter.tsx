@@ -7,7 +7,7 @@ import {
   IEquipment,
   IPtRecordItem,
   IFitnessCenter,
-} from "@/app/lib/services/pt-record.service";
+} from "@/app/lib/services/trainer/pt-record.service";
 import { EquipmentCategory } from "@prisma/client";
 import MachineRecord from "./MachineRecord";
 import FreeRecord from "./FreeRecord";
@@ -35,6 +35,7 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
 
   // PT 기록 아이템 목록 조회
   const {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     data: ptRecordItemsData,
     error: recordItemsError,
     isLoading: recordItemsLoading,
@@ -67,8 +68,6 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
   // 모든 기구 목록 조회 (스트레칭용)
   const {
     data: allEquipmentList,
-    error: allEquipmentError,
-    isLoading: allEquipmentLoading,
   } = useSWR<IEquipment[]>(
     `/api/trainer/equipment?centerId=${center.id}`,
     fetcher
@@ -84,101 +83,9 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
     }
   };
 
-  // 운동 타입별 아이콘
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "MACHINE":
-        return "🏋️";
-      case "FREE":
-        return "💪";
-      case "STRETCHING":
-        return "🧘";
-      default:
-        return "🏃";
-    }
-  };
 
-  // 운동 타입별 제목 생성
-  const getRecordTitle = (item: IPtRecordItem) => {
-    switch (item.type) {
-      case "MACHINE":
-        const firstMachineRecord = item.machineSetRecords?.[0];
-        if (
-          firstMachineRecord?.settingValues?.[0]?.machineSetting?.machine?.title
-        ) {
-          return firstMachineRecord.settingValues[0].machineSetting.machine
-            .title;
-        }
-        return item.title || "머신 운동";
-      case "FREE":
-        return item.title || "프리웨이트";
-      case "STRETCHING":
-        const firstStretchingRecord = item.stretchingExerciseRecords?.[0];
-        return (
-          firstStretchingRecord?.stretchingExercise?.title ||
-          item.title ||
-          "스트레칭"
-        );
-      default:
-        return item.title || "운동";
-    }
-  };
 
-  // 기구 표시 텍스트 생성 (타입 오류 수정)
-  const getEquipmentDisplayText = (equipment: {
-    primaryValue: number | null;
-    primaryUnit: string | null;
-    title: string;
-  }) => {
-    const value = equipment.primaryValue;
-    const unit = equipment.primaryUnit;
 
-    if (value && unit) {
-      return `${value}${unit}`;
-    }
-    return equipment.title;
-  };
-
-  // 세트 정보 포맷팅
-  const formatSetInfo = (item: IPtRecordItem) => {
-    switch (item.type) {
-      case "MACHINE":
-        return item.machineSetRecords?.map((record) => (
-          <div key={record.id} className="text-sm text-gray-600">
-            {record.set}세트: {record.reps}회 -{" "}
-            {record.settingValues
-              ?.map(
-                (sv) =>
-                  `${sv.machineSetting.title} ${sv.value}${sv.machineSetting.unit}`
-              )
-              .join(", ")}
-          </div>
-        ));
-      case "FREE":
-        return item.freeSetRecords?.map((record) => (
-          <div key={record.id} className="text-sm text-gray-600">
-            {record.set}세트: {record.reps}회 -{" "}
-            {record.equipments
-              ?.map((eq) => `${eq.title} ${getEquipmentDisplayText(eq)}`)
-              .join(", ")}
-          </div>
-        ));
-      case "STRETCHING":
-        return item.stretchingExerciseRecords?.map((record) => (
-          <div key={record.id} className="text-sm text-gray-600">
-            {record.stretchingExercise.title}
-            {record.equipments && record.equipments.length > 0 && (
-              <span>
-                {" "}
-                - {record.equipments.map((eq) => eq.title).join(", ")}
-              </span>
-            )}
-          </div>
-        ));
-      default:
-        return <div className="text-sm text-gray-600">{item.description}</div>;
-    }
-  };
 
   // 로딩 상태
   if (recordItemsLoading || machinesLoading || weightEquipmentLoading) {
@@ -198,7 +105,6 @@ const PtRecordWriter = ({ ptRecordId, center }: PtRecordWriterProps) => {
     );
   }
 
-  const ptRecordItems = ptRecordItemsData?.items || [];
 
   return (
     <div className="space-y-4">

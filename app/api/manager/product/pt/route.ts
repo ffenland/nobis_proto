@@ -7,7 +7,7 @@ import {
   IPtProductCreateData,
 } from "@/app/lib/services/product.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSessionOrRedirect();
     if (session.role !== "MANAGER") {

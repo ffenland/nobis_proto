@@ -1,8 +1,8 @@
 // app/api/auth/session/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSessionOrRedirect } from "@/app/lib/session";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSessionOrRedirect();
 

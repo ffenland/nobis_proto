@@ -1,5 +1,6 @@
 // app/manager/centers/[id]/page.tsx - Part 1
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getCenterDetail, getCenterStats } from "./actions";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
@@ -257,11 +258,15 @@ export default async function CenterDetailPage({
                   >
                     <div className="flex items-center space-x-3">
                       {trainer.user.avatarImage?.cloudflareId ? (
-                        <img
-                          src={getOptimizedImageUrl(trainer.user.avatarImage.cloudflareId, "avatar")}
-                          alt={trainer.user.username}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                          <Image
+                            src={getOptimizedImageUrl(trainer.user.avatarImage.cloudflareId, "avatar")}
+                            alt={trainer.user.username}
+                            fill
+                            className="object-cover"
+                            unoptimized={true}
+                          />
+                        </div>
                       ) : (
                         <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
                           <svg
@@ -313,11 +318,15 @@ export default async function CenterDetailPage({
                   >
                     <div className="flex items-center space-x-3">
                       {member.user.avatarImage?.cloudflareId ? (
-                        <img
-                          src={getOptimizedImageUrl(member.user.avatarImage.cloudflareId, "avatar")}
-                          alt={member.user.username}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                          <Image
+                            src={getOptimizedImageUrl(member.user.avatarImage.cloudflareId, "avatar")}
+                            alt={member.user.username}
+                            fill
+                            className="object-cover"
+                            unoptimized={true}
+                          />
+                        </div>
                       ) : (
                         <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
                           <svg
@@ -429,11 +438,15 @@ export default async function CenterDetailPage({
                     className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
                   >
                     {manager.user.avatarImage?.cloudflareId ? (
-                      <img
-                        src={getOptimizedImageUrl(manager.user.avatarImage.cloudflareId, "avatar")}
-                        alt={manager.user.username}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
+                      <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                        <Image
+                          src={getOptimizedImageUrl(manager.user.avatarImage.cloudflareId, "avatar")}
+                          alt={manager.user.username}
+                          fill
+                          className="object-cover"
+                          unoptimized={true}
+                        />
+                      </div>
                     ) : (
                       <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
                         <svg

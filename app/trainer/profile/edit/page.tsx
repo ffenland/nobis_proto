@@ -3,8 +3,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
@@ -30,7 +28,6 @@ const profileEditSchema = z.object({
     .optional(),
 });
 
-type ProfileEditForm = z.infer<typeof profileEditSchema>;
 
 interface TrainerProfileData {
   id: string;
@@ -65,8 +62,6 @@ export default function TrainerProfileEditPage() {
     null
   );
   const [avatarSrc, setAvatarSrc] = useState("");
-  const [cloudflareImageId, setCloudflareImageId] = useState<string | null>(null); // Track Cloudflare image ID
-  const [dbImageId, setDbImageId] = useState<string | null>(null); // Track DB image ID
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Form validation state
@@ -118,13 +113,11 @@ export default function TrainerProfileEditPage() {
   useEffect(() => {
     if (!profileData) return;
     
-    setDbImageId(profileData.avatarImageId);
     
     // 이미지 URL 설정 (새로운 Image 시스템 우선)
     if (profileData.avatarImageId && profileData.avatarImage) {
       const imageUrl = getOptimizedImageUrl(profileData.avatarImage.cloudflareId, 'avatar');
       setAvatarSrc(imageUrl);
-      setCloudflareImageId(profileData.avatarImage.cloudflareId);
     }
   }, [profileData]);
 
@@ -169,7 +162,6 @@ export default function TrainerProfileEditPage() {
   // 아바타 제거
   const handleAvatarRemove = async () => {
     setSelectedAvatarFile(null);
-    setCloudflareImageId(null);
     
     // Reset to original profile image if exists
     if (profileData) {
@@ -244,7 +236,8 @@ export default function TrainerProfileEditPage() {
           } else {
             throw new Error("사용자명 중복 검사에 실패했습니다.");
           }
-        } catch (checkError) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_checkError) {
           setError("사용자명 중복 검사 중 오류가 발생했습니다.");
           return;
         }
@@ -306,8 +299,6 @@ export default function TrainerProfileEditPage() {
 
           const { id: imageId } = await confirmResponse.json();
           newAvatarImageId = imageId;
-          setDbImageId(imageId);
-          setCloudflareImageId(customId);
         } catch (uploadError) {
           throw new Error(
             `아바타 업로드 중 오류 발생: ${

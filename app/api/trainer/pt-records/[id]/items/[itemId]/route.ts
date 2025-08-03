@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/app/lib/prisma";
 import { getSession } from "@/app/lib/session";
-import { PtState } from "@prisma/client";
+import { createAuditLog } from "@/app/lib/services/audit/pt-record-audit.service";
+import { 
+  softDeletePtRecordItem, 
+  getPtRecordItemDetailForAudit,
+  reorderPtRecordItems,
+  checkPtRecordItemPermission,
+  updatePtRecordItemFree,
+  updatePtRecordItemMachine,
+  updatePtRecordItemStretching
+} from "@/app/lib/services/trainer/pt-record-item.service";
 
 // PT Record Item 수정
 export async function PUT(
@@ -18,7 +26,7 @@ export async function PUT(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { itemId } = await params;
+    const { id: ptRecordId, itemId } = await params;
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
     
@@ -29,6 +37,18 @@ export async function PUT(
       );
     }
 
+    // 권한 확인 및 PT 스케줄 정보 가져오기
+    const ptRecordItem = await checkPtRecordItemPermission(itemId, session.roleId!);
+    if (!ptRecordItem) {
+      return NextResponse.json(
+        { error: "PT Record Item을 찾을 수 없거나 권한이 없습니다." },
+        { status: 404 }
+      );
+    }
+
+    // 수정 전 데이터 백업 (감사 로그용)
+    const originalData = await getPtRecordItemDetailForAudit(itemId);
+
     const formData = await request.formData();
 
     switch (type) {
@@ -38,21 +58,7 @@ export async function PUT(
         const freeExerciseId = formData.get("freeExerciseId") as string;
         const setCount = parseInt(formData.get("setCount") as string);
 
-        // PT Record Item 업데이트
-        await prisma.ptRecordItem.update({
-          where: { id: itemId },
-          data: {
-            title,
-            description,
-          },
-        });
-
-        // 기존 FreeSetRecord 삭제
-        await prisma.freeSetRecord.deleteMany({
-          where: { ptRecordItemId: itemId },
-        });
-
-        // 새로운 FreeSetRecord 생성
+        // 세트 데이터 수집
         const sets = [];
         for (let i = 0; i < setCount; i++) {
           const setNumber = parseInt(formData.get(`sets[${i}].set`) as string);
@@ -66,36 +72,20 @@ export async function PUT(
           }
 
           sets.push({
-            ptRecordItemId: itemId,
-            freeExerciseId,
             set: setNumber,
             reps,
-            equipments: {
-              connect: equipmentIds.map(id => ({ id })),
-            },
+            equipmentIds,
           });
         }
 
-        await prisma.freeSetRecord.createMany({
-          data: sets.map(({ equipments, ...rest }) => rest),
+        // 서비스 함수 호출
+        await updatePtRecordItemFree({
+          itemId,
+          title,
+          description,
+          freeExerciseId,
+          sets,
         });
-
-        // equipments 연결은 별도로 처리
-        for (let i = 0; i < sets.length; i++) {
-          const createdSets = await prisma.freeSetRecord.findMany({
-            where: { 
-              ptRecordItemId: itemId,
-              set: sets[i].set
-            },
-          });
-          
-          if (createdSets[0] && sets[i].equipments.connect.length > 0) {
-            await prisma.freeSetRecord.update({
-              where: { id: createdSets[0].id },
-              data: { equipments: sets[i].equipments },
-            });
-          }
-        }
 
         break;
       }
@@ -105,61 +95,47 @@ export async function PUT(
         const description = formData.get("description") as string;
         const setCount = parseInt(formData.get("setCount") as string);
 
-        // PT Record Item 업데이트
-        await prisma.ptRecordItem.update({
-          where: { id: itemId },
-          data: {
-            title,
-            description,
-          },
-        });
-
-        // 기존 MachineSetRecord 삭제
-        await prisma.machineSetRecord.deleteMany({
-          where: { ptRecordItemId: itemId },
-        });
-
-        // 새로운 MachineSetRecord 생성
+        // 세트 데이터 수집
+        const sets = [];
         for (let i = 0; i < setCount; i++) {
           const setNumber = parseInt(formData.get(`sets[${i}].set`) as string);
           const reps = parseInt(formData.get(`sets[${i}].reps`) as string);
 
-          const machineSetRecord = await prisma.machineSetRecord.create({
-            data: {
-              ptRecordItemId: itemId,
-              set: setNumber,
-              reps,
-            },
-          });
-
-          // SettingValue 생성
+          // 세팅 데이터 수집
+          const settings = [];
           let j = 0;
           while (formData.has(`sets[${i}].settings[${j}].settingValueId`)) {
-            const settingValueId = formData.get(`sets[${i}].settings[${j}].settingValueId`) as string;
+            const machineSettingId = formData.get(`sets[${i}].settings[${j}].settingValueId`) as string;
             const value = formData.get(`sets[${i}].settings[${j}].value`) as string;
-
-            await prisma.settingValue.create({
-              data: {
-                machineSetRecordId: machineSetRecord.id,
-                machineSettingId: settingValueId,
-                value,
-              },
+            
+            settings.push({
+              machineSettingId,
+              value,
             });
             j++;
           }
+
+          sets.push({
+            set: setNumber,
+            reps,
+            settings,
+          });
         }
+
+        // 서비스 함수 호출
+        await updatePtRecordItemMachine({
+          itemId,
+          title,
+          description,
+          sets,
+        });
 
         break;
       }
 
       case "stretching": {
-        const exerciseId = formData.get("exerciseId") as string;
+        const stretchingExerciseId = formData.get("exerciseId") as string;
         const description = formData.get("description") as string;
-
-        // 기존 StretchingExerciseRecord 삭제
-        await prisma.stretchingExerciseRecord.deleteMany({
-          where: { ptRecordItemId: itemId },
-        });
 
         // Equipment IDs 수집
         const equipmentIds = [];
@@ -169,27 +145,36 @@ export async function PUT(
           i++;
         }
 
-        // 새로운 StretchingExerciseRecord 생성
-        await prisma.stretchingExerciseRecord.create({
-          data: {
-            ptRecordItemId: itemId,
-            stretchingExerciseId: exerciseId,
-            description,
-            equipments: {
-              connect: equipmentIds.map(id => ({ id })),
-            },
-          },
-        });
-
-        // PT Record Item의 description 업데이트
-        await prisma.ptRecordItem.update({
-          where: { id: itemId },
-          data: { description },
+        // 서비스 함수 호출
+        await updatePtRecordItemStretching({
+          itemId,
+          stretchingExerciseId,
+          description,
+          equipmentIds,
         });
 
         break;
       }
     }
+
+    // 수정 후 데이터 가져오기
+    const updatedData = await getPtRecordItemDetailForAudit(itemId);
+
+    // 감사 로그 기록
+    await createAuditLog({
+      trainerId: session.roleId!,
+      ptRecordId: ptRecordId,
+      ptRecordItemId: itemId,
+      action: 'UPDATE_ITEM',
+      actionDetails: {
+        type,
+        originalData,
+        updatedData,
+      },
+      scheduledTime: ptRecordItem.ptRecord.ptSchedule.date,
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -201,14 +186,14 @@ export async function PUT(
   }
 }
 
-// PT Record Item 삭제
+// PT Record Item 삭제 (소프트 삭제)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; itemId: string }> }
 ) {
   try {
     const session = await getSession();
-    if (!session) {
+    if (!session || !session.roleId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -218,28 +203,8 @@ export async function DELETE(
 
     const { id: ptRecordId, itemId } = await params;
 
-    // PT Record Item이 존재하고 해당 트레이너의 것인지 확인
-    const ptRecordItem = await prisma.ptRecordItem.findFirst({
-      where: {
-        id: itemId,
-        ptRecord: {
-          id: ptRecordId,
-          pt: {
-            trainerId: session.roleId,
-            state: {
-              in: [PtState.CONFIRMED, PtState.FINISHED],
-            },
-          },
-        },
-      },
-      include: {
-        machineSetRecords: true,
-        freeSetRecords: true,
-        stretchingExerciseRecords: true,
-        images: true,
-        videos: true,
-      },
-    });
+    // PT Record Item 권한 확인
+    const ptRecordItem = await checkPtRecordItemPermission(itemId, session.roleId);
 
     if (!ptRecordItem) {
       return NextResponse.json(
@@ -248,70 +213,29 @@ export async function DELETE(
       );
     }
 
-    // 관련 레코드들을 삭제 (Cascade 설정이 없는 경우를 대비)
-    // 1. Machine Set Records와 관련 Setting Values
-    if (ptRecordItem.machineSetRecords.length > 0) {
-      await prisma.settingValue.deleteMany({
-        where: {
-          machineSetRecordId: {
-            in: ptRecordItem.machineSetRecords.map(record => record.id),
-          },
-        },
-      });
-      await prisma.machineSetRecord.deleteMany({
-        where: { ptRecordItemId: itemId },
-      });
-    }
+    // 삭제 전 상세 데이터 백업 (감사 로그용)
+    const originalData = await getPtRecordItemDetailForAudit(itemId);
 
-    // 2. Free Set Records (equipment 연결은 자동으로 해제됨)
-    if (ptRecordItem.freeSetRecords.length > 0) {
-      await prisma.freeSetRecord.deleteMany({
-        where: { ptRecordItemId: itemId },
-      });
-    }
+    // 소프트 삭제 실행
+    const deletedItem = await softDeletePtRecordItem(itemId, session.roleId);
 
-    // 3. Stretching Exercise Records (equipment 연결은 자동으로 해제됨)
-    if (ptRecordItem.stretchingExerciseRecords.length > 0) {
-      await prisma.stretchingExerciseRecord.deleteMany({
-        where: { ptRecordItemId: itemId },
-      });
-    }
+    // 남은 아이템들의 entry 값 재정렬
+    await reorderPtRecordItems(ptRecordId);
 
-    // 4. 관련 미디어 (이미지, 비디오) 삭제
-    if (ptRecordItem.images.length > 0) {
-      await prisma.image.deleteMany({
-        where: {
-          ptRecordItemId: itemId,
-        },
-      });
-    }
-    
-    if (ptRecordItem.videos.length > 0) {
-      await prisma.video.deleteMany({
-        where: {
-          ptRecordItemId: itemId,
-        },
-      });
-    }
-
-    // 5. PT Record Item 삭제
-    await prisma.ptRecordItem.delete({
-      where: { id: itemId },
+    // 감사 로그 기록
+    await createAuditLog({
+      trainerId: session.roleId,
+      ptRecordId: ptRecordId,
+      ptRecordItemId: itemId,
+      action: 'DELETE_ITEM',
+      actionDetails: {
+        originalData,
+        deletedAt: deletedItem.deletedAt,
+      },
+      scheduledTime: ptRecordItem.ptRecord.ptSchedule.date,
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
     });
-
-    // 6. 남은 아이템들의 entry 값 재정렬
-    const remainingItems = await prisma.ptRecordItem.findMany({
-      where: { ptRecordId },
-      orderBy: { entry: 'asc' },
-    });
-
-    // entry 값을 0부터 순차적으로 재배열
-    for (let i = 0; i < remainingItems.length; i++) {
-      await prisma.ptRecordItem.update({
-        where: { id: remainingItems[i].id },
-        data: { entry: i },
-      });
-    }
 
     return NextResponse.json({ 
       success: true,

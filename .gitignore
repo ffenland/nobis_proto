@@ -63,3 +63,9 @@ node_modules/
 /.cursor
 /.roo
 /.taskmaster
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

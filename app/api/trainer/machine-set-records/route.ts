@@ -1,53 +1,29 @@
 // app/api/trainer/machine-set-records/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/app/lib/prisma";
+import { getSession } from "@/app/lib/session";
+import { createMachineSetRecords } from "@/app/lib/services/trainer/exercise-set-record.service";
 
 // 머신 세트 기록 생성 (복수 세트를 한번에 처리)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { ptRecordId, machineId, machineName, machineSetRecords, details } =
-      body;
-
-    // 트랜잭션으로 모든 세트 기록을 한 번에 생성
-    const result = await prisma.$transaction(async (tx) => {
-      // PtRecordItem 생성
-      const ptRecordItem = await tx.ptRecordItem.create({
-        data: {
-          ptRecordId,
-          type: "MACHINE",
-          title: machineName,
-          description: details,
-          entry: 0,
-        },
-      });
-
-      // 각 세트별로 MachineSetRecord 생성
-      const machineSetRecordsCreated = await Promise.all(
-        machineSetRecords.map(async (setRecord: any) => {
-          return tx.machineSetRecord.create({
-            data: {
-              reps: setRecord.reps,
-              set: setRecord.set,
-              settingValues: {
-                connect: setRecord.settingValueIds.map((valueId: string) => ({
-                  id: valueId,
-                })),
-              },
-              ptRecordItem: {
-                connect: {
-                  id: ptRecordItem.id,
-                },
-              },
-            },
-          });
-        })
+    const session = await getSession();
+    if (!session || session.role !== "TRAINER") {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
       );
+    }
 
-      return {
-        ptRecordItem,
-        machineSetRecords: machineSetRecordsCreated,
-      };
+    const body = await request.json();
+    const { ptRecordId, machineName, machineSetRecords, details, entry } = body;
+
+    // 서비스 함수 호출
+    const result = await createMachineSetRecords({
+      ptRecordId,
+      machineName,
+      details,
+      entry,
+      machineSetRecords,
     });
 
     return NextResponse.json(result);

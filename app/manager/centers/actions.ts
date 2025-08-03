@@ -580,9 +580,13 @@ export async function deleteCenterAction(
 }
 
 // 타입 추출을 위한 더미 함수들 (실제로는 호출되지 않음)
-const _getCentersData = getCentersData;
-const _getCenterData = getCenterData;
-const _getCenterStatsData = getCenterStatsData;
+// These variables are only used for type extraction
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _getCentersData = getCentersData; // Type utility
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _getCenterData = getCenterData; // Type utility
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _getCenterStatsData = getCenterStatsData; // Type utility
 
 export type ICenterSummary = Awaited<
   ReturnType<typeof _getCentersData>

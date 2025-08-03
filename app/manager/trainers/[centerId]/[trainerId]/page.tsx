@@ -41,7 +41,6 @@ import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import type {
   ITrainerDetail,
   ITrainerPtList,
-  ITrainerPtItem,
 } from "@/app/lib/services/trainer-management.service";
 import Image from "next/image";
 

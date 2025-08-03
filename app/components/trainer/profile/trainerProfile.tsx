@@ -39,7 +39,7 @@ export function TrainerProfile({ userId }: { userId: string }) {
         setIntroduce(data.introduce);
         setAvatar(data.avatar || "");
       }
-    } catch (error) {
+    } catch {
       alert("프로필 정보를 불러오는데 실패했습니다.");
     }
   }, [userId]);
@@ -55,7 +55,7 @@ export function TrainerProfile({ userId }: { userId: string }) {
       await loadTrainerData();
       setIsEditing(false);
       alert("프로필이 업데이트되었습니다.");
-    } catch (error) {
+    } catch {
       alert("프로필 업데이트에 실패했습니다.");
     } finally {
       setIsLoading(false);

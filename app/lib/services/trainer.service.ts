@@ -1,10 +1,8 @@
 // app/lib/services/trainer.service.ts
 import prisma from "@/app/lib/prisma";
-import { PtState, WeekDay } from "@prisma/client";
+import { PtState } from "@prisma/client";
 import {
   calculateCompletedSessions,
-  findUpcomingSession,
-  type IPtRecordForAttendance,
 } from "@/app/lib/utils/pt.utils";
 
 // 트레이너의 승인 대기 중인 PT 목록 조회

@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 import {
   Users,
   UserCheck,
-  TrendingUp,
   Search,
   Filter,
   MapPin,
@@ -14,9 +14,8 @@ import {
   Mail,
   ChevronRight,
   Calendar,
-  Target,
-  Award,
   Activity,
+  Award,
 } from "lucide-react";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
@@ -25,7 +24,6 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Input } from "@/app/components/ui/Input";
 import { Button } from "@/app/components/ui/Button";
 import {
-  LoadingSpinner,
   LoadingPage,
   Badge,
 } from "@/app/components/ui/Loading";
@@ -129,14 +127,15 @@ export default function MembersPage() {
         ) / 10
       : 0;
 
-  const membershipUtilizationRate =
-    totalStats.totalMembers > 0
-      ? Math.round(
-          (totalStats.totalMembersWithMembership / totalStats.totalMembers) *
-            100 *
-            10
-        ) / 10
-      : 0;
+  // Calculate membership utilization rate for potential future use
+  // const membershipUtilizationRate =
+  //   totalStats.totalMembers > 0
+  //     ? Math.round(
+  //         (totalStats.totalMembersWithMembership / totalStats.totalMembers) *
+  //           100 *
+  //           10
+  //       ) / 10
+  //     : 0;
 
   return (
     <PageLayout maxWidth="lg">
@@ -369,10 +368,13 @@ export default function MembersPage() {
                           <div className="flex items-center space-x-4">
                             <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
                               {member.user.avatarImage?.cloudflareId ? (
-                                <img
+                                <Image
                                   src={getOptimizedImageUrl(member.user.avatarImage.cloudflareId, "avatar")}
                                   alt={member.user.username}
+                                  width={48}
+                                  height={48}
                                   className="w-full h-full object-cover"
+                                  unoptimized={true}
                                 />
                               ) : (
                                 <Users className="w-6 h-6 text-gray-400" />

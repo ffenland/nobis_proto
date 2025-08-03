@@ -3,7 +3,6 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/app/components/ui/Button";
-import { Badge } from "@/app/components/ui/Loading";
 import {
   Modal,
   ModalHeader,
@@ -14,7 +13,6 @@ import { Input, Textarea } from "@/app/components/ui/Input";
 import { TimeRangeInput } from "@/app/components/ui/TimeInput";
 import {
   Calendar,
-  Clock,
   AlertTriangle,
   CheckCircle,
   Edit,

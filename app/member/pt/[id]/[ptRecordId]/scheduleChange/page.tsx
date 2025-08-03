@@ -5,15 +5,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { formatDateThisYear, formatTimeToString } from "@/app/lib/utils";
-import {
-  Calendar,
-  Clock,
-  ArrowLeft,
-  AlertCircle,
-  User,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
+import { Calendar, Clock, ArrowLeft, AlertCircle, User } from "lucide-react";
 import {
   getPtScheduleDetailAction,
   getScheduleChangeRequestsAction,

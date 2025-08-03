@@ -12,7 +12,6 @@ import { getWeekDayMapData } from "@/app/lib/utils";
 import { formatTime } from "@/app/lib/utils/time.utils";
 import type {
   ITrainerScheduleResponse,
-  IDayScheduleData,
   IPtTimeSlot,
   IOffTimeSlot,
   ITimeRange,

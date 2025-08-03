@@ -7,7 +7,6 @@ import useSWR, { mutate } from "swr";
 import Image from "next/image";
 import Link from "next/link";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { IMemberProfileData } from "@/app/lib/services/user.service";
 import { getOptimizedImageUrl, validateImageFile } from "@/app/lib/utils/media.utils";
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
@@ -27,7 +26,6 @@ const profileEditSchema = z.object({
     ),
 });
 
-type ProfileEditForm = z.infer<typeof profileEditSchema>;
 
 const fetcher = async (
   url: string
@@ -224,7 +222,7 @@ export default function EditProfilePage() {
       }
 
       // 프로필 업데이트 데이터 준비
-      const updateData: any = {};
+      const updateData: { username?: string; avatarImageId?: string } = {};
       
       // 사용자명 변경이 있는 경우
       if (isUsernameChanged && username !== profile.username) {

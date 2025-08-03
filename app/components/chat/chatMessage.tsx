@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { IMessageData } from "@/app/lib/services/chat.service";
@@ -26,13 +27,16 @@ export function ChatMessage({
         <div className="flex-shrink-0">
           <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
             {message.sender?.avatarImage?.cloudflareId ? (
-              <img
+              <Image
                 src={getOptimizedImageUrl(
                   message.sender.avatarImage.cloudflareId,
                   "avatar"
                 )}
                 alt={message.sender.username || "사용자"}
-                className="w-full h-full object-cover"
+                width={32}
+                height={32}
+                className="object-cover"
+                unoptimized={true}
               />
             ) : (
               <span className="text-xs text-gray-600">

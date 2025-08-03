@@ -1,7 +1,7 @@
 // app/trainer/pt/[id]/ScheduleChangeRequests.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import {
@@ -14,7 +14,6 @@ import { Textarea } from "@/app/components/ui/Input";
 import {
   Clock,
   Calendar,
-  User,
   MessageSquare,
   CheckCircle,
   XCircle,
@@ -38,7 +37,7 @@ const ScheduleChangeRequests = ({ ptId }: ScheduleChangeRequestsProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   // 요청 목록 조회
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       const response = await fetch("/api/schedule-change/list");
       const data = await response.json();
@@ -55,11 +54,11 @@ const ScheduleChangeRequests = ({ ptId }: ScheduleChangeRequestsProps) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [ptId]);
 
   useEffect(() => {
     fetchRequests();
-  }, [ptId]);
+  }, [ptId, fetchRequests]);
 
   // 상태별 스타일
   const getStateStyle = (state: string) => {

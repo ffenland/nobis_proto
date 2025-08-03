@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/app/lib/session';
 import { createVideoUploadUrl, createVideoTusUploadUrl } from '@/app/lib/services/media/stream.service';
-import { generateMediaId, type EntityType, normalizeMetadata } from '@/app/lib/utils/media.utils';
+import { type EntityType, normalizeMetadata } from '@/app/lib/utils/media.utils';
 
 // 요청 타입
 interface VideoUploadRequest {

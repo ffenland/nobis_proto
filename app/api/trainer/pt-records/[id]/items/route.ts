@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/app/lib/prisma";
-import { getPtRecordItemsService } from "@/app/lib/services/pt-record.service";
+import { getPtRecordItemsService } from "@/app/lib/services/trainer/pt-record.service";
 import { getSession } from "@/app/lib/session";
+import { createAuditLog } from "@/app/lib/services/audit/pt-record-audit.service";
+import { 
+  getPtRecordItemDetailForAudit,
+  createPtRecordItem,
+  checkPtRecordItemPermission,
+  checkPtRecordPermission
+} from "@/app/lib/services/trainer/pt-record-item.service";
 
 // PT Record Items 조회
 export async function GET(
@@ -61,14 +67,41 @@ export async function POST(
     const body = await request.json();
     const { type, title, description, entry } = body;
 
-    const ptRecordItem = await prisma.ptRecordItem.create({
-      data: {
-        ptRecordId,
+    // PT Record와 권한 확인
+    const ptRecord = await checkPtRecordPermission(ptRecordId, session.roleId!);
+
+    if (!ptRecord) {
+      return NextResponse.json(
+        { error: "PT Record를 찾을 수 없거나 권한이 없습니다." },
+        { status: 404 }
+      );
+    }
+
+    // PT Record Item 생성
+    const ptRecordItem = await createPtRecordItem({
+      ptRecordId,
+      type,
+      title,
+      description,
+      entry: entry || 0,
+    });
+
+    // 생성된 아이템의 상세 정보 가져오기
+    const createdData = await getPtRecordItemDetailForAudit(ptRecordItem.id);
+
+    // 감사 로그 기록
+    await createAuditLog({
+      trainerId: session.roleId!,
+      ptRecordId: ptRecordId,
+      ptRecordItemId: ptRecordItem.id,
+      action: 'CREATE_ITEM',
+      actionDetails: {
         type,
-        title,
-        description,
-        entry: entry || 0,
+        createdData,
       },
+      scheduledTime: ptRecord.ptSchedule.date,
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
     });
 
     return NextResponse.json(ptRecordItem);

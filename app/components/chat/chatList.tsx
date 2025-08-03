@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -94,10 +95,13 @@ export function ChatList({ userRole }: IChatListProps) {
               <div className="relative flex-shrink-0">
                 <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden">
                   {room.otherUser?.avatar ? (
-                    <img
+                    <Image
                       src={room.otherUser.avatar}
                       alt={room.otherUser.username}
-                      className="w-full h-full object-cover"
+                      width={48}
+                      height={48}
+                      className="object-cover"
+                      unoptimized={true}
                     />
                   ) : (
                     <span className="text-sm text-gray-600">

@@ -11,8 +11,7 @@ import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
 import { formatTime } from "@/app/lib/utils/time.utils";
 import ScheduleChangeNotifications from "@/app/components/notifications/ScheduleChangeNotifications";
 import { type ITrainerDashboardStats } from "@/app/lib/services/trainer.service";
-import ClientLogoutButton from "@/app/components/base/c_logout_button";
-import RoleSwitchButton from "@/app/components/base/RoleSwitchButton";
+import UserDropdownMenu from "@/app/components/base/UserDropdownMenu";
 
 // API 호출 함수
 const fetcher = (url: string) =>
@@ -60,17 +59,11 @@ const TrainerDashboardPage = () => {
             subtitle="PT 관리 및 수업 현황을 확인하세요"
           />
         </div>
-        <div className="flex flex-col items-end space-y-2">
-          <div className="text-sm text-gray-600">
-            <span className="font-medium text-gray-900">{stats?.username}</span>님 안녕하세요
-          </div>
-          <div className="flex gap-2">
-            {stats?.hasManagerProfile && (
-              <RoleSwitchButton targetRole="MANAGER" size="sm" variant="outline" />
-            )}
-            <ClientLogoutButton />
-          </div>
-        </div>
+        <UserDropdownMenu 
+          username={stats?.username || ''}
+          showRoleSwitch={stats?.hasManagerProfile}
+          targetRole="MANAGER"
+        />
       </div>
 
       {/* 일정 변경 알림 */}

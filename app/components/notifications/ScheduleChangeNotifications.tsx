@@ -26,13 +26,16 @@ type ScheduleChangeListResponse =
 
 // 타입 가드 함수
 const isSuccessResponse = (
-  data: any
+  data: unknown
 ): data is ScheduleChangeListApiResponse => {
-  return data.success === true && Array.isArray(data.requests);
+  return (
+    (data as ScheduleChangeListApiResponse).success === true &&
+    Array.isArray((data as ScheduleChangeListApiResponse).requests)
+  );
 };
 
-const isErrorResponse = (data: any): data is ScheduleChangeListApiError => {
-  return typeof data.error === "string";
+const isErrorResponse = (data: unknown): data is ScheduleChangeListApiError => {
+  return typeof (data as ScheduleChangeListApiError).error === "string";
 };
 
 // 알림 항목 타입 정의
@@ -146,10 +149,7 @@ const transformRequestsToNotifications = (
         isMyRequest: false, // 서비스에서 이미 본인에게 온 요청만 가져오므로
       };
     })
-    .sort(
-      (a, b) =>
-        b.createdAt.getTime() - a.createdAt.getTime()
-    );
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 };
 
 // 알림 항목 컴포넌트
@@ -257,7 +257,32 @@ export default function ScheduleChangeNotifications({
   };
 
   useEffect(() => {
-    fetchNotifications();
+    const effectAction = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch("/api/schedule-change/list");
+        const data: ScheduleChangeListResponse = await response.json();
+
+        if (response.ok && isSuccessResponse(data)) {
+          const transformedNotifications = transformRequestsToNotifications(
+            data.requests
+          );
+
+          setNotifications(transformedNotifications.slice(0, maxItems));
+        } else if (isErrorResponse(data)) {
+          setError(data.error);
+        } else {
+          setError("알림을 불러올 수 없습니다.");
+        }
+      } catch (error) {
+        console.error("알림 조회 실패:", error);
+        setError("알림을 불러올 수 없습니다.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    effectAction();
   }, [maxItems]);
 
   // PT 상세 페이지로 이동

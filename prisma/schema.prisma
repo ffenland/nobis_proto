@@ -124,6 +124,7 @@ model Trainer {
   trainerOff       TrainerOff[]
   workingHours     WorkingHour[]
   working          Boolean            @default(true)
+  auditLogs        PtRecordAuditLog[] // 감사 로그 관계
 }
 
 model Manager {
@@ -274,12 +275,21 @@ model PtRecord {
   items                 PtRecordItem[]
   memo                  String                    @default("")
   scheduleChangeRequest PtScheduleChangeRequest[]
+  auditLogs            PtRecordAuditLog[] // 감사 로그 관계
 }
 
 enum RecordType {
   MACHINE
   FREE
   STRETCHING
+}
+
+enum AuditAction {
+  CREATE_ITEM
+  UPDATE_ITEM
+  DELETE_ITEM
+  CREATE_RECORD
+  UPDATE_RECORD
 }
 
 model PtRecordItem {
@@ -297,6 +307,8 @@ model PtRecordItem {
   images                    Image[]
   isActive                  Boolean                    @default(true) // 현재 유효한 기록인지 여부
   videos                    Video[]
+  deletedAt                 DateTime?                  // 소프트 삭제 시간
+  deletedBy                 String?                    @db.Uuid // 삭제한 트레이너 ID
 }
 
 model Machine {
@@ -834,4 +846,38 @@ model MediaUsage {
   @@unique([userId, month])
   @@index([month])
   @@index([userId])
+}
+
+// PT 기록 감사 로그
+model PtRecordAuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+
+  // 작업 수행자
+  trainerId String  @db.Uuid
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+
+  // 작업 대상
+  ptRecordId     String   @db.Uuid
+  ptRecord       PtRecord @relation(fields: [ptRecordId], references: [id])
+  ptRecordItemId String?  @db.Uuid
+
+  // 작업 정보
+  action        AuditAction
+  actionDetails Json? // 변경 전후 데이터
+
+  // 시간 정보
+  scheduledTime DateTime? // PT 예정 시간
+  isOutOfTime   Boolean   @default(false) // 정상 작업 시간 외 작업 여부
+
+  // 추가 정보
+  ipAddress String?
+  userAgent String?
+  notes     String?
+
+  @@index([trainerId])
+  @@index([ptRecordId])
+  @@index([action])
+  @@index([isOutOfTime])
+  @@index([createdAt])
 }

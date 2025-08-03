@@ -1,10 +1,10 @@
 // app/api/manager/fitness-centers/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { TrainerManagementService } from "@/app/lib/services/trainer-management.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // 세션 및 권한 확인
     const session = await getSession();

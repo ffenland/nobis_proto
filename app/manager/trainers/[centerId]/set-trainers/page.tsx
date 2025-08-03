@@ -3,6 +3,7 @@
 import { useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 import { ChevronLeft, AlertCircle, Users, CheckCircle } from "lucide-react";
@@ -206,13 +207,16 @@ export default function SetTrainersPage(props: { params: Params }) {
                         {/* 프로필 이미지 */}
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
                           {trainer.user.avatarImage?.cloudflareId ? (
-                            <img
+                            <Image
                               src={getOptimizedImageUrl(
                                 trainer.user.avatarImage.cloudflareId,
                                 "avatar"
                               )}
                               alt={trainer.user.username}
+                              width={40}
+                              height={40}
                               className="w-full h-full object-cover"
+                              unoptimized={true}
                             />
                           ) : (
                             <Users className="w-5 h-5 text-gray-400" />

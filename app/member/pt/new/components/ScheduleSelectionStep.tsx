@@ -71,6 +71,7 @@ const ScheduleConfirmModal = ({
   trainerName,
   chosenSchedule,
   pattern,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   duration,
   onConfirm,
   onCancel,
@@ -238,7 +239,7 @@ const ScheduleSelectionStep = ({
   const [prescheduleError, setPrescheduleError] = useState<string | null>(null);
 
   // 트레이너 스케줄 및 근무시간 조회
-  const { data: trainerScheduleData, error: trainerScheduleError } =
+  const { data: trainerScheduleData } =
     useSWR<ITrainerSchedule>(
       `/api/member/trainer-schedule?trainerId=${selectedTrainer.id}`,
       fetcher

@@ -7,9 +7,6 @@ dayjs.extend(timezone);
 
 // time.utils에서 addThirtyMinutes import (통일)
 import { addThirtyMinutes } from "./utils/time.utils";
-import { convertUTCtoKST } from "./utils";
-import prisma from "./prisma";
-import { serverError } from "./constants";
 
 export interface ISchedule {
   date: Date;

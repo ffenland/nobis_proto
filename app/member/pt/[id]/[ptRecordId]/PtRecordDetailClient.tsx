@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { type TPtRecordDetail } from "./actions";
 import FullscreenImageViewer from '@/app/components/media/FullscreenImageViewer';
 import FullscreenVideoPlayer from '@/app/components/media/FullscreenVideoPlayer';
@@ -130,10 +131,12 @@ export default function PtRecordDetailClient({ ptRecordDetail }: PtRecordDetailC
                       className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => setSelectedImage(image.cloudflareId)}
                     >
-                      <img
+                      <Image
                         src={getOptimizedImageUrl(image.cloudflareId, 'thumbnail')}
                         alt={image.originalName}
+                        fill={true}
                         className="w-full h-full object-cover"
+                        unoptimized={true}
                       />
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
                         <p className="text-white text-xs truncate">{image.originalName}</p>

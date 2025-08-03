@@ -10,7 +10,7 @@ import { Button } from "@/app/components/ui/Button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { TPtRecordItem } from "./actions";
-import type { IMachine, IEquipment } from "@/app/lib/services/pt-record.service";
+import type { IMachine, IEquipment } from "@/app/lib/services/trainer/pt-record.service";
 import type { 
   FreeRecordSubmitData, 
   MachineRecordSubmitData, 
@@ -36,7 +36,6 @@ const fetcher = (url: string) =>
 
 export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditItemFormProps) {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
   const [deletedVideoIds, setDeletedVideoIds] = useState<string[]>([]);
 
@@ -97,7 +96,6 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
 
   // 제출 핸들러
   const handleSubmit = async (data: FreeRecordSubmitData | MachineRecordSubmitData | StretchingRecordSubmitData) => {
-    setIsSubmitting(true);
     
     try {
       const formData = new FormData();
@@ -244,8 +242,6 @@ export default function EditItemForm({ item, ptId, ptRecordId, centerId }: EditI
     } catch (error) {
       console.error("수정 실패:", error);
       alert("수정 중 오류가 발생했습니다.");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

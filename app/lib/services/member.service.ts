@@ -5,7 +5,6 @@ import { cache } from "react";
 import {
   calculateCompletedSessions,
   findUpcomingSession,
-  calculateAttendanceStatus,
 } from "@/app/lib/utils/pt.utils";
 
 // 회원 PT 목록 조회 (페이지용)

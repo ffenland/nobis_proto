@@ -229,7 +229,7 @@ export async function listImages(params?: {
 
     return {
       images: data.result.images.map((img: any) => ({
-        // eslint-disable-line @typescript-eslint/no-explicit-any
+         
         id: img.id,
         filename: img.filename,
         uploaded: new Date(img.uploaded),

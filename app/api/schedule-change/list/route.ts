@@ -1,9 +1,9 @@
 // app/api/schedule-change/list/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { getUserScheduleChangeRequests } from "@/app/lib/services/pt-schedule-change.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSession();
     if (!session || !session.id) {

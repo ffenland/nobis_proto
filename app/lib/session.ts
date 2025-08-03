@@ -1,7 +1,7 @@
 "use server";
 import { getIronSession } from "iron-session";
 import type { IronSession } from "iron-session";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 export interface SessionContent {

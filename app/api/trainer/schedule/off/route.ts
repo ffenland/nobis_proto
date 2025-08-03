@@ -1,6 +1,5 @@
 // app/api/trainer/schedule/off/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { WeekDay } from "@prisma/client";
 import { getSession } from "@/app/lib/session";
 import {
   getTrainerOffSchedulesService,

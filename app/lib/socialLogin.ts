@@ -9,10 +9,6 @@ interface NaverAccessTokenResponseSuccess {
   token_type: string;
   expires_in: string;
 }
-interface NaverAccessTokenResponseFail {
-  error: string;
-  error_description: string;
-}
 
 export const loginToSession = async (
   id: string,

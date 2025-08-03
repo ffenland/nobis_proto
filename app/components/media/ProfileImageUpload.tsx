@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { useMutation } from '@tanstack/react-query';
 import { getOptimizedImageUrl, validateImageFile, createImagePreviewUrl, revokeImagePreviewUrl } from '@/app/lib/utils/media.utils';
 import { toast } from 'react-hot-toast';
@@ -157,10 +158,13 @@ export default function ProfileImageUpload({
         onDrop={handleDrop}
       >
         {displayImageUrl ? (
-          <img
+          <Image
             src={displayImageUrl}
             alt="프로필 이미지"
-            className="w-full h-full object-cover"
+            width={128}
+            height={128}
+            className="object-cover"
+            unoptimized={true}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-base-content/50">

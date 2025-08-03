@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { IEquipment } from "@/app/lib/services/pt-record.service";
+import { IEquipment } from "@/app/lib/services/trainer/pt-record.service";
 import { matchSearch } from "@/app/components/common/matchSearch";
 import useSWR, { mutate } from "swr";
 import type { FreeRecordSubmitData } from "./types";
@@ -16,6 +16,7 @@ interface FreeRecordProps {
   equipmentList: IEquipment[];
   mode?: "create" | "edit";
   ptRecordItemId?: string;
+  nextEntry?: number;
   initialData?: {
     title?: string;
     description?: string;
@@ -67,6 +68,7 @@ const FreeRecord = ({
   equipmentList,
   mode = "create",
   initialData,
+  nextEntry,
   onSubmit,
   existingImages = [],
   existingVideos = [],
@@ -306,6 +308,7 @@ const FreeRecord = ({
             title: selectedExercise.title,
             description,
             type: "FREE",
+            entry: nextEntry,
           }),
         });
 

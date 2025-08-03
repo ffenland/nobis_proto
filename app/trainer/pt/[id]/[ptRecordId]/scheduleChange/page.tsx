@@ -11,8 +11,6 @@ import {
   ArrowLeft,
   AlertCircle,
   User,
-  CheckCircle,
-  XCircle,
 } from "lucide-react";
 import {
   getPtScheduleDetailAction,

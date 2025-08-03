@@ -5,7 +5,7 @@ import {
   getPtRecordDetailService,
   getPtRecordInfoService,
   IPtRecordDetail,
-} from "@/app/lib/services/pt-record.service";
+} from "@/app/lib/services/trainer/pt-record.service";
 import { Button } from "@/app/components/ui/Button";
 import { Edit, ChevronLeft } from "lucide-react";
 

@@ -9,7 +9,6 @@ import {
   ChevronRight,
   MapPin,
   Phone,
-  UserCheck,
 } from "lucide-react";
 
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";

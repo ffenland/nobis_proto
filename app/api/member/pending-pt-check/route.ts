@@ -1,9 +1,9 @@
 // app/api/member/pending-pt-check/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSessionOrRedirect } from "@/app/lib/session";
 import { getPendingPtDetails } from "@/app/lib/services/pt-apply.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSessionOrRedirect();
     if (session.role !== "MEMBER") {

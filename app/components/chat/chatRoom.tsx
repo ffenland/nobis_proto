@@ -53,7 +53,6 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<IMessageData[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [showInactivityModal, setShowInactivityModal] = useState(false);
@@ -246,16 +245,13 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
         console.log(`[ChatRoom] 채널 상태: ${status}`);
         
         if (status === "SUBSCRIBED") {
-          setIsConnected(true);
           setIsConnecting(false);
           setError(null);
           updateActivity(); // 연결 시 활동 시작
         } else if (status === "CHANNEL_ERROR") {
-          setIsConnected(false);
           setIsConnecting(false);
           setError(new Error("채널 연결 오류가 발생했습니다."));
         } else if (status === "CLOSED") {
-          setIsConnected(false);
           setIsConnecting(false);
         }
       });

@@ -4,14 +4,13 @@ import { cn } from "@/app/lib/utils";
 
 interface ModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose?: () => void;
   children: React.ReactNode;
   size?: "sm" | "md" | "lg";
 }
 
 const Modal: React.FC<ModalProps> = ({
   isOpen,
-  onClose,
   children,
   size = "md",
 }) => {

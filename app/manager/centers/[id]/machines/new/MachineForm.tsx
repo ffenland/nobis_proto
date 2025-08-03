@@ -6,8 +6,9 @@ import { createMachine, IMachineDetail, IMachineSetting } from "./actions";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Plus, Edit2, X, Camera, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Plus, Edit2, X, Camera } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export enum IMachineValueEditState {
   NEW = "NEW",
@@ -363,10 +364,11 @@ export default function MachineForm({ centerId }: MachineFormProps) {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
                   {imagePreviews.map((preview, index) => (
                     <div key={index} className="relative aspect-square">
-                      <img
+                      <Image
                         src={preview}
                         alt={`머신 사진 ${index + 1}`}
-                        className="w-full h-full object-cover rounded-lg"
+                        fill
+                        className="object-cover rounded-lg"
                       />
                       <button
                         onClick={() => removeImage(index)}

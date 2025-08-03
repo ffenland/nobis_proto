@@ -1,9 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-
 const ErrorPage = () => {
-  const router = useRouter();
   // 5초 후 pt pending 페이지로 이동
   setTimeout(() => {
     // router.push("/trainer/pt/pending");

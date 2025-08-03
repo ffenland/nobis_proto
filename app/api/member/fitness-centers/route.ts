@@ -1,9 +1,9 @@
 // app/api/member/fitness-centers/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { getFitnessCentersService } from "@/app/lib/services/pt-apply.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getSession();
     if (session.role !== "MEMBER") {

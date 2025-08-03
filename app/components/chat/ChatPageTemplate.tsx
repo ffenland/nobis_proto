@@ -8,7 +8,6 @@ interface IChatPageTemplateProps {
   title: string;
   userRole: "MEMBER" | "TRAINER" | "MANAGER";
   showBackButton?: boolean;
-  backButtonText?: string;
   children: React.ReactNode;
 }
 
@@ -16,10 +15,8 @@ export function ChatPageTemplate({
   title,
   userRole,
   showBackButton = true,
-  backButtonText = "뒤로",
   children,
 }: IChatPageTemplateProps) {
-  const dashboardPath = `/${userRole.toLowerCase()}/dashboard`;
   const chatListPath = `/${userRole.toLowerCase()}/chat`;
 
   return (

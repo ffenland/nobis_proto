@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Image from 'next/image';
 import { getOptimizedImageUrl } from '@/app/lib/utils/media.utils';
 
 interface FullscreenImageViewerProps {
@@ -39,15 +40,20 @@ export default function FullscreenImageViewer({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <img
-        src={getOptimizedImageUrl(imageId, 'public')}
-        alt=""
-        className="max-w-full max-h-full object-contain"
-        onClick={(e) => e.stopPropagation()}
-      />
+      <div className="relative w-full h-full flex items-center justify-center">
+        <Image
+          src={getOptimizedImageUrl(imageId, 'public')}
+          alt=""
+          fill
+          className="object-contain"
+          sizes="100vw"
+          priority
+          unoptimized={true}
+        />
+      </div>
     </div>
   );
 }

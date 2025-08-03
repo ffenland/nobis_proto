@@ -8,7 +8,7 @@ import FreeRecord from "../edit/components/FreeRecord";
 import MachineRecord from "../edit/components/MachineRecord";
 import StretchingRecord from "../edit/components/StretchingRecord";
 import { Button } from "@/app/components/ui/Button";
-import { ChevronLeft, Clock, User, Edit, Trash2 } from "lucide-react";
+import { ChevronLeft, Clock, User, Trash2 } from "lucide-react";
 import type { 
   TPtRecordInfo
 } from "../actions";
@@ -16,7 +16,7 @@ import type {
   IMachine,
   IEquipment,
   IPtRecordItem,
-} from "@/app/lib/services/pt-record.service";
+} from "@/app/lib/services/trainer/pt-record.service";
 import { EquipmentCategory } from "@prisma/client";
 
 interface RecordFormProps {
@@ -85,6 +85,9 @@ export default function RecordForm({
       console.error("기록 업데이트 실패:", error);
     }
   };
+
+  // 다음 entry 값 계산
+  const nextEntry = (ptRecordItemsData?.items?.length || 0) + 1;
 
   // 운동 기록 삭제 핸들러
   const handleDeleteItem = async (itemId: string) => {
@@ -274,6 +277,7 @@ export default function RecordForm({
             ptRecordId={ptRecordId}
             onComplete={handleRecordComplete}
             machineList={machineList}
+            nextEntry={nextEntry}
           />
         )}
 
@@ -282,6 +286,7 @@ export default function RecordForm({
             ptRecordId={ptRecordId}
             onComplete={handleRecordComplete}
             equipmentList={weightEquipmentList}
+            nextEntry={nextEntry}
           />
         )}
 
@@ -290,6 +295,7 @@ export default function RecordForm({
             ptRecordId={ptRecordId}
             onComplete={handleRecordComplete}
             equipmentList={allEquipmentList}
+            nextEntry={nextEntry}
           />
         )}
 

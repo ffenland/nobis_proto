@@ -10,7 +10,6 @@ import {
   FileText,
   ArrowLeft,
   Calendar,
-  User,
   CheckCircle,
   XCircle,
   Circle,

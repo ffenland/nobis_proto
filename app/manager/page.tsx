@@ -1,6 +1,7 @@
 // app/manager/page.tsx
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Badge } from "@/app/components/ui/Loading";
+import { Button } from "@/app/components/ui/Button";
 import Link from "next/link";
 import {
   getManagerDashboardStats,
@@ -9,8 +10,7 @@ import {
   getManagerInfo,
 } from "./actions";
 import { PageHeader, PageLayout } from "../components/ui/Dropdown";
-import LogoutButton from "../components/base/s_logout_button";
-import RoleSwitchButton from "../components/base/RoleSwitchButton";
+import UserDropdownMenu from "../components/base/UserDropdownMenu";
 
 const ManagerMainPage = async () => {
   try {
@@ -33,15 +33,11 @@ const ManagerMainPage = async () => {
               subtitle="헬스장 운영 현황을 한눈에 확인하세요"
             />
           </div>
-          <div className="flex flex-col items-end space-y-2">
-            <div className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">{managerInfo.username}</span>님 안녕하세요
-            </div>
-            <div className="flex gap-2">
-              <RoleSwitchButton targetRole="TRAINER" size="sm" variant="outline" />
-              <LogoutButton variant="manager" size="sm" />
-            </div>
-          </div>
+          <UserDropdownMenu 
+            username={managerInfo.username}
+            showRoleSwitch={true}
+            targetRole="TRAINER"
+          />
         </div>
 
         {/* 주요 지표 카드들 */}
@@ -260,7 +256,7 @@ const ManagerMainPage = async () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {dashboardStats.dailySessions.map((day, index) => {
+                {dashboardStats.dailySessions.map((day) => {
                   const maxSessions = Math.max(
                     ...dashboardStats.dailySessions.map((d) => d.count)
                   );
@@ -508,30 +504,44 @@ const ManagerMainPage = async () => {
               <div className="space-y-3">
                 {recentActivities.recentCompletedSessions
                   .slice(0, 5)
-                  .map((session) => (
-                    <div
-                      key={session.id}
-                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {session.pt.member?.user.username}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          트레이너: {session.pt.trainer?.user.username}
-                        </p>
+                  .map((session) => {
+                    const scheduleDate = new Date(session.ptSchedule.date);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const isAbnormalDate = scheduleDate > today;
+                    
+                    return (
+                      <div
+                        key={session.id}
+                        className={`flex items-center justify-between py-2 border-b border-gray-100 last:border-0 ${
+                          isAbnormalDate ? 'bg-red-50' : ''
+                        }`}
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {session.pt.member?.user.username}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            트레이너: {session.pt.trainer?.user.username}
+                          </p>
+                          {isAbnormalDate && (
+                            <p className="text-xs text-red-600 font-medium mt-1">
+                              ⚠️ 미래 날짜 기록
+                            </p>
+                          )}
+                        </div>
+                        <div className={`text-xs ${isAbnormalDate ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
+                          {scheduleDate.toLocaleDateString(
+                            "ko-KR",
+                            {
+                              month: "short",
+                              day: "numeric",
+                            }
+                          )}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(session.ptSchedule.date).toLocaleDateString(
-                          "ko-KR",
-                          {
-                            month: "short",
-                            day: "numeric",
-                          }
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                 {recentActivities.recentCompletedSessions.length === 0 && (
                   <div className="text-center py-4 text-gray-500 text-sm">
@@ -554,6 +564,27 @@ const ManagerMainPage = async () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* 감사 로그 링크 카드 */}
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  PT 기록 감사 로그
+                </h3>
+                <p className="text-gray-600">
+                  트레이너들의 PT 기록 작업 내역을 확인하고 비정상적인 활동을 모니터링합니다.
+                </p>
+              </div>
+              <Link href="/manager/audit-logs">
+                <Button variant="outline">
+                  감사 로그 보기
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
 
       </PageLayout>
     );

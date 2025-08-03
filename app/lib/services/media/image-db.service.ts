@@ -131,6 +131,67 @@ export async function getImageByCloudflareId(cloudflareId: string) {
   return image;
 }
 
+// PT Record Item 미디어 소유권 확인
+export async function checkPtRecordItemMediaOwnership(data: {
+  ptRecordId: string;
+  ptRecordItemId: string;
+  trainerId: string;
+}) {
+  const ptRecordItem = await prisma.ptRecordItem.findFirst({
+    where: {
+      id: data.ptRecordItemId,
+      ptRecord: {
+        id: data.ptRecordId,
+        pt: {
+          trainerId: data.trainerId,
+        },
+      },
+    },
+    select: {
+      id: true,
+      ptRecord: {
+        select: {
+          pt: {
+            select: {
+              trainerId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return ptRecordItem;
+}
+
+// PT Record Item의 미디어 조회
+export async function getMediaByPtRecordItem(ptRecordItemId: string) {
+  const images = await prisma.image.findMany({
+    where: {
+      ptRecordItemId: ptRecordItemId,
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      cloudflareId: true,
+      originalName: true,
+      mimeType: true,
+      size: true,
+      type: true,
+      createdAt: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  return images;
+}
+
+// 타입 추론
+export type CheckPtRecordItemMediaOwnershipResult = Awaited<ReturnType<typeof checkPtRecordItemMediaOwnership>>;
+export type GetMediaByPtRecordItemResult = Awaited<ReturnType<typeof getMediaByPtRecordItem>>;
+
 // DB 레코드와 Cloudflare 이미지 동시 삭제
 export async function deleteImageWithCloudflare(imageId: string, userId: string) {
   // 1. 먼저 이미지 정보 조회 및 권한 확인

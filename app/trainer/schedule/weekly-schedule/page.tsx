@@ -5,7 +5,10 @@ import useSWR from "swr";
 import dayjs from "dayjs";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import { TrainerScheduleCalendar } from "./components/TrainerScheduleCalendar";
-import type { ITrainerScheduleResponse, IDayScheduleData } from "@/app/lib/services/trainer-schedule.service";
+import type {
+  ITrainerScheduleResponse,
+  IDayScheduleData,
+} from "@/app/lib/services/trainer-schedule.service";
 
 dayjs.extend(isSameOrBefore);
 
@@ -20,8 +23,9 @@ const fetcher = async (url: string): Promise<ITrainerScheduleResponse> => {
 
 export default function TrainerSchedulePage() {
   // 누적된 스케줄 데이터 상태
-  const [accumulatedScheduleData, setAccumulatedScheduleData] =
-    useState<{ [dateKey: string]: IDayScheduleData }>({});
+  const [accumulatedScheduleData, setAccumulatedScheduleData] = useState<{
+    [dateKey: string]: IDayScheduleData;
+  }>({});
   const [loadedDateRanges, setLoadedDateRanges] = useState<
     Array<{ start: string; end: string }>
   >([]);
@@ -56,8 +60,14 @@ export default function TrainerSchedulePage() {
 
   // 새로운 데이터가 로드되면 누적 데이터에 병합
   useEffect(() => {
-    if (newScheduleData && Object.keys(newScheduleData.scheduleData || {}).length > 0) {
-      setAccumulatedScheduleData((prev) => ({ ...prev, ...newScheduleData.scheduleData }));
+    if (
+      newScheduleData &&
+      Object.keys(newScheduleData.scheduleData || {}).length > 0
+    ) {
+      setAccumulatedScheduleData((prev) => ({
+        ...prev,
+        ...newScheduleData.scheduleData,
+      }));
 
       // 로드된 범위 기록
       if (currentFetchRange.startDate && currentFetchRange.endDate) {
@@ -101,8 +111,6 @@ export default function TrainerSchedulePage() {
     },
     [isWeekDataLoaded]
   );
-
-  console.log("CLIENT", newScheduleData);
 
   // 에러 상태
   if (error) {
@@ -166,8 +174,11 @@ export default function TrainerSchedulePage() {
         <TrainerScheduleCalendar
           scheduleData={{
             scheduleData: accumulatedScheduleData,
-            timeRange: newScheduleData?.timeRange || { startTime: 900, endTime: 2300 },
-            workingHours: newScheduleData?.workingHours || []
+            timeRange: newScheduleData?.timeRange || {
+              startTime: 900,
+              endTime: 2300,
+            },
+            workingHours: newScheduleData?.workingHours || [],
           }}
           isLoading={isLoading}
           onWeekChange={handleWeekChange}

@@ -35,7 +35,7 @@ export const getTrainersForCenterAssignment = async (centerId: string) => {
   });
 
   const duplicateDays = Array.from(dayOfWeekCount.entries())
-    .filter(([_, count]) => count > 1)
+    .filter(([, count]) => count > 1)
     .map(([day]) => day);
 
   // 모든 트레이너 목록 조회

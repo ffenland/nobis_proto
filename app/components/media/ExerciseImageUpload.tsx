@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { 
   validateImageFile, 
   createImagePreviewUrl, 
@@ -180,10 +181,12 @@ export default function ExerciseImageUpload({
         {/* 기존 이미지 */}
         {existingImages.map((image) => (
           <div key={image.id} className="relative aspect-square group">
-            <img
+            <Image
               src={getOptimizedImageUrl(image.cloudflareId, "thumbnail")}
               alt={image.originalName}
-              className="w-full h-full object-cover rounded-lg"
+              fill
+              className="object-cover rounded-lg"
+              unoptimized={true}
             />
             {onRemoveExisting && (
               <button
@@ -205,10 +208,12 @@ export default function ExerciseImageUpload({
         {/* 미리보기 이미지 */}
         {previews.map((preview) => (
           <div key={preview.id} className="relative aspect-square group">
-            <img
+            <Image
               src={preview.url}
               alt={preview.file.name}
-              className="w-full h-full object-cover rounded-lg"
+              fill
+              className="object-cover rounded-lg"
+              unoptimized={true}
             />
             <button
               type="button"

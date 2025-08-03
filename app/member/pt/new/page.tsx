@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react"; // useEffect 추가
-import { useRouter } from "next/navigation";
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
@@ -11,7 +10,6 @@ import {
   IPtProgramsByCenter,
   IDaySchedule,
   type IPendingPtCheck,
-  IScheduleSlot,
   IPreschedulePtResult,
 } from "@/app/lib/services/pt-apply.service";
 import { ISchedulePattern } from "@/app/lib/services/schedule.service";
@@ -24,9 +22,7 @@ import ScheduleSelectionStep from "./components/ScheduleSelectionStep";
 import ConfirmationStep from "./components/ConfirmationStep";
 
 const PtApplicationPage = () => {
-  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 🚨 NEW: PENDING PT 체크 상태만 추가
   const [pendingPtCheck, setPendingPtCheck] = useState<IPendingPtCheck>({
@@ -49,9 +45,9 @@ const PtApplicationPage = () => {
     count: 2,
   });
   const [chosenSchedule, setChosenSchedule] = useState<IDaySchedule>({});
-  const [checkedSchedule, setCheckedSchedule] = useState<IScheduleSlot[]>([]); // 다른 일정과 겹치지 않음이 확인된 스케줄
   const [message, setMessage] = useState("");
-  const [prescheduleResult, setPrescheduleResult] = useState<IPreschedulePtResult | null>(null);
+  const [prescheduleResult, setPrescheduleResult] =
+    useState<IPreschedulePtResult | null>(null);
 
   const stepTitles = [
     "헬스장 선택",
@@ -72,7 +68,6 @@ const PtApplicationPage = () => {
         setSelectedTrainer(null);
         setPattern({ regular: true, count: 2 });
         setChosenSchedule({});
-        setCheckedSchedule([]);
         setMessage("");
         setPrescheduleResult(null);
         break;
@@ -81,14 +76,12 @@ const PtApplicationPage = () => {
         setSelectedTrainer(null);
         setPattern({ regular: true, count: 2 });
         setChosenSchedule({});
-        setCheckedSchedule([]);
         setMessage("");
         setPrescheduleResult(null);
         break;
       case 2: // 스케줄 설정으로 돌아감
         setPattern({ regular: true, count: 2 });
         setChosenSchedule({});
-        setCheckedSchedule([]);
         setMessage("");
         setPrescheduleResult(null);
         break;
@@ -185,7 +178,10 @@ const PtApplicationPage = () => {
           />
         ) : null;
       case 3:
-        return selectedCenter && selectedPt && selectedTrainer && prescheduleResult ? (
+        return selectedCenter &&
+          selectedPt &&
+          selectedTrainer &&
+          prescheduleResult ? (
           <ConfirmationStep
             selectedCenter={selectedCenter}
             selectedPt={selectedPt}
@@ -227,7 +223,6 @@ const PtApplicationPage = () => {
               <Button
                 variant="outline"
                 onClick={goToPreviousStep}
-                disabled={isSubmitting}
               >
                 이전 단계
               </Button>

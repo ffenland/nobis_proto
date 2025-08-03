@@ -704,3 +704,26 @@ export const formatMinutesToKorean = (minutes: number): string => {
 
   return label;
 };
+
+/**
+ * Date 객체를 한국어 날짜/시간 형식으로 포맷
+ * @param date 포맷할 날짜
+ * @returns 한국어 형식 날짜/시간 문자열
+ * @throws Error 유효하지 않은 Date 객체인 경우
+ * @example formatDateTimeKR(new Date('2025-01-15T14:30:00')) // "2025년 1월 15일 14:30"
+ */
+export const formatDateTimeKR = (date: Date): string => {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    throw new Error('Invalid date input');
+  }
+  
+  const dateStr = date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  
+  const timeStr = date.toTimeString().slice(0, 5);
+  
+  return `${dateStr} ${timeStr}`;
+};

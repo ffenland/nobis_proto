@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCenterInfo, createEquipment } from "./actions";
 import { categoryLabels } from "../constants";
-import { EquipmentCategory } from "@prisma/client";
 
 interface PageProps {
   params: Promise<{

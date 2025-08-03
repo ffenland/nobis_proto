@@ -10,9 +10,7 @@ import {
   Edit2,
   X,
   Plus,
-  Trash2,
   Camera,
-  Image as ImageIcon,
 } from "lucide-react";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import FullscreenImageViewer from "@/app/components/media/FullscreenImageViewer";

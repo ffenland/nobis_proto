@@ -1,5 +1,4 @@
 import { WeekDay } from "@prisma/client";
-import { notFound } from "next/navigation";
 
 export const styleClassName = {
   cardbox: "border-2 rounded-lg p-3",

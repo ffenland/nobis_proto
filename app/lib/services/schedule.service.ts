@@ -1,12 +1,11 @@
 // app/lib/services/schedule.service.ts
 import prisma from "@/app/lib/prisma";
-import { WeekDay, PtState } from "@prisma/client";
+import { PtState } from "@prisma/client";
 import { convertKSTtoUTC } from "@/app/lib/utils";
 import {
   addThirtyMinutes,
   getEndTime,
   timeRangesOverlap,
-  generateTimeSlots,
 } from "@/app/lib/utils/time.utils";
 
 // 스케줄 관련 타입들
@@ -275,8 +274,6 @@ const checkTrainerAvailability = async (
 };
 
 // 시간 범위 겹침 확인 및 시간 슬롯 생성은 time.utils.ts에서 import
-// generateTimeSlots를 re-export
-export { generateTimeSlots } from "@/app/lib/utils/time.utils";
 
 // 시간 길이 계산 (duration 시간만큼)
 export const calculateTimeLength = (

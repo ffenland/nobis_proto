@@ -112,6 +112,7 @@ const EditMembershipProduct = (props: { params: Params }) => {
           setServerError(result.error)
         }
       }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       // 에러 처리
 

@@ -1,8 +1,8 @@
 // app/api/trainer/fitness-centers/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { getFitnessCentersService } from "@/app/lib/services/pt-record.service";
+import { NextResponse } from "next/server";
+import { getFitnessCentersService } from "@/app/lib/services/trainer/pt-record.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const centers = await getFitnessCentersService();
     return NextResponse.json(centers);

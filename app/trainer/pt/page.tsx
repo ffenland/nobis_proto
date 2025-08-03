@@ -7,6 +7,7 @@ import {
 import { getPtList } from "./actions";
 import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardContent } from "@/app/components/ui/Card";
+import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -43,6 +44,15 @@ const TrainerPt = async () => {
         title="진행중인 PT 수업"
         subtitle="회원별 활성 PT 프로그램 관리"
       />
+
+      {/* 승인 대기 PT 보기 버튼 */}
+      <div className="mb-4">
+        <Link href="/trainer/pt/pending">
+          <Button variant="outline" className="w-full">
+            승인 대기 PT 보기
+          </Button>
+        </Link>
+      </div>
 
       {/* 빈 상태 */}
       {ptList.length === 0 && (

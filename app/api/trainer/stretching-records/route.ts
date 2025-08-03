@@ -1,55 +1,28 @@
 // app/api/trainer/stretching-records/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/app/lib/prisma";
+import { getSession } from "@/app/lib/session";
+import { createStretchingRecord, getStretchingRecords } from "@/app/lib/services/trainer/exercise-set-record.service";
 
 // 스트레칭 기록 생성
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { ptRecordItemId, stretchingExerciseId, description, equipmentIds } =
-      body;
-
-    if (!ptRecordItemId || !stretchingExerciseId) {
+    const session = await getSession();
+    if (!session || session.role !== "TRAINER") {
       return NextResponse.json(
-        { error: "ptRecordItemId와 stretchingExerciseId가 필요합니다." },
-        { status: 400 }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 
-    const stretchingRecord = await prisma.stretchingExerciseRecord.create({
-      data: {
-        ptRecordItemId,
-        stretchingExerciseId,
-        description,
-        equipments:
-          equipmentIds && equipmentIds.length > 0
-            ? {
-                connect: equipmentIds.map((equipmentId: string) => ({
-                  id: equipmentId,
-                })),
-              }
-            : undefined,
-      },
-      select: {
-        id: true,
-        description: true,
-        stretchingExercise: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-          },
-        },
-        equipments: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            primaryValue: true,
-            primaryUnit: true,
-          },
-        },
-      },
+    const body = await request.json();
+    const { ptRecordItemId, stretchingExerciseId, description, equipmentIds } = body;
+
+    // 서비스 함수 호출
+    const stretchingRecord = await createStretchingRecord({
+      ptRecordItemId,
+      stretchingExerciseId,
+      description,
+      equipmentIds,
     });
 
     return NextResponse.json(stretchingRecord);
@@ -65,6 +38,14 @@ export async function POST(request: NextRequest) {
 // 스트레칭 기록 조회
 export async function GET(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session || session.role !== "TRAINER") {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const ptRecordItemId = searchParams.get("ptRecordItemId");
 
@@ -75,31 +56,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const stretchingRecords = await prisma.stretchingExerciseRecord.findMany({
-      where: {
-        ptRecordItemId,
-      },
-      select: {
-        id: true,
-        description: true,
-        stretchingExercise: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-          },
-        },
-        equipments: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            primaryValue: true,
-            primaryUnit: true,
-          },
-        },
-      },
-    });
+    // 서비스 함수 호출
+    const stretchingRecords = await getStretchingRecords(ptRecordItemId);
 
     return NextResponse.json(stretchingRecords);
   } catch (error) {
