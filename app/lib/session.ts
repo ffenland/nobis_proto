@@ -9,6 +9,8 @@ export interface SessionContent {
   id?: string;
   role?: "MEMBER" | "TRAINER" | "MANAGER";
   roleId?: string;
+  roleManagementAuth?: boolean;
+  roleManagementAuthTime?: number;
 }
 
 // type guard

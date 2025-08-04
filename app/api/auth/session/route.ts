@@ -1,18 +1,24 @@
 // app/api/auth/session/route.ts
 import { NextResponse } from "next/server";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getCurrentIronSession } from "@/app/lib/session";
 
 export async function GET() {
   try {
-    const session = await getSessionOrRedirect();
+    const session = await getCurrentIronSession();
 
-    return NextResponse.json({
-      id: session.id,
-      role: session.role,
-      roleId: session.roleId,
-    });
+    if (session.id && session.role && session.roleId) {
+      return NextResponse.json({
+        id: session.id,
+        role: session.role,
+        roleId: session.roleId,
+        roleManagementAuth: session.roleManagementAuth,
+        roleManagementAuthTime: session.roleManagementAuthTime,
+      });
+    } else {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
   } catch (error) {
     console.error("세션 조회 실패:", error);
-    return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    return NextResponse.json({ error: "세션 조회 실패" }, { status: 500 });
   }
 }

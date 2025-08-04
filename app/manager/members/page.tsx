@@ -16,6 +16,7 @@ import {
   Calendar,
   Activity,
   Award,
+  UserCog,
 } from "lucide-react";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
@@ -143,6 +144,16 @@ export default function MembersPage() {
         title="회원 관리"
         subtitle="회원별 PT 현황과 이용 통계를 모니터링하세요"
       />
+
+      {/* 역할 관리 버튼 */}
+      <div className="flex justify-end mb-4">
+        <Link href="/manager/role-management">
+          <Button variant="outline" className="flex items-center space-x-2">
+            <UserCog className="w-4 h-4" />
+            <span>역할 관리</span>
+          </Button>
+        </Link>
+      </div>
 
       {/* 전체 통계 카드 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
