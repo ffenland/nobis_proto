@@ -8,6 +8,7 @@ const publicOnlyUrls: Routes = {
   "/login": true,
   "/test-sentry": true,
   "/sentry-example-page": true,
+  "/ffen": true,
 };
 // array보다 object가 요소를 검색하는데 더 빠르다.
 
@@ -54,8 +55,18 @@ const middleware = async (request: NextRequest) => {
     managerOnlyUrls[request.nextUrl.pathname] ||
       request.nextUrl.pathname.startsWith("/manager")
   );
-  // /login 페이지에서는 리다이렉트하지 않음
+  // /login 페이지 처리
   if (request.nextUrl.pathname === "/login") {
+    // 이미 로그인한 경우 해당 role 페이지로 리다이렉트
+    if (session.id && session.role) {
+      if (session.role === "MEMBER") {
+        return NextResponse.redirect(new URL("/member", request.url));
+      } else if (session.role === "TRAINER") {
+        return NextResponse.redirect(new URL("/trainer", request.url));
+      } else if (session.role === "MANAGER") {
+        return NextResponse.redirect(new URL("/manager", request.url));
+      }
+    }
     return NextResponse.next();
   }
 

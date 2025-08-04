@@ -17,7 +17,7 @@ import type {
   ITimeRange,
   ITrainerWorkingHour,
 } from "@/app/lib/services/trainer-schedule.service";
-import { WeekDay } from "@prisma/client";
+// import { WeekDay } from "@prisma/client";
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -25,26 +25,26 @@ dayjs.extend(weekday);
 dayjs.locale("ko");
 
 // WeekDay enum을 숫자로 변환
-function weekDayToNumber(weekDay: WeekDay): number {
-  switch (weekDay) {
-    case WeekDay.SUN:
-      return 0;
-    case WeekDay.MON:
-      return 1;
-    case WeekDay.TUE:
-      return 2;
-    case WeekDay.WED:
-      return 3;
-    case WeekDay.THU:
-      return 4;
-    case WeekDay.FRI:
-      return 5;
-    case WeekDay.SAT:
-      return 6;
-    default:
-      return -1;
-  }
-}
+// function weekDayToNumber(weekDay: WeekDay): number {
+//   switch (weekDay) {
+//     case WeekDay.SUN:
+//       return 0;
+//     case WeekDay.MON:
+//       return 1;
+//     case WeekDay.TUE:
+//       return 2;
+//     case WeekDay.WED:
+//       return 3;
+//     case WeekDay.THU:
+//       return 4;
+//     case WeekDay.FRI:
+//       return 5;
+//     case WeekDay.SAT:
+//       return 6;
+//     default:
+//       return -1;
+//   }
+// }
 
 // WeekDay 문자열을 숫자로 변환
 function weekDayStringToNumber(weekDay: string): number {

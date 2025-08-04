@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"));
+      return NextResponse.redirect(new URL("/login"));
     }
     if (session.role !== "TRAINER") {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });

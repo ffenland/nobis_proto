@@ -88,12 +88,33 @@ Sentry.init({
   // Session tracking is enabled by default in Sentry SDK
   
   // Only send errors from our domain
-  allowUrls: [
-    /^https?:\/\/localhost(:\d+)?/,  // localhost with any port
-    /^https?:\/\/127\.0\.0\.1(:\d+)?/,  // 127.0.0.1 with any port  
-    /^https?:\/\/nobis.*\.vercel\.app/,
-    // 프로덕션 도메인 추가 필요
-  ],
+  allowUrls: (() => {
+    const urls = [];
+    
+    // 현재 앱 URL 추가
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      try {
+        const appUrl = new URL(process.env.NEXT_PUBLIC_APP_URL);
+        const pattern = new RegExp(`^https?:\\/\\/${appUrl.hostname.replace(/\./g, '\\.')}(:\\d+)?`);
+        urls.push(pattern);
+      } catch (e) {
+        console.warn('Invalid NEXT_PUBLIC_APP_URL:', e);
+      }
+    }
+    
+    // 개발 환경에서는 localhost와 127.0.0.1 추가
+    if (process.env.NODE_ENV === 'development') {
+      urls.push(
+        /^https?:\/\/localhost(:\d+)?/,  // localhost with any port
+        /^https?:\/\/127\.0\.0\.1(:\d+)?/,  // 127.0.0.1 with any port
+      );
+    }
+    
+    // Vercel 미리보기 배포 URL 패턴 추가
+    urls.push(/^https?:\/\/nobis.*\.vercel\.app/);
+    
+    return urls;
+  })(),
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

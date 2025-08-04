@@ -1,11 +1,4 @@
 // app/lib/config/upload.ts
-export const R2_CONFIG = {
-  ACCOUNT_ID: process.env.R2_ACCOUNT_ID || "mock-account-id",
-  ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID || "mock-access-key",
-  SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY || "mock-secret-key",
-  BUCKET_NAME: process.env.R2_BUCKET_NAME || "gym-app-media",
-  PUBLIC_DOMAIN: process.env.R2_PUBLIC_DOMAIN || "localhost:3000",
-};
 
 export const STREAM_CONFIG = {
   ACCOUNT_ID: process.env.STREAM_ACCOUNT_ID || "mock-stream-account",
