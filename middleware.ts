@@ -6,6 +6,8 @@ interface Routes {
 }
 const publicOnlyUrls: Routes = {
   "/login": true,
+  "/test-sentry": true,
+  "/sentry-example-page": true,
 };
 // array보다 object가 요소를 검색하는데 더 빠르다.
 
@@ -64,6 +66,14 @@ const middleware = async (request: NextRequest) => {
     }
   } else {
     // login 한 상태
+
+    // Sentry 테스트 페이지는 모든 로그인 사용자가 접근 가능
+    if (
+      request.nextUrl.pathname === "/test-sentry" ||
+      request.nextUrl.pathname === "/sentry-example-page"
+    ) {
+      return NextResponse.next();
+    }
 
     if (
       session.role === "MEMBER" &&

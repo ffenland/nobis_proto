@@ -30,6 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **State Management**: SWR for data fetching and caching
 - **Forms**: React Hook Form with Zod validation
 - **File Storage**: Media service for file uploads (images/videos)
+- **Error Monitoring**: Sentry for error tracking and performance monitoring
 
 ### Application Structure
 
@@ -410,6 +411,51 @@ await prisma.ptSchedule.create({
 - 필요한 함수가 없다면 `time.utils.ts` 파일에 작성하고 import해서 사용한다
 - 모든 시간/날짜 관련 유틸리티는 중앙화하여 일관성을 유지한다
 
+### Next.js 15 Dynamic Route Parameters
+
+Next.js 15에서 동적 라우트 파라미터 처리 방식이 변경되었습니다. 파라미터는 이제 Promise로 제공됩니다.
+
+**올바른 사용법:**
+```typescript
+// API Route with dynamic params
+type Params = Promise<{ id: string }>
+
+export async function GET(
+  request: NextRequest,
+  segmentData: { params: Params }
+) {
+  const params = await segmentData.params
+  const { id } = params
+  
+  // 이제 id를 사용할 수 있음
+}
+```
+
+**잘못된 사용법 (이전 방식):**
+```typescript
+// ❌ Next.js 15에서는 작동하지 않음
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // params가 Promise이므로 직접 접근 불가
+}
+```
+
+**Page 컴포넌트에서도 동일:**
+```typescript
+type Params = Promise<{ id: string }>
+
+export default async function Page({
+  params,
+}: {
+  params: Params
+}) {
+  const { id } = await params
+  // ...
+}
+```
+
 ### Development Workflow
 
 #### Task-Driven Development Process
@@ -680,3 +726,321 @@ NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH=your_account_hash
 - Proper merge strategies for collaboration
 
 This architecture supports a complex fitness center management system with multi-role access, real-time communication, detailed workout tracking, and comprehensive business management features.
+
+## Sentry Error Monitoring
+
+### Overview
+
+Sentry is integrated for comprehensive error tracking, performance monitoring, and debugging. The integration follows the official Sentry Next.js SDK patterns with customizations for our application structure.
+
+### Configuration Files
+
+- **sentry.server.config.ts**: Server-side configuration
+- **sentry.edge.config.ts**: Edge runtime configuration  
+- **sentry.client.config.ts**: Client-side configuration
+- **instrumentation.ts**: Application instrumentation hooks
+
+### Best Practices and Usage Guidelines
+
+#### Exception Catching
+
+```typescript
+import * as Sentry from "@sentry/nextjs";
+
+// Catch and report errors with context
+try {
+  return getUser();
+} catch (error) {
+  Sentry.captureException(error);
+}
+
+// Using ErrorReporter utility (our wrapper)
+import { ErrorReporter } from "@/app/lib/utils/error-reporter";
+import { ErrorContexts } from "@/app/lib/utils/error-contexts";
+
+try {
+  // Your code
+} catch (error) {
+  await ErrorReporter.report(error, {
+    action: "user-action",
+    metadata: {
+      description: ErrorContexts.PT_SCHEDULE_CREATE, // Korean context
+      // additional metadata
+    }
+  });
+}
+```
+
+#### Performance Tracing
+
+```typescript
+import { trackUIAction, trackAPICall, trackDBQuery } from "@/app/lib/utils/error-reporter";
+import * as Sentry from "@sentry/nextjs";
+
+// UI click tracking with our helper
+function MyComponent() {
+  const fetchData = async () => {
+    return trackUIAction(
+      "MyComponent",
+      "button#fetch-data",
+      async () => {
+        const res = await fetch("/api/data");
+        return res.json();
+      },
+      { userId: "123" } // optional metadata
+    );
+  };
+}
+
+// API tracking in route handlers
+export async function GET(request: Request) {
+  return trackAPICall(
+    "/api/data",
+    "GET",
+    async () => {
+      const data = await getData();
+      return NextResponse.json(data);
+    },
+    { source: "api-route" }
+  );
+}
+
+// Database query tracking
+const getMemberProfile = async (userId: string) => {
+  return trackDBQuery(
+    "findUnique",
+    "member",
+    async () => {
+      return prisma.member.findUnique({
+        where: { userId },
+        select: { /* fields */ }
+      });
+    },
+    { userId }
+  );
+};
+
+// Direct Sentry.startSpan usage for custom operations
+function customOperation() {
+  return Sentry.startSpan(
+    {
+      name: "custom_task",
+      op: "task",
+      attributes: {
+        "task.type": "data-processing",
+        "task.size": "large",
+      },
+    },
+    async () => {
+      // Your custom logic here
+    }
+  );
+}
+```
+
+#### Logging with Sentry
+
+```typescript
+import { ErrorReporter } from "@/app/lib/utils/error-reporter";
+
+// Using ErrorReporter logging methods
+ErrorReporter.debug("Debug information", { userId: "123" });
+ErrorReporter.info("User logged in", { username: "user@example.com" });
+ErrorReporter.warning("API rate limit approaching", { remaining: 10 });
+ErrorReporter.error("Failed to process payment", { orderId: "abc123" });
+
+// Logging is automatically sent to Sentry and console (in dev)
+```
+
+### Sentry Integration Patterns
+
+#### 1. Error Context Management
+
+All errors should include Korean language descriptions for business context:
+
+```typescript
+// Use predefined contexts from error-contexts.ts
+import { ErrorContexts } from "@/app/lib/utils/error-contexts";
+
+ErrorReporter.report(error, {
+  action: "createPTSchedule",
+  metadata: {
+    description: ErrorContexts.PT_SCHEDULE_CREATE,
+    // "회원이 새로운 PT 신청 중 스케줄 등록에서 오류 발생"
+  }
+});
+```
+
+#### 2. User Session Integration
+
+User context is automatically set during login/logout:
+
+```typescript
+// Automatically handled in socialLogin.ts
+ErrorReporter.setUser({
+  id: user.id,
+  email: user.email,
+  username: user.username,
+  role: userRole,
+});
+```
+
+#### 3. Sensitive Data Filtering
+
+Sensitive data is automatically filtered:
+- Cookies are redacted
+- Authorization headers are removed
+- Form data with sensitive field names is masked
+
+#### 4. Environment-Based Configuration
+
+```typescript
+// Development: Full debugging, 100% trace sampling
+// Production: 10% trace sampling, no debug output
+tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+```
+
+### API Route Error Handling Pattern
+
+```typescript
+import { ErrorReporter } from "@/app/lib/utils/error-reporter";
+import { ErrorContexts } from "@/app/lib/utils/error-contexts";
+
+export async function GET(request: Request) {
+  let session;
+  try {
+    session = await getSession();
+    if (!session.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+    const data = await service.getData(session.id);
+    return NextResponse.json(data);
+  } catch (error) {
+    await ErrorReporter.report(error, {
+      action: "api-get-data",
+      userId: session?.id,
+      metadata: {
+        description: ErrorContexts.DATA_FETCH,
+        endpoint: request.url,
+      }
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" }, 
+      { status: 500 }
+    );
+  }
+}
+```
+
+### Client Component Error Handling
+
+```typescript
+import { ErrorReporter } from "@/app/lib/utils/error-reporter";
+import { ErrorContexts } from "@/app/lib/utils/error-contexts";
+
+function MyComponent() {
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const handleSubmit = async (data: FormData) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/submit", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+      
+      // Success handling
+    } catch (error) {
+      await ErrorReporter.report(error, {
+        action: "form-submit",
+        metadata: {
+          description: ErrorContexts.FORM_SUBMIT,
+          formType: "myForm",
+        }
+      });
+      // Show user-friendly error message
+    } finally {
+      setIsLoading(false);
+    }
+  };
+}
+```
+
+### Testing Sentry Integration
+
+1. **Test Page**: `/test-sentry` - Comprehensive test scenarios
+2. **Test Checklist**: `SENTRY_TEST_CHECKLIST.md` - Validation guide
+3. **Sentry Example**: `/sentry-example-page` - Official Sentry test page
+
+### Environment Variables for Sentry
+
+```env
+# Required
+NEXT_PUBLIC_SENTRY_DSN=your_dsn_here
+SENTRY_ORG=your_org
+SENTRY_PROJECT=your_project
+SENTRY_AUTH_TOKEN=your_auth_token
+
+# Optional
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=development|staging|production
+SENTRY_LOG_LEVEL=debug|info|warning|error
+```
+
+### Common Error Contexts
+
+The system includes 70+ predefined Korean error contexts covering:
+- Authentication & Login
+- PT Scheduling & Records
+- Member Management
+- Payment Processing
+- File Uploads
+- Chat Operations
+- Data Operations
+
+Refer to `app/lib/utils/error-contexts.ts` for the complete list.
+
+### Performance Monitoring Best Practices
+
+1. **Use Sentry.startSpan** for tracking operations:
+   - UI interactions (clicks, form submissions)
+   - API calls
+   - Database queries
+   - External service calls
+
+2. **Set meaningful operation names**:
+   - `ui.action.click` for user interactions
+   - `http.client` for API calls
+   - `db.query` for database operations
+
+3. **Include relevant attributes**:
+   - Component names
+   - Endpoint URLs
+   - User actions
+   - Business context
+
+### Migration Notes
+
+When updating error handling in existing code:
+1. Replace `console.error` with `ErrorReporter.report`
+2. Add appropriate Korean context from `ErrorContexts`
+3. Include relevant metadata (userId, action, etc.)
+4. For performance tracking:
+   - UI interactions: use `trackUIAction`
+   - API calls: use `trackAPICall`
+   - Database queries: use `trackDBQuery`
+   - Custom operations: use `Sentry.startSpan` directly
+5. Replace `console.log/warn/error` with `ErrorReporter.info/warning/error` for important logs
+6. Ensure sensitive data is not included in error reports
+
+### Key Differences from Direct Sentry Usage
+
+1. **Simplified API**: Helper functions abstract common patterns
+2. **Automatic Error Handling**: Errors in spans are automatically reported with context
+3. **Korean Context**: Built-in support for Korean error descriptions
+4. **Type Safety**: Strongly typed interfaces for all operations
+5. **Consistent Metadata**: Standardized metadata structure across all tracking

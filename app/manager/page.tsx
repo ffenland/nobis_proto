@@ -12,6 +12,9 @@ import {
 import { PageHeader, PageLayout } from "../components/ui/Dropdown";
 import UserDropdownMenu from "../components/base/UserDropdownMenu";
 
+// Force dynamic rendering since we use cookies for authentication
+export const dynamic = 'force-dynamic';
+
 const ManagerMainPage = async () => {
   try {
     // 병렬로 데이터 조회

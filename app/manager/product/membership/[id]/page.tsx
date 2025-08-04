@@ -6,15 +6,10 @@ import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { getMembershipProductDetailService } from "./actions";
 
-interface MembershipProductDetailPageProps {
-  params: {
-    id: string;
-  };
-}
+type Params = Promise<{ id: string }>;
 
-const MembershipProductDetailPage = async ({
-  params,
-}: MembershipProductDetailPageProps) => {
+const MembershipProductDetailPage = async (props: { params: Params }) => {
+  const params = await props.params;
   const product = await getMembershipProductDetailService(params.id);
 
   if (!product) {

@@ -240,7 +240,7 @@ export const deleteMachine = async (machineId: string) => {
     });
 
     // 3. 관련 미디어 삭제 (사진 등)
-    await tx.media.deleteMany({
+    await tx.image.deleteMany({
       where: { machineId },
     });
 

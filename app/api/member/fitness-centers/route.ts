@@ -6,7 +6,7 @@ import { getFitnessCentersService } from "@/app/lib/services/pt-apply.service";
 export async function GET() {
   try {
     const session = await getSession();
-    if (session.role !== "MEMBER") {
+    if (!session || session.role !== "MEMBER") {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 

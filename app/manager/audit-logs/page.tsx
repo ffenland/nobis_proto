@@ -9,7 +9,7 @@ import { Badge } from "@/app/components/ui/Loading";
 import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
 import { formatDateTimeKR } from "@/app/lib/utils/time.utils";
 import { ChevronDown, ChevronUp, Filter, AlertTriangle } from "lucide-react";
-import type { GetAuditLogsResult, AuditLog } from "@/app/lib/services/audit/pt-record-audit.service";
+import type { GetAuditLogsResult } from "@/app/lib/services/audit/pt-record-audit.service";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -92,7 +92,7 @@ export default function AuditLogsPage() {
             </Button>
           </div>
         </CardHeader>
-        
+
         {showFilters && (
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -103,11 +103,15 @@ export default function AuditLogsPage() {
                 <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   value={filters.action}
-                  onChange={(e) => setFilters({ ...filters, action: e.target.value })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, action: e.target.value })
+                  }
                 >
                   <option value="">전체</option>
                   {Object.entries(actionLabels).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -120,7 +124,9 @@ export default function AuditLogsPage() {
                   type="date"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   value={filters.startDate}
-                  onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, startDate: e.target.value })
+                  }
                 />
               </div>
 
@@ -132,7 +138,9 @@ export default function AuditLogsPage() {
                   type="date"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   value={filters.endDate}
-                  onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, endDate: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -143,9 +151,13 @@ export default function AuditLogsPage() {
                   type="checkbox"
                   className="rounded border-gray-300 text-blue-600 mr-2"
                   checked={filters.onlyOutOfTime}
-                  onChange={(e) => setFilters({ ...filters, onlyOutOfTime: e.target.checked })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, onlyOutOfTime: e.target.checked })
+                  }
                 />
-                <span className="text-sm text-gray-700">비정상 시간대 작업만 보기</span>
+                <span className="text-sm text-gray-700">
+                  비정상 시간대 작업만 보기
+                </span>
               </label>
 
               <div className="space-x-2">
@@ -198,7 +210,11 @@ export default function AuditLogsPage() {
                           {log.trainer.user.username}
                         </span>
                         <Badge variant={log.isOutOfTime ? "error" : "default"}>
-                          {actionLabels[log.action as keyof typeof actionLabels]}
+                          {
+                            actionLabels[
+                              log.action as keyof typeof actionLabels
+                            ]
+                          }
                         </Badge>
                         {log.isOutOfTime && (
                           <div className="flex items-center text-red-600 text-sm">
@@ -207,17 +223,20 @@ export default function AuditLogsPage() {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="text-sm text-gray-600 space-y-1">
                         <div>
-                          회원: {log.ptRecord.pt.member?.user.username || "알 수 없음"}
+                          회원:{" "}
+                          {log.ptRecord.pt.member?.user.username ||
+                            "알 수 없음"}
                         </div>
                         <div>
                           작업 시간: {formatDateTimeKR(new Date(log.createdAt))}
                         </div>
                         {log.scheduledTime && (
                           <div>
-                            예정 시간: {formatDateTimeKR(new Date(log.scheduledTime))}
+                            예정 시간:{" "}
+                            {formatDateTimeKR(new Date(log.scheduledTime))}
                           </div>
                         )}
                         {log.notes && (
@@ -229,9 +248,11 @@ export default function AuditLogsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setExpandedLogId(
-                        expandedLogId === log.id ? null : log.id
-                      )}
+                      onClick={() =>
+                        setExpandedLogId(
+                          expandedLogId === log.id ? null : log.id
+                        )
+                      }
                     >
                       {expandedLogId === log.id ? (
                         <ChevronUp className="w-4 h-4" />
@@ -244,7 +265,9 @@ export default function AuditLogsPage() {
                   {/* 상세 정보 */}
                   {expandedLogId === log.id && log.actionDetails && (
                     <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-gray-900 mb-2">상세 내역</h4>
+                      <h4 className="font-medium text-gray-900 mb-2">
+                        상세 내역
+                      </h4>
                       <pre className="text-xs text-gray-700 overflow-x-auto">
                         {JSON.stringify(log.actionDetails, null, 2)}
                       </pre>
@@ -273,11 +296,11 @@ export default function AuditLogsPage() {
           >
             이전
           </Button>
-          
+
           <span className="text-sm text-gray-600">
             {page + 1} / {totalPages} 페이지
           </span>
-          
+
           <Button
             variant="outline"
             size="sm"

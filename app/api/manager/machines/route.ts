@@ -18,10 +18,12 @@ const getMachines = async (centerId: string) =>
   });
 
 // GET /api/centers/[id] - 센터의 전체 머신/도구 목록 조회
+type Params = Promise<{ id: string }>;
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
   try {
     const { id: centerId } = params;
 

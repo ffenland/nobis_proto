@@ -33,6 +33,7 @@ export class UserService {
         kakaoId: true,
         usernameChangeCount: true,
         lastUsernameChangeAt: true,
+        avatarImageId: true,
         avatarImage: {
           select: {
             cloudflareId: true,
@@ -112,6 +113,7 @@ export class UserService {
       email: user.email,
       role: user.role,
       createdAt: user.createdAt,
+      avatarImageId: user.avatarImageId,
       avatarImage: user.avatarImage,
       snsProvider,
       usernameChangeCount: user.usernameChangeCount || 0,
@@ -298,7 +300,7 @@ export class UserService {
         id: imageId,
         uploadedById: userId,
         type: "PROFILE",
-        deletedAt: null,
+        status: "ACTIVE",
       },
     });
 
@@ -314,14 +316,12 @@ export class UserService {
 }
 
 // ========== 함수 반환 타입 추출 ==========
-const userService = UserService.getInstance();
-
 export type IMemberProfileData = Awaited<
-  ReturnType<typeof userService.getMemberProfile>
+  ReturnType<typeof UserService.prototype.getMemberProfile>
 >;
 export type IUserProfileData = Awaited<
-  ReturnType<typeof userService.updateProfile>
+  ReturnType<typeof UserService.prototype.updateProfile>
 >;
 export type IUsernameChangeResult = Awaited<
-  ReturnType<typeof userService.changeUsername>
+  ReturnType<typeof UserService.prototype.changeUsername>
 >;

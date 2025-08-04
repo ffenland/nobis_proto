@@ -7,10 +7,12 @@ import {
   type IPtRecordFilters,
 } from "@/app/lib/services/trainer-management.service";
 
+type Params = Promise<{ trainerId: string; ptId: string }>;
 export async function GET(
   request: NextRequest,
-  { params }: { params: { trainerId: string; ptId: string } }
+  segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
   try {
     // 세션 및 권한 확인
     const session = await getSession();

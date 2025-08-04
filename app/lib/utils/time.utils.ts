@@ -348,7 +348,7 @@ export const isValidTimeSlot = (time: number): boolean => {
 export const calculateEndTime = (
   startTime: number,
   durationMinutes: number
-): TimeInt => {
+): number => {
   const validation = isValidTime(startTime);
   if (!validation.isValid) {
     throw new Error(`Invalid start time: ${validation.error?.message}`);
@@ -365,7 +365,7 @@ export const calculateEndTime = (
     currentTime = addThirtyMinutes(currentTime);
   }
 
-  return currentTime as TimeInt;
+  return currentTime;
 };
 
 /**
@@ -379,17 +379,17 @@ export const calculateEndTime = (
 export const generateTimeSlots = (
   openTime: number = 600,
   closeTime: number = 2200
-): TimeInt[] => {
+): number[] => {
   const rangeValidation = isValidTimeRange(openTime, closeTime);
   if (!rangeValidation.isValid) {
     throw new Error(`Invalid time range: ${rangeValidation.error?.message}`);
   }
 
-  const slots: TimeInt[] = [];
+  const slots: number[] = [];
   let currentTime = openTime;
 
   while (currentTime < closeTime) {
-    slots.push(currentTime as TimeInt);
+    slots.push(currentTime);
     currentTime = addThirtyMinutes(currentTime);
     
     // 무한 루프 방지

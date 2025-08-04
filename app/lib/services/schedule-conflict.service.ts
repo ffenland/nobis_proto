@@ -287,15 +287,9 @@ async function getLastScheduledSession(ptId: string): Promise<Date> {
   return lastSession?.ptSchedule.date || new Date();
 }
 
-// 타입 추론을 위한 임시 서비스 인스턴스
-const scheduleConflictService = {
-  checkRegularPtExtensionConflict,
-  checkPtApplicationConflict,
-};
-
 // 타입 추출
 export type IScheduleConflictResult = Awaited<
-  ReturnType<typeof scheduleConflictService.checkRegularPtExtensionConflict>
+  ReturnType<typeof checkRegularPtExtensionConflict>
 >;
 export type IConflictingMember =
   IScheduleConflictResult["conflictingMembers"][number];

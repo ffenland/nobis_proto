@@ -1,9 +1,15 @@
 // app/api/media/videos/upload/route.ts
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/app/lib/session';
-import { createVideoUploadUrl, createVideoTusUploadUrl } from '@/app/lib/services/media/stream.service';
-import { type EntityType, normalizeMetadata } from '@/app/lib/utils/media.utils';
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/app/lib/session";
+import {
+  createVideoUploadUrl,
+  createVideoTusUploadUrl,
+} from "@/app/lib/services/media/stream.service";
+import {
+  type EntityType,
+  normalizeMetadata,
+} from "@/app/lib/utils/media.utils";
 
 // 요청 타입
 interface VideoUploadRequest {
@@ -19,49 +25,49 @@ export async function POST(request: NextRequest) {
   try {
     // 세션 확인
     const session = await getSession();
-    if (!session.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!session || !session.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // 요청 파싱
     const body: VideoUploadRequest = await request.json();
-    const { 
-      entityType, 
-      entityId, 
-      metadata, 
+    const {
+      entityType,
+      entityId,
+      metadata,
       maxDurationSeconds,
       requireSignedURLs,
-      useTus = false
+      useTus = false,
     } = body;
 
     // entityType 검증
-    const validEntityTypes: EntityType[] = ['profile', 'pt-record', 'exercise', 'chat', 'review'];
+    const validEntityTypes: EntityType[] = [
+      "profile",
+      "pt-record",
+      "exercise",
+      "chat",
+      "review",
+    ];
     if (!validEntityTypes.includes(entityType)) {
       return NextResponse.json(
-        { error: 'Invalid entity type' },
+        { error: "Invalid entity type" },
         { status: 400 }
       );
     }
 
     // 권한 검증
-    if (entityType === 'pt-record' && session.role !== 'TRAINER') {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
+    if (entityType === "pt-record" && session.role !== "TRAINER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // 영상 길이 제한 (역할별)
     let maxDuration = maxDurationSeconds;
     if (!maxDuration) {
       switch (session.role) {
-        case 'TRAINER':
+        case "TRAINER":
           maxDuration = 600; // 10분
           break;
-        case 'MEMBER':
+        case "MEMBER":
           maxDuration = 300; // 5분
           break;
         default:
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
       userId: session.id,
       userRole: session.role,
       entityType,
-      entityId: entityId || '',
+      entityId: entityId || "",
       uploadedAt: new Date().toISOString(),
     };
 
@@ -94,7 +100,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         uploadURL: tusResponse.uploadURL,
-        protocol: 'tus',
+        protocol: "tus",
         maxDurationSeconds: maxDuration,
         expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
       });
@@ -112,15 +118,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         uid: uploadResponse.uid,
         uploadURL: uploadResponse.uploadURL,
-        protocol: 'direct',
+        protocol: "direct",
         maxDurationSeconds: maxDuration,
         expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       });
     }
   } catch (error) {
-    console.error('Video upload URL creation failed:', error);
+    console.error("Video upload URL creation failed:", error);
     return NextResponse.json(
-      { error: 'Failed to create upload URL' },
+      { error: "Failed to create upload URL" },
       { status: 500 }
     );
   }

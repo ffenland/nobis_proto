@@ -7,6 +7,7 @@ const CLOUDFLARE_STREAM_API_BASE = `https://api.cloudflare.com/client/v4/account
 
 // 타입 정의
 export interface CreateVideoUploadUrlParams {
+  customId?: string;
   creator?: string;
   metadata?: Record<string, string>;
   maxDurationSeconds?: number;

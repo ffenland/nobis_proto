@@ -1,10 +1,10 @@
 import prisma from '@/app/lib/prisma';
-import { ItemType } from '@prisma/client';
+import { RecordType } from '@prisma/client';
 
 // PT Record Item 생성
 export async function createPtRecordItem(data: {
   ptRecordId: string;
-  type: ItemType;
+  type: RecordType;
   title: string;
   description?: string;
   entry?: number;
@@ -297,16 +297,39 @@ export async function updatePtRecordItemMachine(data: {
         },
       });
 
-      // 4. MachineSettingValue 생성
+      // 4. MachineSettingValue 찾기 또는 생성 후 연결
+      const settingValueIds = [];
       for (const setting of setData.settings) {
-        await tx.machineSettingValue.create({
-          data: {
-            machineSetRecordId: machineSetRecord.id,
+        // 먼저 존재하는지 확인
+        let settingValue = await tx.machineSettingValue.findFirst({
+          where: {
             machineSettingId: setting.machineSettingId,
-            value: setting.value,
-          },
+            value: setting.value
+          }
         });
+        
+        // 없으면 생성
+        if (!settingValue) {
+          settingValue = await tx.machineSettingValue.create({
+            data: {
+              machineSettingId: setting.machineSettingId,
+              value: setting.value
+            }
+          });
+        }
+        
+        settingValueIds.push(settingValue.id);
       }
+
+      // MachineSetRecord에 설정값들 연결
+      await tx.machineSetRecord.update({
+        where: { id: machineSetRecord.id },
+        data: {
+          settingValues: {
+            connect: settingValueIds.map(id => ({ id }))
+          }
+        }
+      });
     }
 
     return { success: true };
@@ -379,9 +402,117 @@ export async function checkPtRecordPermission(
   return ptRecord;
 }
 
+// PT Record Item 미디어 삭제
+export async function deletePtRecordItemMedia(params: {
+  ptRecordId: string;
+  itemId: string;
+  mediaId: string;
+  mediaType: 'image' | 'video';
+  trainerId: string;
+}) {
+  const { ptRecordId, itemId, mediaId, mediaType, trainerId } = params;
+
+  // 1. 권한 확인: PT Record Item이 트레이너의 것인지 확인
+  const ptRecordItem = await prisma.ptRecordItem.findFirst({
+    where: {
+      id: itemId,
+      ptRecord: {
+        id: ptRecordId,
+        pt: {
+          trainerId: trainerId,
+        },
+      },
+    },
+  });
+
+  if (!ptRecordItem) {
+    throw new Error('PT record item not found or access denied');
+  }
+
+  // 2. 미디어 타입에 따라 처리
+  if (mediaType === 'image') {
+    // 이미지 정보 조회
+    const image = await prisma.image.findUnique({
+      where: {
+        id: mediaId,
+        ptRecordItemId: itemId,
+      },
+      select: {
+        id: true,
+        cloudflareId: true,
+      },
+    });
+
+    if (!image) {
+      throw new Error('Image not found');
+    }
+
+    // Cloudflare에서 먼저 삭제
+    const { deleteImage: deleteCloudflareImage } = await import('@/app/lib/services/media/image.service');
+    try {
+      await deleteCloudflareImage(image.cloudflareId);
+    } catch (error) {
+      // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
+      if (!(error instanceof Error && error.message?.includes('404'))) {
+        console.error('Failed to delete from Cloudflare:', error);
+        throw new Error('Failed to delete image from Cloudflare');
+      }
+      console.log('Image already deleted from Cloudflare or not found');
+    }
+
+    // DB에서 삭제
+    await prisma.image.delete({
+      where: {
+        id: mediaId,
+      },
+    });
+
+    return { success: true, type: 'image' };
+  } else {
+    // 비디오 정보 조회
+    const video = await prisma.video.findUnique({
+      where: {
+        id: mediaId,
+        ptRecordItemId: itemId,
+      },
+      select: {
+        id: true,
+        streamId: true,
+      },
+    });
+
+    if (!video) {
+      throw new Error('Video not found');
+    }
+
+    // Cloudflare에서 먼저 삭제
+    const { deleteVideo: deleteCloudflareVideo } = await import('@/app/lib/services/media/stream.service');
+    try {
+      await deleteCloudflareVideo(video.streamId);
+    } catch (error) {
+      // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
+      if (!(error instanceof Error && error.message?.includes('404'))) {
+        console.error('Failed to delete from Cloudflare:', error);
+        throw new Error('Failed to delete video from Cloudflare');
+      }
+      console.log('Video already deleted from Cloudflare or not found');
+    }
+
+    // DB에서 삭제
+    await prisma.video.delete({
+      where: {
+        id: mediaId,
+      },
+    });
+
+    return { success: true, type: 'video' };
+  }
+}
+
 // 타입 추론들
 export type UpdatePtRecordItemFreeResult = Awaited<ReturnType<typeof updatePtRecordItemFree>>;
 export type UpdatePtRecordItemMachineResult = Awaited<ReturnType<typeof updatePtRecordItemMachine>>;
 export type UpdatePtRecordItemStretchingResult = Awaited<ReturnType<typeof updatePtRecordItemStretching>>;
 export type CheckPtRecordItemPermissionResult = Awaited<ReturnType<typeof checkPtRecordItemPermission>>;
 export type CheckPtRecordPermissionResult = Awaited<ReturnType<typeof checkPtRecordPermission>>;
+export type DeletePtRecordItemMediaResult = Awaited<ReturnType<typeof deletePtRecordItemMedia>>;

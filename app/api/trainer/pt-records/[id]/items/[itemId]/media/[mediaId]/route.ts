@@ -1,9 +1,7 @@
 // DELETE endpoint for removing media from PT record items
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import prisma from "@/app/lib/prisma";
-import { deleteImage as deleteCloudflareImage } from "@/app/lib/services/media/image.service";
-import { deleteVideo as deleteCloudflareVideo } from "@/app/lib/services/media/stream.service";
+import { deletePtRecordItemMedia } from "@/app/lib/services/trainer/pt-record-item.service";
 
 interface Params {
   params: Promise<{
@@ -20,7 +18,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (session.role !== "TRAINER") {
+    if (session.role !== "TRAINER" || !session.roleId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -35,106 +33,40 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       );
     }
 
-    // Verify ownership through PT record
-    const ptRecordItem = await prisma.ptRecordItem.findFirst({
-      where: {
-        id: itemId,
-        ptRecord: {
-          id: ptRecordId,
-          pt: {
-            trainerId: session.roleId,
-          },
-        },
-      },
+    // 서비스 함수 호출
+    const result = await deletePtRecordItemMedia({
+      ptRecordId,
+      itemId,
+      mediaId,
+      mediaType: mediaType as 'image' | 'video',
+      trainerId: session.roleId,
     });
 
-    if (!ptRecordItem) {
-      return NextResponse.json(
-        { error: "PT record item not found or access denied" },
-        { status: 404 }
-      );
-    }
-
-    // Get media info with cloudflareId
-    if (mediaType === "image") {
-      const image = await prisma.image.findUnique({
-        where: {
-          id: mediaId,
-          ptRecordItemId: itemId,
-        },
-        select: {
-          id: true,
-          cloudflareId: true,
-        },
-      });
-
-      if (!image) {
-        return NextResponse.json(
-          { error: "Image not found" },
-          { status: 404 }
-        );
-      }
-
-      // Delete from Cloudflare first
-      try {
-        await deleteCloudflareImage(image.cloudflareId);
-      } catch (error) {
-        // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-        if (!(error instanceof Error && error.message?.includes('404'))) {
-          console.error('Failed to delete from Cloudflare:', error);
-          throw new Error('Failed to delete image from Cloudflare');
-        }
-        console.log('Image already deleted from Cloudflare or not found');
-      }
-
-      // Then delete from DB
-      await prisma.image.delete({
-        where: {
-          id: mediaId,
-        },
-      });
-    } else {
-      const video = await prisma.video.findUnique({
-        where: {
-          id: mediaId,
-          ptRecordItemId: itemId,
-        },
-        select: {
-          id: true,
-          cloudflareId: true,
-        },
-      });
-
-      if (!video) {
-        return NextResponse.json(
-          { error: "Video not found" },
-          { status: 404 }
-        );
-      }
-
-      // Delete from Cloudflare first
-      try {
-        await deleteCloudflareVideo(video.cloudflareId);
-      } catch (error) {
-        // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-        if (!(error instanceof Error && error.message?.includes('404'))) {
-          console.error('Failed to delete from Cloudflare:', error);
-          throw new Error('Failed to delete video from Cloudflare');
-        }
-        console.log('Video already deleted from Cloudflare or not found');
-      }
-
-      // Then delete from DB
-      await prisma.video.delete({
-        where: {
-          id: mediaId,
-        },
-      });
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error deleting media:", error);
+    
+    if (error instanceof Error) {
+      if (error.message === "PT record item not found or access denied") {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 404 }
+        );
+      }
+      if (error.message === "Image not found" || error.message === "Video not found") {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 404 }
+        );
+      }
+      if (error.message.includes("Failed to delete")) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500 }
+        );
+      }
+    }
+    
     return NextResponse.json(
       { error: "Failed to delete media" },
       { status: 500 }

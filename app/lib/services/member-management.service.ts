@@ -547,18 +547,16 @@ export class MemberManagementService {
 }
 
 // ===== 타입 추론 =====
-const memberManagementService = MemberManagementService.getInstance();
-
 export type IMembersWithStats = Awaited<
-  ReturnType<typeof memberManagementService.getMembersWithStats>
+  ReturnType<InstanceType<typeof MemberManagementService>['getMembersWithStats']>
 >;
 
 export type IMemberDetail = Awaited<
-  ReturnType<typeof memberManagementService.getMemberDetail>
+  ReturnType<InstanceType<typeof MemberManagementService>['getMemberDetail']>
 >;
 
 export type IMemberPtRecords = Awaited<
-  ReturnType<typeof memberManagementService.getMemberPtRecords>
+  ReturnType<InstanceType<typeof MemberManagementService>['getMemberPtRecords']>
 >;
 
 // Fitness Center 목록을 위한 타입 (기존 trainer-management.service에서 import)

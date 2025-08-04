@@ -3,7 +3,8 @@ import { getSession } from "@/app/lib/session";
 import { generateMediaId } from "@/app/lib/utils/media.utils";
 import { createImageUploadUrl } from "@/app/lib/services/media/image.service";
 import { createVideoUploadUrl } from "@/app/lib/services/media/stream.service";
-import { checkPtRecordItemMediaOwnership } from "@/app/lib/services/media/image-db.service";
+import { checkPtRecordItemMediaOwnership, savePtRecordItemImage } from "@/app/lib/services/media/image-db.service";
+import { savePtRecordItemVideo } from "@/app/lib/services/media/video-db.service";
 
 // 미디어 업로드 URL 생성
 export async function POST(
@@ -126,75 +127,45 @@ export async function PUT(
       );
     }
 
-    const { itemId: ptRecordItemId } = await params;
+    const { id: ptRecordId, itemId: ptRecordItemId } = await params;
     const body = await request.json();
     const { mediaType, cloudflareId, streamId, originalName, mimeType, size, duration } = body;
 
-    // PT Record Item 확인
-    const ptRecordItem = await prisma.ptRecordItem.findUnique({
-      where: { id: ptRecordItemId },
-      select: {
-        id: true,
-        ptRecord: {
-          select: {
-            pt: {
-              select: {
-                trainerId: true,
-              },
-            },
-          },
-        },
-      },
+    // PT Record Item 권한 확인
+    const ownership = await checkPtRecordItemMediaOwnership({
+      ptRecordId,
+      ptRecordItemId,
+      trainerId: session.roleId!,
     });
 
-    if (!ptRecordItem) {
+    if (!ownership) {
       return NextResponse.json(
-        { error: "PT Record Item not found" },
+        { error: "PT Record Item을 찾을 수 없거나 권한이 없습니다." },
         { status: 404 }
-      );
-    }
-
-    // 권한 확인
-    const trainer = await prisma.trainer.findUnique({
-      where: { userId: session.id },
-      select: { id: true },
-    });
-
-    if (!trainer || trainer.id !== ptRecordItem.ptRecord.pt.trainerId) {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
       );
     }
 
     // 미디어 DB 저장
     if (mediaType === "image") {
-      const image = await prisma.image.create({
-        data: {
-          cloudflareId,
-          originalName,
-          mimeType,
-          size,
-          type: "PT_RECORD",
-          uploadedById: session.id,
-          ptRecordItemId,
-        },
+      const image = await savePtRecordItemImage({
+        cloudflareId,
+        originalName,
+        mimeType,
+        size,
+        uploadedById: session.id,
+        ptRecordItemId,
       });
 
       return NextResponse.json({ id: image.id, type: "image" });
     } else if (mediaType === "video") {
-      const video = await prisma.video.create({
-        data: {
-          streamId,
-          originalName,
-          mimeType,
-          size,
-          duration: duration || 0,
-          type: "PT_RECORD",
-          status: "READY", // 즉시 사용 가능하도록 READY 상태로 설정
-          uploadedById: session.id,
-          ptRecordItemId,
-        },
+      const video = await savePtRecordItemVideo({
+        streamId,
+        originalName,
+        mimeType,
+        size,
+        duration,
+        uploadedById: session.id,
+        ptRecordItemId,
       });
 
       return NextResponse.json({ id: video.id, type: "video" });

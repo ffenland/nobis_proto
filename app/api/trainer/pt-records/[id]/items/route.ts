@@ -7,14 +7,17 @@ import {
   createPtRecordItem,
   checkPtRecordPermission,
 } from "@/app/lib/services/trainer/pt-record-item.service";
+import { ErrorReporter } from "@/app/lib/utils/error-reporter";
+import { ErrorContexts } from "@/app/lib/utils/error-contexts";
 
 // PT Record Items 조회
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let session;
   try {
-    const session = await getSession();
+    session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -27,7 +30,16 @@ export async function GET(
     const ptRecordItems = await getPtRecordItemsService(id);
     return NextResponse.json(ptRecordItems);
   } catch (error) {
-    console.error("PT Record Items 조회 실패:", error);
+    await ErrorReporter.report(error, {
+      action: "GET /api/trainer/pt-records/[id]/items",
+      userId: session?.id,
+      metadata: {
+        description: ErrorContexts.PT_RECORD_LIST_FETCH,
+        ptRecordId: (await params).id,
+        trainerId: session?.roleId,
+        role: session?.role,
+      }
+    });
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

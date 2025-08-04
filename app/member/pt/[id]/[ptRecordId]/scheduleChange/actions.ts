@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { PtState, ScheduleChangeState } from "@prisma/client";
 import { setDateForWrite } from "@/app/lib/prisma.util";
 import { revalidatePath } from "next/cache";
+import { ErrorReporter } from "@/app/lib/utils/error-reporter";
+import { ErrorContexts } from "@/app/lib/utils/error-contexts";
 
 // 현재 사용자 정보 조회
 export const getCurrentUserAction = async () => {
@@ -237,7 +239,18 @@ export const createScheduleChangeRequestAction = async (
 
     return { success: true };
   } catch (error) {
-    console.error("일정 변경 요청 생성 실패:", error);
+    await ErrorReporter.report(error, {
+      action: "createScheduleChangeRequest",
+      userId: session.id,
+      metadata: {
+        description: ErrorContexts.PT_SCHEDULE_CHANGE_REQUEST,
+        ptRecordId,
+        requestedDate,
+        requestedStartTime,
+        requestedEndTime,
+        memberId: session.roleId,
+      }
+    });
     return {
       success: false,
       error:

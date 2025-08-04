@@ -4,7 +4,6 @@ import {
   calculateAttendanceStatus,
   type IPtRecordForAttendance,
 } from "@/app/lib/utils/pt.utils";
-import { WeekDay } from "@prisma/client";
 import { convertKSTtoUTC } from "../utils";
 
 // 스케줄 아이템 타입
@@ -150,23 +149,13 @@ export const getTrainerScheduleViewService = async (
   const trainerOffs = await prisma.trainerOff.findMany({
     where: {
       trainerId,
-      OR: [
-        // 특정 날짜 오프
-        {
-          date: {
-            gte: convertKSTtoUTC(rangeStart),
-            lt: convertKSTtoUTC(rangeEndExclusive),
-          },
-        },
-        // 반복 오프 (weekDay가 설정된 것들)
-        {
-          weekDay: { not: null },
-        },
-      ],
+      date: {
+        gte: convertKSTtoUTC(rangeStart),
+        lt: convertKSTtoUTC(rangeEndExclusive),
+      },
     },
     select: {
       date: true,
-      weekDay: true,
       startTime: true,
       endTime: true,
     },
@@ -222,8 +211,11 @@ export const getTrainerScheduleViewService = async (
 
     // 8-1. 센터 정규 휴무 처리
     if (centerInfo) {
+      // JavaScript의 숫자 요일을 WeekDay enum 문자열로 변환
+      const weekDayString = numberToWeekDay(dayOfWeek);
+      
       const centerOpeningHour = centerInfo.openingHours.find(
-        (oh) => weekDayToNumber(oh.dayOfWeek) === dayOfWeek
+        (oh) => oh.dayOfWeek === weekDayString
       );
 
       if (centerOpeningHour?.isClosed) {
@@ -237,31 +229,17 @@ export const getTrainerScheduleViewService = async (
         });
       }
     }
-
-    // 8-2. 트레이너 반복 개인 오프 처리
-    trainerOffs.forEach((off) => {
-      if (off.weekDay && dayOfWeek === weekDayToNumber(off.weekDay)) {
-        allOffs.push({
-          type: "TRAINER_OFF",
-          date: currentDate,
-          startTime: off.startTime,
-          endTime: off.endTime,
-        });
-      }
-    });
   }
 
   // 9. 트레이너 특정 날짜 오프 추가
-  trainerOffs
-    .filter((off) => off.date)
-    .forEach((off) => {
-      allOffs.push({
-        type: "TRAINER_OFF",
-        date: off.date!,
-        startTime: off.startTime,
-        endTime: off.endTime,
-      });
+  trainerOffs.forEach((off) => {
+    allOffs.push({
+      type: "TRAINER_OFF",
+      date: off.date,
+      startTime: off.startTime,
+      endTime: off.endTime,
     });
+  });
 
   // 10. 센터 특별 휴무 추가
   centerSpecialOffs.forEach((off) => {
@@ -281,26 +259,10 @@ export const getTrainerScheduleViewService = async (
   };
 };
 
-// WeekDay enum을 숫자로 변환하는 헬퍼 함수
-function weekDayToNumber(weekDay: WeekDay): number {
-  switch (weekDay) {
-    case WeekDay.SUN:
-      return 0;
-    case WeekDay.MON:
-      return 1;
-    case WeekDay.TUE:
-      return 2;
-    case WeekDay.WED:
-      return 3;
-    case WeekDay.THU:
-      return 4;
-    case WeekDay.FRI:
-      return 5;
-    case WeekDay.SAT:
-      return 6;
-    default:
-      return -1;
-  }
+// 헬퍼 함수: JavaScript의 숫자 요일(0-6)을 WeekDay enum 문자열로 변환
+function numberToWeekDay(dayNumber: number): string {
+  const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  return weekDays[dayNumber] || 'SUN';
 }
 
 // 타입 추론

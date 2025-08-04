@@ -27,6 +27,7 @@ import type {
   IMemberDetail,
   IMemberPtRecords,
 } from "@/app/lib/services/member-management.service";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 type Params = Promise<{ id: string }>;
 
@@ -150,9 +151,12 @@ export default function MemberDetailPage(props: { params: Params }) {
               {/* 프로필 이미지 */}
               <div className="flex-shrink-0 mb-4 md:mb-0">
                 <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
-                  {member.user.avatarMedia?.thumbnailUrl ? (
+                  {member.user.avatarImage?.cloudflareId ? (
                     <Image
-                      src={member.user.avatarMedia.thumbnailUrl}
+                      src={getOptimizedImageUrl(
+                        member.user.avatarImage.cloudflareId,
+                        "avatar"
+                      )}
                       alt={member.user.username}
                       fill
                       className="object-cover"

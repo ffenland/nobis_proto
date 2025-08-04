@@ -1,9 +1,13 @@
 // app/api/media/images/upload/route.ts
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/app/lib/session';
-import { createImageUploadUrl } from '@/app/lib/services/media/image.service';
-import { generateMediaId, type EntityType, normalizeMetadata } from '@/app/lib/utils/media.utils';
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/app/lib/session";
+import { createImageUploadUrl } from "@/app/lib/services/media/image.service";
+import {
+  generateMediaId,
+  type EntityType,
+  normalizeMetadata,
+} from "@/app/lib/utils/media.utils";
 
 // 요청 타입
 interface ImageUploadRequest {
@@ -17,11 +21,8 @@ export async function POST(request: NextRequest) {
   try {
     // 세션 확인
     const session = await getSession();
-    if (!session.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!session || !session.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // 요청 파싱
@@ -29,28 +30,29 @@ export async function POST(request: NextRequest) {
     const { entityType, entityId, metadata, requireSignedURLs } = body;
 
     // entityType 검증
-    const validEntityTypes: EntityType[] = ['profile', 'pt-record', 'exercise', 'chat', 'review', 'machine'];
+    const validEntityTypes: EntityType[] = [
+      "profile",
+      "pt-record",
+      "exercise",
+      "chat",
+      "review",
+      "machine",
+    ];
     if (!validEntityTypes.includes(entityType)) {
       return NextResponse.json(
-        { error: 'Invalid entity type' },
+        { error: "Invalid entity type" },
         { status: 400 }
       );
     }
 
     // 권한 검증 (예: PT 기록은 트레이너만 가능)
-    if (entityType === 'pt-record' && session.role !== 'TRAINER') {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
+    if (entityType === "pt-record" && session.role !== "TRAINER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // 머신 이미지는 매니저만 가능
-    if (entityType === 'machine' && session.role !== 'MANAGER') {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
+    if (entityType === "machine" && session.role !== "MANAGER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // 커스텀 ID 생성
@@ -58,7 +60,7 @@ export async function POST(request: NextRequest) {
       userId: session.id,
       entityType,
       entityId,
-      mediaType: 'image',
+      mediaType: "image",
       timestamp: true, // 중복 방지를 위해 타임스탬프 추가
     });
 
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
       userId: session.id,
       userRole: session.role,
       entityType,
-      entityId: entityId || '',
+      entityId: entityId || "",
       uploadedAt: new Date().toISOString(),
     };
 
@@ -87,9 +89,9 @@ export async function POST(request: NextRequest) {
       expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     });
   } catch (error) {
-    console.error('Image upload URL creation failed:', error);
+    console.error("Image upload URL creation failed:", error);
     return NextResponse.json(
-      { error: 'Failed to create upload URL' },
+      { error: "Failed to create upload URL" },
       { status: 500 }
     );
   }

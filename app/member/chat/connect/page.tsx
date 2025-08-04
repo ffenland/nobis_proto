@@ -1,15 +1,21 @@
 // app/member/chat/connect/page.tsx
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { use, useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { ErrorMessage } from "@/app/components/ui/Loading";
 
-export default function ChatConnectPage() {
+type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+export default function ChatConnectPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const params = use(searchParams);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionResult, setConnectionResult] = useState<{
@@ -19,18 +25,18 @@ export default function ChatConnectPage() {
   } | null>(null);
   const hasConnectedRef = useRef(false);
 
-  const opponentId = searchParams.get("opp");
+  const opponentId = params.opp as string | undefined;
 
   useEffect(() => {
     let mounted = true;
-    
+
     // 개발 모드 확인 - StrictMode 이슈 회피를 위한 지연
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isDevelopment = process.env.NODE_ENV === "development";
     const delay = isDevelopment ? 50 : 0; // 개발 모드에서만 50ms 지연
 
     const timer = setTimeout(() => {
       if (!mounted) return;
-      
+
       const connectToChat = async () => {
         if (!opponentId) {
           setError("트레이너 ID가 필요합니다.");
@@ -44,7 +50,7 @@ export default function ChatConnectPage() {
 
         try {
           console.log(`[ChatConnect] API 요청 시작 (delay: ${delay}ms)`);
-          
+
           const response = await fetch("/api/member/chat/connect", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

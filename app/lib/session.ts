@@ -3,6 +3,7 @@ import { getIronSession } from "iron-session";
 import type { IronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { clearSentryUser } from "./utils/sentry-session";
 
 export interface SessionContent {
   id?: string;
@@ -56,6 +57,7 @@ export const getSessionOrRedirect = async (): Promise<
 export const logoutSession = async () => {
   const session = await getCurrentIronSession();
   session.destroy();
+  clearSentryUser();
   redirect("/login");
 };
 
@@ -63,6 +65,7 @@ export const logoutCurrentSession = async (
   session: IronSession<SessionContent>
 ) => {
   session.destroy();
+  clearSentryUser();
   redirect("/login");
 };
 

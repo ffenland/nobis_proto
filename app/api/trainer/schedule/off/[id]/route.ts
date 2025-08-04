@@ -4,10 +4,12 @@ import { getSession } from "@/app/lib/session";
 import { deleteTrainerOffScheduleService } from "@/app/lib/services/trainer.service";
 
 // DELETE: 오프 일정 삭제
+type Params = Promise<{ id: string }>;
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
   try {
     const session = await getSession();
     if (!session?.id) {
@@ -40,16 +42,12 @@ export async function DELETE(
       success: true,
       message: result.message,
     });
-
   } catch (error) {
     console.error("오프 일정 삭제 오류:", error);
 
     // 비즈니스 로직 오류
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(

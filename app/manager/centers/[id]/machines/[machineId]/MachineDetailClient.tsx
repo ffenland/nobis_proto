@@ -11,6 +11,8 @@ import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import FullscreenImageViewer from "@/app/components/media/FullscreenImageViewer";
 import type { MachineDetail } from "@/app/lib/services/machine.service";
 import Image from "next/image";
+import { ErrorReporter } from "@/app/lib/utils/error-reporter";
+import { ErrorContexts } from "@/app/lib/utils/error-contexts";
 
 // 타입 정의
 interface MachineSettingValue {
@@ -172,7 +174,15 @@ export default function MachineDetailClient({
       toast.success("이미지가 삭제되었습니다.");
       await mutate();
     } catch (error) {
-      console.log(error);
+      await ErrorReporter.report(error, {
+        action: "deleteExistingImage",
+        metadata: {
+          description: ErrorContexts.MACHINE_IMAGE_DELETE,
+          imageId,
+          machineId,
+          centerId,
+        }
+      });
       toast.error("이미지 삭제 중 오류가 발생했습니다.");
     }
   };
@@ -230,7 +240,16 @@ export default function MachineDetailClient({
 
         uploadedImageIds.push(customId);
       } catch (error) {
-        console.error("이미지 업로드 실패:", error);
+        await ErrorReporter.report(error, {
+          action: "uploadMachineImage",
+          metadata: {
+            description: ErrorContexts.MACHINE_IMAGE_UPLOAD,
+            fileName: imageFile.name,
+            fileSize: imageFile.size,
+            fileType: imageFile.type,
+            machineId,
+          }
+        });
         toast.error(`${imageFile.name} 업로드 실패`);
       }
     }

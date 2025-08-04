@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { cancelScheduleChangeRequest } from "@/app/lib/services/pt-schedule-change.service";
 
+type Params = Promise<{ requestId: string }>;
 export async function POST(
   request: NextRequest,
-  { params }: { params: { requestId: string } }
+  segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
   try {
     const session = await getSession();
     if (!session || !session.id) {

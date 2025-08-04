@@ -1,15 +1,21 @@
 // app/trainer/chat/connect/page.tsx
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { use, useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { ErrorMessage } from "@/app/components/ui/Loading";
 
-export default function TrainerChatConnectPage() {
+type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+export default function TrainerChatConnectPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const params = use(searchParams);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionResult, setConnectionResult] = useState<{
@@ -19,7 +25,7 @@ export default function TrainerChatConnectPage() {
   } | null>(null);
   const hasConnectedRef = useRef(false);
 
-  const opponentId = searchParams.get("opp");
+  const opponentId = params.opp as string | undefined;
 
   useEffect(() => {
     let mounted = true;

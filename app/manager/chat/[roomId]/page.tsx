@@ -5,11 +5,10 @@ import { redirect } from "next/navigation";
 import { ChatPageTemplate } from "@/app/components/chat/ChatPageTemplate";
 import { ChatRoom } from "@/app/components/chat/ChatRoom";
 
-interface IPageProps {
-  params: { roomId: string };
-}
+type Params = Promise<{ roomId: string }>;
 
-export default async function ManagerChatRoomPage({ params }: IPageProps) {
+export default async function ManagerChatRoomPage(props: { params: Params }) {
+  const params = await props.params;
   const session = await getSession();
   if (!session) {
     redirect("/login");

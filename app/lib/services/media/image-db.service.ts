@@ -41,7 +41,7 @@ export async function createImageRecord(params: {
     type,
     status: ImageStatus.ACTIVE,
     uploadedBy: { connect: { id: uploadedById } },
-    metadata: metadata ? metadata : undefined,
+    metadata: metadata ? metadata as Prisma.InputJsonValue : undefined,
   };
 
   // 엔티티 연결 (있는 경우만)
@@ -188,9 +188,41 @@ export async function getMediaByPtRecordItem(ptRecordItemId: string) {
   return images;
 }
 
+// PT Record Item 이미지 저장
+export async function savePtRecordItemImage(params: {
+  cloudflareId: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  uploadedById: string;
+  ptRecordItemId: string;
+}) {
+  const image = await prisma.image.create({
+    data: {
+      cloudflareId: params.cloudflareId,
+      originalName: params.originalName,
+      mimeType: params.mimeType,
+      size: params.size,
+      type: 'PT_RECORD',
+      uploadedById: params.uploadedById,
+      ptRecordItemId: params.ptRecordItemId,
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      cloudflareId: true,
+      type: true,
+      createdAt: true,
+    },
+  });
+
+  return image;
+}
+
 // 타입 추론
 export type CheckPtRecordItemMediaOwnershipResult = Awaited<ReturnType<typeof checkPtRecordItemMediaOwnership>>;
 export type GetMediaByPtRecordItemResult = Awaited<ReturnType<typeof getMediaByPtRecordItem>>;
+export type SavePtRecordItemImageResult = Awaited<ReturnType<typeof savePtRecordItemImage>>;
 
 // DB 레코드와 Cloudflare 이미지 동시 삭제
 export async function deleteImageWithCloudflare(imageId: string, userId: string) {
@@ -219,9 +251,9 @@ export async function deleteImageWithCloudflare(imageId: string, userId: string)
   // 3. Cloudflare에서 먼저 삭제 시도
   try {
     await deleteCloudflareImage(image.cloudflareId);
-  } catch (error: any) {
+  } catch (error) {
     // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-    if (!error.message?.includes('404')) {
+    if (!(error instanceof Error && error.message?.includes('404'))) {
       console.error('Failed to delete from Cloudflare:', error);
       throw new Error('Failed to delete image from Cloudflare');
     }

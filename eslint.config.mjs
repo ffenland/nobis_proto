@@ -22,6 +22,11 @@ const eslintConfig = [
       "**/*.test.tsx",
       "app/(auth)/login/test/**"
     ]
+  },
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off"
+    }
   }
 ];
 

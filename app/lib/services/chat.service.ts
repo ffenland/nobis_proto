@@ -577,16 +577,15 @@ export class ChatService {
 }
 
 // 타입 추출
-const chatService = ChatService.getInstance();
 export type IChatRoomsData = Awaited<
-  ReturnType<typeof chatService.getChatRooms>
+  ReturnType<typeof ChatService.prototype.getChatRooms>
 >;
 export type IChatRoomData = IChatRoomsData[0];
-export type IMessagesData = Awaited<ReturnType<typeof chatService.getMessages>>;
+export type IMessagesData = Awaited<ReturnType<typeof ChatService.prototype.getMessages>>;
 export type IMessageData = IMessagesData[0];
 export type IChatRoomInfoData = Awaited<
-  ReturnType<typeof chatService.getChatRoomInfo>
+  ReturnType<typeof ChatService.prototype.getChatRoomInfo>
 >;
 export type ISendMessageData = Awaited<
-  ReturnType<typeof chatService.sendMessage>
+  ReturnType<typeof ChatService.prototype.sendMessage>
 >;

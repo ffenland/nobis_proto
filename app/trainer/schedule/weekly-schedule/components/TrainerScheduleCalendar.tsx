@@ -46,12 +46,26 @@ function weekDayToNumber(weekDay: WeekDay): number {
   }
 }
 
+// WeekDay 문자열을 숫자로 변환
+function weekDayStringToNumber(weekDay: string): number {
+  const dayMap: { [key: string]: number } = {
+    "SUN": 0,
+    "MON": 1,
+    "TUE": 2,
+    "WED": 3,
+    "THU": 4,
+    "FRI": 5,
+    "SAT": 6,
+  };
+  return dayMap[weekDay] ?? -1;
+}
+
 // 특정 요일의 근무시간 정보 반환
 function getWorkingHoursForDay(
   dayOfWeek: number,
   workingHours: ITrainerWorkingHour[]
 ): ITrainerWorkingHour | undefined {
-  return workingHours.find(wh => weekDayToNumber(wh.dayOfWeek) === dayOfWeek);
+  return workingHours.find(wh => weekDayStringToNumber(wh.dayOfWeek) === dayOfWeek);
 }
 
 // 특정 시간이 해당 요일의 근무시간인지 확인

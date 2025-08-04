@@ -236,6 +236,7 @@ export const updateFreeRecordAction = async (
 
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
+  const freeExerciseId = formData.get("freeExerciseId") as string;
 
   // 세트 데이터 추출
   const setData: {
@@ -290,6 +291,7 @@ export const updateFreeRecordAction = async (
       await tx.freeSetRecord.create({
         data: {
           ptRecordItemId: itemId,
+          freeExerciseId: freeExerciseId,
           set: setRecord.set,
           reps: setRecord.reps,
           equipments: {

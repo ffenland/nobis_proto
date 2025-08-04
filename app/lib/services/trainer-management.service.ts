@@ -430,7 +430,7 @@ export class TrainerManagementService {
             endTime: true,
           },
         },
-        fitnessCeneter: {
+        fitnessCenter: {
           select: {
             title: true,
           },
@@ -573,23 +573,25 @@ export class TrainerManagementService {
 }
 
 // ===== 타입 추론을 위한 타입 정의 =====
-const trainerManagementService = TrainerManagementService.getInstance();
-
 export type ITrainersWithStats = Awaited<
-  ReturnType<typeof trainerManagementService.getTrainersWithStats>
+  ReturnType<
+    InstanceType<typeof TrainerManagementService>["getTrainersWithStats"]
+  >
 >;
 export type ITrainerWithStats = ITrainersWithStats[number]["trainers"][number];
 export type ITrainerDetail = Awaited<
-  ReturnType<typeof trainerManagementService.getTrainerDetail>
+  ReturnType<InstanceType<typeof TrainerManagementService>["getTrainerDetail"]>
 >;
 export type ITrainerPtList = Awaited<
-  ReturnType<typeof trainerManagementService.getTrainerPtList>
+  ReturnType<InstanceType<typeof TrainerManagementService>["getTrainerPtList"]>
 >;
 export type ITrainerPtItem = ITrainerPtList[number];
 export type IPtRecordDetails = Awaited<
-  ReturnType<typeof trainerManagementService.getPtRecordDetails>
+  ReturnType<
+    InstanceType<typeof TrainerManagementService>["getPtRecordDetails"]
+  >
 >;
 export type IPtRecordDetail = IPtRecordDetails[number];
 export type IFitnessCenterList = Awaited<
-  ReturnType<typeof trainerManagementService.getFitnessCenters>
+  ReturnType<InstanceType<typeof TrainerManagementService>["getFitnessCenters"]>
 >;

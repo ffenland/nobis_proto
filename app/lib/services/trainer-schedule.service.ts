@@ -4,7 +4,7 @@ import {
   calculateAttendanceStatus,
   type IPtRecordForAttendance,
 } from "@/app/lib/utils/pt.utils";
-import { WeekDay, PtState } from "@prisma/client";
+import { PtState } from "@prisma/client";
 import { convertKSTtoUTC } from "../utils";
 
 // 시간 슬롯 타입 정의
@@ -41,7 +41,7 @@ export interface ITimeRange {
 
 // 트레이너 근무시간 타입
 export interface ITrainerWorkingHour {
-  dayOfWeek: WeekDay;
+  dayOfWeek: string;
   openTime: number;
   closeTime: number;
 }
@@ -162,15 +162,10 @@ export const getTrainerScheduleService = async (
   const trainerOffs = await prisma.trainerOff.findMany({
     where: {
       trainerId,
-      OR: [
-        // 특정 날짜 오프
-        {
-          date: {
-            gte: convertKSTtoUTC(rangeStart),
-            lte: convertKSTtoUTC(rangeEnd),
-          },
-        },
-      ],
+      date: {
+        gte: convertKSTtoUTC(rangeStart),
+        lte: convertKSTtoUTC(rangeEnd),
+      },
     },
     select: {
       date: true,
@@ -214,7 +209,7 @@ export const getTrainerScheduleService = async (
   }
 
   // 5. 날짜별 데이터 구조 초기화
-  const scheduleData: ITrainerScheduleResponse = {};
+  const scheduleData: { [dateKey: string]: IDayScheduleData } = {};
 
   // 날짜 범위 내 모든 날짜 초기화
   const currentDate = new Date(rangeStart);
@@ -276,7 +271,7 @@ export const getTrainerScheduleService = async (
       const dateKey = formatDateKey(currentDate);
 
       const centerOpeningHour = centerInfo.openingHours.find((oh) => {
-        return weekDayToNumber(oh.dayOfWeek) === dayOfWeek;
+        return weekDayStringToNumber(oh.dayOfWeek) === dayOfWeek;
       });
 
       if (centerOpeningHour?.isClosed && scheduleData[dateKey]) {
@@ -307,25 +302,21 @@ export const getTrainerScheduleService = async (
   });
 
   // 7-3. 트레이너 개인 OFF 처리
-
-  // 특정 날짜 OFF
-  trainerOffs
-    .filter((off) => off.date)
-    .forEach((off) => {
-      const dateKey = formatDateKey(off.date!);
-      if (scheduleData[dateKey]) {
-        scheduleData[dateKey].off.push({
-          startTime: off.startTime,
-          endTime: off.endTime,
-          type: "TRAINER_OFF",
-        });
-      }
-    });
+  trainerOffs.forEach((off) => {
+    const dateKey = formatDateKey(off.date);
+    if (scheduleData[dateKey]) {
+      scheduleData[dateKey].off.push({
+        startTime: off.startTime,
+        endTime: off.endTime,
+        type: "TRAINER_OFF",
+      });
+    }
+  });
 
   return {
     scheduleData,
     timeRange,
-    workingHours: trainer.workingHours,
+    workingHours: trainer.workingHours as ITrainerWorkingHour[],
   };
 };
 
@@ -337,7 +328,7 @@ export const getTrainerScheduleService = async (
  */
 function calculateTimeRange(
   workingHours: Array<{
-    dayOfWeek: WeekDay;
+    dayOfWeek: string;
     openTime: number;
     closeTime: number;
   }>
@@ -373,25 +364,17 @@ function formatDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function weekDayToNumber(weekDay: WeekDay): number {
-  switch (weekDay) {
-    case WeekDay.SUN:
-      return 0;
-    case WeekDay.MON:
-      return 1;
-    case WeekDay.TUE:
-      return 2;
-    case WeekDay.WED:
-      return 3;
-    case WeekDay.THU:
-      return 4;
-    case WeekDay.FRI:
-      return 5;
-    case WeekDay.SAT:
-      return 6;
-    default:
-      return -1;
-  }
+function weekDayStringToNumber(weekDay: string): number {
+  const dayMap: { [key: string]: number } = {
+    "SUN": 0,
+    "MON": 1,
+    "TUE": 2,
+    "WED": 3,
+    "THU": 4,
+    "FRI": 5,
+    "SAT": 6,
+  };
+  return dayMap[weekDay] ?? -1;
 }
 
 // 타입 추론을 위한 export

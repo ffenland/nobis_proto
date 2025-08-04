@@ -1,10 +1,13 @@
 // app/api/media/images/confirm/route.ts
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/app/lib/session';
-import { getImageInfo } from '@/app/lib/services/media/image.service';
-import { createImageRecord, getImageByCloudflareId } from '@/app/lib/services/media/image-db.service';
-import { ImageType } from '@prisma/client';
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/app/lib/session";
+import { getImageInfo } from "@/app/lib/services/media/image.service";
+import {
+  createImageRecord,
+  getImageByCloudflareId,
+} from "@/app/lib/services/media/image-db.service";
+import { ImageType } from "@prisma/client";
 
 // 업로드 확인 요청 타입
 interface ConfirmUploadRequest {
@@ -21,29 +24,26 @@ export async function POST(request: NextRequest) {
   try {
     // 세션 확인
     const session = await getSession();
-    if (!session.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!session || !session.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // 요청 파싱
     const body: ConfirmUploadRequest = await request.json();
-    const { 
-      cloudflareId, 
-      originalName, 
-      mimeType, 
-      size, 
+    const {
+      cloudflareId,
+      originalName,
+      mimeType,
+      size,
       type,
       entityId,
-      metadata 
+      metadata,
     } = body;
 
     // 필수 필드 검증
     if (!cloudflareId || !originalName || !mimeType || !size || !type) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         id: existingImage.id,
         cloudflareId: existingImage.cloudflareId,
-        message: 'Image already exists in database',
+        message: "Image already exists in database",
       });
     }
 
@@ -62,22 +62,26 @@ export async function POST(request: NextRequest) {
     const cloudflareImage = await getImageInfo(cloudflareId);
     if (!cloudflareImage) {
       return NextResponse.json(
-        { error: 'Image not found in Cloudflare' },
+        { error: "Image not found in Cloudflare" },
         { status: 404 }
       );
     }
 
     // 메타데이터에서 사용자 ID 확인 (보안)
-    if (cloudflareImage.meta?.userId && cloudflareImage.meta.userId !== session.id) {
+    if (
+      !session ||
+      (cloudflareImage.meta?.userId &&
+        cloudflareImage.meta.userId !== session.id)
+    ) {
       return NextResponse.json(
-        { error: 'Unauthorized - image uploaded by different user' },
+        { error: "Unauthorized - image uploaded by different user" },
         { status: 403 }
       );
     }
 
     // 엔티티별 연결 데이터 준비
     const entityConnections: Record<string, string | undefined> = {};
-    
+
     // type에 따라 적절한 엔티티 연결
     switch (type) {
       case ImageType.PROFILE:
@@ -123,9 +127,9 @@ export async function POST(request: NextRequest) {
       createdAt: image.createdAt,
     });
   } catch (error) {
-    console.error('Image confirmation failed:', error);
+    console.error("Image confirmation failed:", error);
     return NextResponse.json(
-      { error: 'Failed to confirm image upload' },
+      { error: "Failed to confirm image upload" },
       { status: 500 }
     );
   }

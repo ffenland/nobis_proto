@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { getScheduleChangeRequestDetail } from "@/app/lib/services/pt-schedule-change.service";
 
+type Params = Promise<{ requestId: string }>;
 export async function GET(
   request: NextRequest,
-  { params }: { params: { requestId: string } }
+  segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
   try {
     const session = await getSession();
     if (!session || !session.id) {
