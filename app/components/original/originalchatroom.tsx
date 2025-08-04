@@ -56,7 +56,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [showInactivityModal, setShowInactivityModal] = useState(false);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -80,13 +80,13 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
   // 세션 종료 처리 - 먼저 정의
   const handleEndSession = useCallback(() => {
     console.log("[ChatRoom] 세션 종료 - 채팅 목록으로 이동");
-    
+
     // 채널 정리
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
-    
+
     // 타이머 정리
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
@@ -96,7 +96,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
       clearTimeout(modalTimerRef.current);
       modalTimerRef.current = null;
     }
-    
+
     // 채팅 목록으로 이동
     router.push("/member/chat");
   }, [router]);
@@ -111,17 +111,17 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
       clearTimeout(modalTimerRef.current);
       modalTimerRef.current = null;
     }
-    
+
     // 모달이 표시중이면 숨기기
     if (showInactivityModal) {
       setShowInactivityModal(false);
     }
-    
+
     // 새 타이머 설정
     inactivityTimerRef.current = setTimeout(() => {
       console.log("[ChatRoom] 3분 동안 비활성 - 모달 표시");
       setShowInactivityModal(true);
-      
+
       // 모달 표시 후 2분 타이머
       modalTimerRef.current = setTimeout(() => {
         console.log("[ChatRoom] 모달 타임아웃 - 자동 종료");
@@ -153,108 +153,111 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
     if (!roomId || !userId) return;
 
     let mounted = true;
-    
+
     // 개발 모드 확인 - StrictMode 이슈 회피를 위한 지연
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isDevelopment = process.env.NODE_ENV === "development";
     const delay = isDevelopment ? 50 : 0; // 개발 모드에서만 50ms 지연
-    
+
     const timer = setTimeout(() => {
       if (!mounted) return;
-      
+
       console.log(`[ChatRoom] 채널 구독 시작: ${roomId} (delay: ${delay}ms)`);
       setIsConnecting(true);
       setError(null);
 
       // 채널 생성 및 구독
       const channel = supabase
-      .channel(`room-${roomId}`, {
-        config: {
-          broadcast: { self: true },
-        },
-      })
-      .on("broadcast", { event: "new-message" }, (payload) => {
-        console.log("[ChatRoom] 메시지 수신:", payload);
-        updateActivity(); // 메시지 수신 시 활동 업데이트
-        
-        if (payload.payload) {
-          const newMessage = payload.payload as {
-            id: string;
-            content: string;
-            createdAt: string;
-            senderId: string;
-            messageType: string;
-            sender?: {
+        .channel(`room-${roomId}`, {
+          config: {
+            broadcast: { self: true },
+          },
+        })
+        .on("broadcast", { event: "new-message" }, (payload) => {
+          console.log("[ChatRoom] 메시지 수신:", payload);
+          updateActivity(); // 메시지 수신 시 활동 업데이트
+
+          if (payload.payload) {
+            const newMessage = payload.payload as {
               id: string;
-              name: string;
-              profileImageUrl?: string;
+              content: string;
+              createdAt: string;
+              senderId: string;
+              messageType: string;
+              sender?: {
+                id: string;
+                name: string;
+                profileImageUrl?: string;
+              };
             };
-          };
-          
-          // 브로드캐스트 메시지를 IMessageData 형식으로 변환
-          const messageData: IMessageData = {
-            id: newMessage.id,
-            content: newMessage.content,
-            createdAt: new Date(newMessage.createdAt),
-            senderId: newMessage.senderId,
-            messageType: newMessage.messageType as "TEXT" | "IMAGE" | "SYSTEM",
-            isRead: false,
-            sender: null,
-          };
 
-          // 중복 방지: DB에서 로드한 메시지와 브로드캐스트 메시지가 겹치지 않도록
-          setMessages((prev) => {
-            const exists = prev.some(
-              (msg) =>
-                msg.content === messageData.content &&
-                msg.senderId === messageData.senderId &&
-                Math.abs(
-                  new Date(msg.createdAt).getTime() -
-                    new Date(messageData.createdAt).getTime()
-                ) < 5000
-            );
+            // 브로드캐스트 메시지를 IMessageData 형식으로 변환
+            const messageData: IMessageData = {
+              id: newMessage.id,
+              content: newMessage.content,
+              createdAt: new Date(newMessage.createdAt),
+              senderId: newMessage.senderId,
+              messageType: newMessage.messageType as
+                | "TEXT"
+                | "IMAGE"
+                | "SYSTEM",
+              isRead: false,
+              sender: null,
+            };
 
-            if (exists) {
-              return prev;
-            }
+            // 중복 방지: DB에서 로드한 메시지와 브로드캐스트 메시지가 겹치지 않도록
+            setMessages((prev) => {
+              const exists = prev.some(
+                (msg) =>
+                  msg.content === messageData.content &&
+                  msg.senderId === messageData.senderId &&
+                  Math.abs(
+                    new Date(msg.createdAt).getTime() -
+                      new Date(messageData.createdAt).getTime()
+                  ) < 5000
+              );
 
-            return [...prev, messageData];
-          });
+              if (exists) {
+                return prev;
+              }
 
-          // 새 메시지가 오면 스크롤을 맨 아래로
-          setTimeout(() => {
-            if (messagesEndRef.current) {
-              const container = messagesContainerRef.current;
-              if (container) {
-                const isAtBottom =
-                  container.scrollHeight -
-                    container.scrollTop -
-                    container.clientHeight <
-                  100;
+              return [...prev, messageData];
+            });
 
-                if (isAtBottom || newMessage.senderId === userId) {
-                  messagesEndRef.current.scrollIntoView({
-                    behavior: "smooth",
-                  });
+            // 새 메시지가 오면 스크롤을 맨 아래로
+            setTimeout(() => {
+              if (messagesEndRef.current) {
+                const container = messagesContainerRef.current;
+                if (container) {
+                  const isAtBottom =
+                    container.scrollHeight -
+                      container.scrollTop -
+                      container.clientHeight <
+                    100;
+
+                  if (isAtBottom || newMessage.senderId === userId) {
+                    messagesEndRef.current.scrollIntoView({
+                      behavior: "smooth",
+                    });
+                  }
                 }
               }
-            }
-          }, 100);
-        }
-      })
-      .subscribe((status) => {
-        console.log(`[ChatRoom] 채널 상태: ${status}`);
-        
-        if (status === "SUBSCRIBED") {
-          setIsConnecting(false);
-          setError(null);
-          updateActivity(); // 연결 시 활동 시작
-        } else if (status === "CHANNEL_ERROR") {
-          setIsConnecting(false);
-          setError(new Error("채널 연결 오류가 발생했습니다."));
-        } else if (status === "CLOSED") {
-          setIsConnecting(false);
-        }
-      });
+            }, 100);
+          }
+        })
+        .subscribe((status) => {
+          console.log(`[ChatRoom] 채널 상태: ${status}`);
+
+          if (status === "SUBSCRIBED") {
+            setIsConnecting(false);
+            setError(null);
+            updateActivity(); // 연결 시 활동 시작
+          } else if (status === "CHANNEL_ERROR") {
+            setIsConnecting(false);
+            setError(new Error("채널 연결 오류가 발생했습니다."));
+          } else if (status === "CLOSED") {
+            setIsConnecting(false);
+          }
+        });
 
       channelRef.current = channel;
     }, delay);
@@ -263,9 +266,9 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
     return () => {
       mounted = false;
       clearTimeout(timer);
-      
+
       console.log(`[ChatRoom] 채널 cleanup: ${roomId}`);
-      
+
       // 타이머 정리
       if (inactivityTimerRef.current) {
         clearTimeout(inactivityTimerRef.current);
@@ -273,7 +276,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
       if (modalTimerRef.current) {
         clearTimeout(modalTimerRef.current);
       }
-      
+
       // Supabase 공식 문서에 따라 removeChannel 사용
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
@@ -314,9 +317,9 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
           event: "new-message",
           payload: broadcastMessage,
         });
-        
+
         console.log("[ChatRoom] 메시지 전송 결과:", result);
-        
+
         // 메시지 전송 시 활동 업데이트
         updateActivity();
 
@@ -385,8 +388,8 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
               세션 타임아웃 경고
             </h3>
             <p className="text-gray-600 mb-4">
-              3분 동안 활동이 없었습니다. 계속하시려면 &apos;연장&apos;을 선택하세요.
-              2분 내에 응답하지 않으면 자동으로 종료됩니다.
+              3분 동안 활동이 없었습니다. 계속하시려면 &apos;연장&apos;을
+              선택하세요. 2분 내에 응답하지 않으면 자동으로 종료됩니다.
             </p>
             <div className="flex gap-3">
               <button
@@ -405,7 +408,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
           </div>
         </div>
       )}
-      
+
       {/* 연결 오류 모달 */}
       {error && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
@@ -413,9 +416,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               연결 오류
             </h3>
-            <p className="text-gray-600 mb-4">
-              {error.message}
-            </p>
+            <p className="text-gray-600 mb-4">{error.message}</p>
             <button
               onClick={() => window.location.reload()}
               className="w-full bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
@@ -425,7 +426,7 @@ export function ChatRoom({ roomId, userId }: IChatRoomProps) {
           </div>
         </div>
       )}
-      
+
       {/* 상단 스크롤 영역 (헤더 + 메시지) */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* 채팅방 헤더 */}

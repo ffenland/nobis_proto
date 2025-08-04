@@ -81,7 +81,6 @@ export function ChatList({ userRole }: IChatListProps) {
 
   return (
     <div className="space-y-2">
-
       {/* 채팅방 목록 */}
       <div className="space-y-1">
         {chatRooms.map((room) => (
@@ -109,7 +108,6 @@ export function ChatList({ userRole }: IChatListProps) {
                     </span>
                   )}
                 </div>
-
               </div>
 
               <div className="flex-1 min-w-0">
