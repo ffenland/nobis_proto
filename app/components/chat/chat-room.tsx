@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import useSWR from "swr";
-import { ChatMessage } from "./ChatMessage";
-import { ChatInput } from "./ChatInput";
+import { ChatMessage } from "./chat-message";
+import { ChatInput } from "./chat-input";
 import { supabase } from "@/app/lib/supabase";
 import { useRouter } from "next/navigation";
 import type {

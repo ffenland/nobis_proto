@@ -1,6 +1,6 @@
 // app/member/chat/page.tsx
 import React from "react";
-import { ChatPageTemplate } from "@/app/components/chat/ChatPageTemplate";
+import { ChatPageTemplate } from "@/app/components/chat/chatpage-template";
 import { ChatList } from "@/app/components/chat/chat-list";
 
 export default function MemberChatListPage() {
