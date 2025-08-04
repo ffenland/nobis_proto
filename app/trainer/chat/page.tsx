@@ -1,7 +1,7 @@
 // app/trainer/chat/page.tsx
 import React from "react";
 import { ChatPageTemplate } from "@/app/components/chat/ChatPageTemplate";
-import { ChatList } from "@/app/components/chat/originalchatlist";
+import { ChatList } from "@/app/components/chat/ChatList";
 
 export default function TrainerChatListPage() {
   return (

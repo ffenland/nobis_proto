@@ -3,7 +3,7 @@
 import { getSession } from "@/app/lib/session";
 import { redirect } from "next/navigation";
 import { ChatPageTemplate } from "@/app/components/chat/ChatPageTemplate";
-import { ChatRoom } from "@/app/components/chat/originalchatroom";
+import { ChatRoom } from "@/app/components/chat/ChatRoom";
 
 type IParams = Promise<{ roomId: string }>;
 
