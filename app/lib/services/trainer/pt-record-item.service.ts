@@ -7,15 +7,28 @@ export async function createPtRecordItem(data: {
   type: RecordType;
   title: string;
   description?: string;
-  entry?: number;
 }) {
+  // 현재 최대 entry 값 조회
+  const maxEntry = await prisma.ptRecordItem.findFirst({
+    where: {
+      ptRecordId: data.ptRecordId,
+      deletedAt: null
+    },
+    orderBy: {
+      entry: 'desc'
+    },
+    select: {
+      entry: true
+    }
+  });
+
   return await prisma.ptRecordItem.create({
     data: {
       ptRecordId: data.ptRecordId,
       type: data.type,
       title: data.title,
       description: data.description,
-      entry: data.entry || 0,
+      entry: (maxEntry?.entry ?? -1) + 1,  // 다음 번호 자동 할당
     },
     select: {
       id: true,

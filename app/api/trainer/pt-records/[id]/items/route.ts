@@ -64,7 +64,7 @@ export async function POST(
 
     const { id: ptRecordId } = await params;
     const body = await request.json();
-    const { type, title, description, entry } = body;
+    const { type, title, description } = body;
 
     // PT Record와 권한 확인
     const ptRecord = await checkPtRecordPermission(ptRecordId, session.roleId!);
@@ -76,13 +76,12 @@ export async function POST(
       );
     }
 
-    // PT Record Item 생성
+    // PT Record Item 생성 (entry는 자동 할당)
     const ptRecordItem = await createPtRecordItem({
       ptRecordId,
       type,
       title,
       description,
-      entry: entry || 0,
     });
 
     // 생성된 아이템의 상세 정보 가져오기

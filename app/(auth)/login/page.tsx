@@ -62,7 +62,7 @@ const Login = async ({ searchParams }: { searchParams: SearchParams }) => {
               </div>
             </Link>
 
-            <Link href="/login/naver/start" className="block">
+            {/* <Link href="/login/naver/start" className="block">
               <div className="bg-[#03C75A] hover:bg-[#02B351] transition-all duration-200 h-14 w-full text-white flex items-center rounded-xl pr-4 overflow-hidden shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
                 <div className="w-14 h-14 flex items-center justify-center">
                   <Image
@@ -76,7 +76,7 @@ const Login = async ({ searchParams }: { searchParams: SearchParams }) => {
                   <span className="font-medium text-base">네이버 로그인</span>
                 </div>
               </div>
-            </Link>
+            </Link> */}
           </div>
 
           {/* 에러 메시지 */}

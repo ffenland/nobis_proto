@@ -2,10 +2,10 @@
 
 /**
  * 시간 관리 유틸리티 함수들
- * 
+ *
  * 시간 저장 형식: Int 4자리 군대식 시간 (HHMM)
  * 예: 1430 = 14시 30분, 900 = 9시 0분
- * 
+ *
  * 주요 기능:
  * - 타입 안전성을 위한 TimeInt 타입
  * - 포괄적인 시간 유효성 검증
@@ -29,7 +29,7 @@ export type TimeInt = number & { readonly __brand: unique symbol };
  * 시간 관련 에러 타입
  */
 export interface TimeValidationError {
-  type: 'INVALID_FORMAT' | 'INVALID_HOUR' | 'INVALID_MINUTE' | 'INVALID_RANGE';
+  type: "INVALID_FORMAT" | "INVALID_HOUR" | "INVALID_MINUTE" | "INVALID_RANGE";
   message: string;
   value?: number;
 }
@@ -63,7 +63,7 @@ export function isTimeInt(value: number): value is TimeInt {
 export function toTimeInt(value: number): TimeInt {
   const validation = isValidTime(value);
   if (!validation.isValid) {
-    throw new Error(validation.error?.message || 'Invalid time format');
+    throw new Error(validation.error?.message || "Invalid time format");
   }
   return value as TimeInt;
 }
@@ -73,19 +73,19 @@ export function toTimeInt(value: number): TimeInt {
  * @param time 검증할 시간 (HHMM 형식)
  * @returns 검증 결과 객체
  */
-export function isValidTime(time: number): { 
-  isValid: boolean; 
-  error?: TimeValidationError 
+export function isValidTime(time: number): {
+  isValid: boolean;
+  error?: TimeValidationError;
 } {
   // 4자리 숫자 형식 확인 (0-2359)
   if (!Number.isInteger(time) || time < 0 || time > 2359) {
     return {
       isValid: false,
       error: {
-        type: 'INVALID_FORMAT',
-        message: '시간은 0-2359 범위의 4자리 숫자여야 합니다.',
-        value: time
-      }
+        type: "INVALID_FORMAT",
+        message: "시간은 0-2359 범위의 4자리 숫자여야 합니다.",
+        value: time,
+      },
     };
   }
 
@@ -97,10 +97,10 @@ export function isValidTime(time: number): {
     return {
       isValid: false,
       error: {
-        type: 'INVALID_HOUR',
-        message: '시간은 0-23 범위여야 합니다.',
-        value: time
-      }
+        type: "INVALID_HOUR",
+        message: "시간은 0-23 범위여야 합니다.",
+        value: time,
+      },
     };
   }
 
@@ -109,10 +109,10 @@ export function isValidTime(time: number): {
     return {
       isValid: false,
       error: {
-        type: 'INVALID_MINUTE',
-        message: '분은 0-59 범위여야 합니다.',
-        value: time
-      }
+        type: "INVALID_MINUTE",
+        message: "분은 0-59 범위여야 합니다.",
+        value: time,
+      },
     };
   }
 
@@ -126,7 +126,7 @@ export function isValidTime(time: number): {
  * @returns 검증 결과
  */
 export function isValidTimeRange(
-  startTime: number, 
+  startTime: number,
   endTime: number
 ): { isValid: boolean; error?: TimeValidationError } {
   const startValidation = isValidTime(startTime);
@@ -143,10 +143,10 @@ export function isValidTimeRange(
     return {
       isValid: false,
       error: {
-        type: 'INVALID_RANGE',
-        message: '시작 시간은 종료 시간보다 앞서야 합니다.',
-        value: startTime
-      }
+        type: "INVALID_RANGE",
+        message: "시작 시간은 종료 시간보다 앞서야 합니다.",
+        value: startTime,
+      },
     };
   }
 
@@ -160,28 +160,34 @@ export function isValidTimeRange(
 /**
  * TimeInt 유효성 검증을 위한 Zod 스키마
  */
-export const timeIntSchema = z.number()
+export const timeIntSchema = z
+  .number()
   .int()
   .min(0)
   .max(2359)
-  .refine((val) => {
-    const hour = Math.floor(val / 100);
-    const minute = val % 100;
-    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
-  }, {
-    message: "올바른 시간 형식이 아닙니다. (HHMM 형식, 예: 1430)"
-  })
+  .refine(
+    (val) => {
+      const hour = Math.floor(val / 100);
+      const minute = val % 100;
+      return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+    },
+    {
+      message: "올바른 시간 형식이 아닙니다. (HHMM 형식, 예: 1430)",
+    }
+  )
   .transform((val) => val as TimeInt);
 
 /**
  * 시간 범위 검증을 위한 Zod 스키마
  */
-export const timeRangeSchema = z.object({
-  start: timeIntSchema,
-  end: timeIntSchema
-}).refine((data) => data.start < data.end, {
-  message: "시작 시간은 종료 시간보다 앞서야 합니다."
-});
+export const timeRangeSchema = z
+  .object({
+    start: timeIntSchema,
+    end: timeIntSchema,
+  })
+  .refine((data) => data.start < data.end, {
+    message: "시작 시간은 종료 시간보다 앞서야 합니다.",
+  });
 
 // ========================================
 // 기존 함수들 (타입 안전성 개선)
@@ -202,14 +208,14 @@ export const addThirtyMinutes = (time: number): TimeInt => {
 
   const hour = Math.floor(time / 100);
   const minute = time % 100;
-  
+
   const newTime = minute === 30 ? (hour + 1) * 100 : time + 30;
-  
+
   // 24시를 넘어가면 0시로 순환
   if (newTime >= 2400) {
     return 0 as TimeInt;
   }
-  
+
   return newTime as TimeInt;
 };
 
@@ -228,25 +234,25 @@ export const subtractMinutes = (time: number, minutes: number): TimeInt => {
   }
 
   if (minutes < 0) {
-    throw new Error('Minutes to subtract must be non-negative');
+    throw new Error("Minutes to subtract must be non-negative");
   }
 
   const hour = Math.floor(time / 100);
   const minute = time % 100;
-  
+
   // 총 분으로 변환
   const totalMinutes = hour * 60 + minute;
   const newTotalMinutes = totalMinutes - minutes;
-  
+
   // 음수가 되면 0시 0분으로 처리
   if (newTotalMinutes < 0) {
     return 0 as TimeInt;
   }
-  
+
   // 다시 HHMM 형식으로 변환
   const newHour = Math.floor(newTotalMinutes / 60);
   const newMinute = newTotalMinutes % 60;
-  
+
   return (newHour * 100 + newMinute) as TimeInt;
 };
 
@@ -299,20 +305,20 @@ export const formatTimeSimple = (time: number): string => {
  * @example parseTime("09:00") // 900
  */
 export const parseTime = (timeStr: string): TimeInt => {
-  if (!timeStr || typeof timeStr !== 'string') {
-    throw new Error('Time string is required');
+  if (!timeStr || typeof timeStr !== "string") {
+    throw new Error("Time string is required");
   }
 
   const timeParts = timeStr.split(":");
   if (timeParts.length !== 2) {
-    throw new Error('Time string must be in HH:MM format');
+    throw new Error("Time string must be in HH:MM format");
   }
 
   const hour = parseInt(timeParts[0], 10);
   const minute = parseInt(timeParts[1], 10);
 
   if (isNaN(hour) || isNaN(minute)) {
-    throw new Error('Invalid hour or minute values');
+    throw new Error("Invalid hour or minute values");
   }
 
   const timeInt = hour * 100 + minute;
@@ -355,7 +361,7 @@ export const calculateEndTime = (
   }
 
   if (durationMinutes < 0 || !Number.isInteger(durationMinutes)) {
-    throw new Error('Duration must be a non-negative integer');
+    throw new Error("Duration must be a non-negative integer");
   }
 
   let currentTime = startTime;
@@ -391,10 +397,10 @@ export const generateTimeSlots = (
   while (currentTime < closeTime) {
     slots.push(currentTime);
     currentTime = addThirtyMinutes(currentTime);
-    
+
     // 무한 루프 방지
     if (slots.length > 100) {
-      throw new Error('Too many time slots generated (limit: 100)');
+      throw new Error("Too many time slots generated (limit: 100)");
     }
   }
 
@@ -421,12 +427,16 @@ export const timeRangesOverlap = (
   // 모든 시간 범위 유효성 검증
   const range1Validation = isValidTimeRange(start1, end1);
   if (!range1Validation.isValid) {
-    throw new Error(`Invalid first time range: ${range1Validation.error?.message}`);
+    throw new Error(
+      `Invalid first time range: ${range1Validation.error?.message}`
+    );
   }
 
   const range2Validation = isValidTimeRange(start2, end2);
   if (!range2Validation.isValid) {
-    throw new Error(`Invalid second time range: ${range2Validation.error?.message}`);
+    throw new Error(
+      `Invalid second time range: ${range2Validation.error?.message}`
+    );
   }
 
   return start1 < end2 && start2 < end1;
@@ -500,12 +510,14 @@ export const generateClassTimeSlots = (
   }
 
   if (durationMinutes < 0 || !Number.isInteger(durationMinutes)) {
-    throw new Error('Duration must be a non-negative integer');
+    throw new Error("Duration must be a non-negative integer");
   }
 
   const rangeValidation = isValidTimeRange(openTime, closeTime);
   if (!rangeValidation.isValid) {
-    throw new Error(`Invalid operating hours: ${rangeValidation.error?.message}`);
+    throw new Error(
+      `Invalid operating hours: ${rangeValidation.error?.message}`
+    );
   }
 
   const timeSlots: TimeInt[] = [];
@@ -531,7 +543,7 @@ export const generateClassTimeSlots = (
  */
 export const getEndTime = (times: number[]): TimeInt => {
   if (!times || times.length === 0) {
-    throw new Error('Time array cannot be empty');
+    throw new Error("Time array cannot be empty");
   }
 
   const lastTime = times[times.length - 1];
@@ -553,11 +565,11 @@ export const getEndTime = (times: number[]): TimeInt => {
  */
 export const isSameDate = (date1: Date, date2: Date): boolean => {
   if (!(date1 instanceof Date) || !(date2 instanceof Date)) {
-    throw new Error('Both parameters must be valid Date objects');
+    throw new Error("Both parameters must be valid Date objects");
   }
 
   if (isNaN(date1.getTime()) || isNaN(date2.getTime())) {
-    throw new Error('Both dates must be valid');
+    throw new Error("Both dates must be valid");
   }
 
   return (
@@ -576,11 +588,11 @@ export const isSameDate = (date1: Date, date2: Date): boolean => {
  */
 export const formatDateWithWeekday = (date: Date): string => {
   if (!(date instanceof Date)) {
-    throw new Error('Parameter must be a valid Date object');
+    throw new Error("Parameter must be a valid Date object");
   }
 
   if (isNaN(date.getTime())) {
-    throw new Error('Date must be valid');
+    throw new Error("Date must be valid");
   }
 
   const year = date.getFullYear();
@@ -592,36 +604,61 @@ export const formatDateWithWeekday = (date: Date): string => {
 };
 
 /**
+ * 날짜를 한글 형식으로 포맷 (요일 미포함)
+ * @param date 포맷할 날짜
+ * @returns 한글 형식 날짜 문자열
+ * @throws Error 유효하지 않은 Date 객체인 경우
+ * @example formatDateWithWeekday(new Date('2025-01-15')) // "2025년 1월 15일 수요일"
+ */
+export const formatDateWithoutWeekday = (date: Date): string => {
+  if (!(date instanceof Date)) {
+    throw new Error("Parameter must be a valid Date object");
+  }
+
+  if (isNaN(date.getTime())) {
+    throw new Error("Date must be valid");
+  }
+
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  return `${year}년 ${month}월 ${day}일`;
+};
+
+/**
  * 날짜를 한글 형식으로 포맷 (현재 연도와 같으면 연도 생략)
  * @param dateInput 포맷할 날짜 (Date 객체 또는 날짜 문자열)
  * @returns 한글 형식 날짜 문자열
  * @throws Error 유효하지 않은 날짜인 경우
- * @example 
+ * @example
  * // 2025년이 현재 연도인 경우
  * formatDateWithConditionalYear('2025-03-15') // "3월 15일"
  * formatDateWithConditionalYear('2024-12-25') // "2024년 12월 25일"
  */
-export const formatDateWithConditionalYear = (dateInput: Date | string): string => {
-  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-  
+export const formatDateWithConditionalYear = (
+  dateInput: Date | string
+): string => {
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+
   if (!(date instanceof Date) || isNaN(date.getTime())) {
-    throw new Error('Invalid date input');
+    throw new Error("Invalid date input");
   }
 
   const currentYear = new Date().getFullYear();
   const year = date.getFullYear();
-  
+
   if (year === currentYear) {
-    return date.toLocaleDateString('ko-KR', {
-      month: 'long',
-      day: 'numeric',
+    return date.toLocaleDateString("ko-KR", {
+      month: "long",
+      day: "numeric",
     });
   }
-  
-  return date.toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 };
 
@@ -634,24 +671,29 @@ export const formatDateWithConditionalYear = (dateInput: Date | string): string 
  * @example addThirtyMinutesString("23:30") // "00:00"
  */
 export const addThirtyMinutesString = (time: string): string => {
-  if (!time || typeof time !== 'string') {
-    throw new Error('Time string is required');
+  if (!time || typeof time !== "string") {
+    throw new Error("Time string is required");
   }
 
   const timeParts = time.split(":");
   if (timeParts.length !== 2) {
-    throw new Error('Time string must be in HH:MM format');
+    throw new Error("Time string must be in HH:MM format");
   }
 
   let currentHour = parseInt(timeParts[0], 10);
   let currentMinute = parseInt(timeParts[1], 10);
 
   if (isNaN(currentHour) || isNaN(currentMinute)) {
-    throw new Error('Invalid hour or minute values');
+    throw new Error("Invalid hour or minute values");
   }
 
-  if (currentHour < 0 || currentHour > 23 || currentMinute < 0 || currentMinute > 59) {
-    throw new Error('Hour must be 0-23 and minute must be 0-59');
+  if (
+    currentHour < 0 ||
+    currentHour > 23 ||
+    currentMinute < 0 ||
+    currentMinute > 59
+  ) {
+    throw new Error("Hour must be 0-23 and minute must be 0-59");
   }
 
   currentMinute += 30;
@@ -682,7 +724,7 @@ export const addThirtyMinutesString = (time: string): string => {
 export const formatMinutesToKorean = (minutes: number): string => {
   // 유효성 검증
   if (!Number.isInteger(minutes) || minutes < 0) {
-    throw new Error('Minutes must be a non-negative integer');
+    throw new Error("Minutes must be a non-negative integer");
   }
 
   if (minutes === 0) {
@@ -714,16 +756,16 @@ export const formatMinutesToKorean = (minutes: number): string => {
  */
 export const formatDateTimeKR = (date: Date): string => {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
-    throw new Error('Invalid date input');
+    throw new Error("Invalid date input");
   }
-  
-  const dateStr = date.toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+
+  const dateStr = date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
-  
+
   const timeStr = date.toTimeString().slice(0, 5);
-  
+
   return `${dateStr} ${timeStr}`;
 };

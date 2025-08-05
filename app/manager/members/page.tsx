@@ -145,12 +145,17 @@ export default function MembersPage() {
         subtitle="회원별 PT 현황과 이용 통계를 모니터링하세요"
       />
 
-      {/* 역할 관리 버튼 */}
-      <div className="flex justify-end mb-4">
+      {/* 관리 버튼들 */}
+      <div className="flex justify-end gap-2 mb-4">
         <Link href="/manager/role-management">
           <Button variant="outline" className="flex items-center space-x-2">
             <UserCog className="w-4 h-4" />
             <span>역할 관리</span>
+          </Button>
+        </Link>
+        <Link href="/manager/members/direct-registration" className="flex-1 max-w-xs">
+          <Button className="w-full">
+            기존 수업 등록
           </Button>
         </Link>
       </div>

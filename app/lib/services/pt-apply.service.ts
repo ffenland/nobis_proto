@@ -393,10 +393,12 @@ export const preschedulePtService = async (
 
   // 트랜잭션 밖에서 PtSchedule 미리 생성 (병렬 처리 방지)
   const scheduleMap = new Map<string, string>();
-  
+
   for (const schedule of possibleSchedules) {
-    const key = `${schedule.date.toISOString()}_${schedule.startTime}_${schedule.endTime}`;
-    
+    const key = `${schedule.date.toISOString()}_${schedule.startTime}_${
+      schedule.endTime
+    }`;
+
     try {
       // 먼저 존재하는지 확인
       let ptSchedule = await prisma.ptSchedule.findFirst({
@@ -429,11 +431,13 @@ export const preschedulePtService = async (
             endTime: schedule.endTime,
           },
         });
-        
+
         if (existingSchedule) {
           scheduleMap.set(key, existingSchedule.id);
         } else {
-          throw new Error("PtSchedule 생성 중 예상치 못한 오류가 발생했습니다.");
+          throw new Error(
+            "PtSchedule 생성 중 예상치 못한 오류가 발생했습니다."
+          );
         }
       } else {
         throw error;
@@ -443,7 +447,6 @@ export const preschedulePtService = async (
 
   // 이제 트랜잭션 시작 (PT와 PtRecord만 생성)
   return await prisma.$transaction(async (tx) => {
-
     // PT 생성
     const pt = await tx.pt.create({
       data: {
@@ -461,9 +464,11 @@ export const preschedulePtService = async (
     const scheduleResults = [];
 
     for (const schedule of possibleSchedules) {
-      const key = `${schedule.date.toISOString()}_${schedule.startTime}_${schedule.endTime}`;
+      const key = `${schedule.date.toISOString()}_${schedule.startTime}_${
+        schedule.endTime
+      }`;
       const ptScheduleId = scheduleMap.get(key);
-      
+
       if (!ptScheduleId) {
         throw new Error(`PtSchedule ID를 찾을 수 없습니다: ${key}`);
       }
@@ -532,12 +537,12 @@ const convertChosenScheduleToRegularSlots = (
       scheduleDate.setHours(0, 0, 0, 0); // 시간을 00:00:00.000으로 초기화
       const daysToAdd =
         currentWeek * 7 + (pattern.dayOfWeek - firstDate.getDay());
-      
+
       // 첫 수업일보다 과거 날짜는 생성하지 않음
       if (daysToAdd < 0) {
         return; // 이 패턴은 건너뛰고 generatedCount도 증가시키지 않음
       }
-      
+
       scheduleDate.setTime(
         scheduleDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000
       );

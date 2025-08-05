@@ -189,6 +189,12 @@ export const getPtRecordItemsService = async (ptRecordId: string) => {
     where: { id: ptRecordId },
     select: {
       items: {
+        where: {
+          deletedAt: null  // 삭제되지 않은 아이템만 조회
+        },
+        orderBy: {
+          entry: 'asc'  // entry 순서대로 정렬
+        },
         select: {
           id: true,
           title: true,
