@@ -5,7 +5,7 @@ import { getSession } from "@/app/lib/session";
 import {
   TrainerManagementService,
   type IPtRecordFilters,
-} from "@/app/lib/services/trainer-management.service";
+} from "@/app/lib/services/manager/manager-trainer.service";
 
 type Params = Promise<{ trainerId: string; ptId: string }>;
 export async function GET(

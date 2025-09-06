@@ -213,9 +213,6 @@ export const getStartEndTime = (
   return { startAt, endAt };
 };
 
-
-
-
 export const deepEqual = (obj1: any, obj2: any): boolean => {
   // 기본 타입이거나 null인 경우 직접 비교
   if (obj1 === obj2) return true;
@@ -246,16 +243,6 @@ export const deepEqual = (obj1: any, obj2: any): boolean => {
 
   // 그 외의 경우 (함수, Symbol 등)
   return false;
-};
-
-// KST => UTC
-export const convertKSTtoUTC = (date: Date): Date => {
-  return new Date(date.getTime() - 9 * 60 * 60 * 1000);
-};
-
-// UTC => KST
-export const convertUTCtoKST = (date: Date): Date => {
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
 };
 
 // 전화번호에 하이픈 추가
@@ -321,7 +308,6 @@ export const getRemainText = (date: Date, startTime: number): string => {
     return "";
   }
 };
-
 
 // 남은 시간 계산 함수
 export const getRemainingTime = (

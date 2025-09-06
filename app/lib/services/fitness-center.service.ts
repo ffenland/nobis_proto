@@ -519,6 +519,43 @@ export const getAllCentersWithStats = async () => {
   return centers;
 };
 
+// 센터의 머신 목록 조회
+export const getCenterMachines = async (centerId: string) => {
+  // 센터 존재 확인
+  const fitnessCenter = await prisma.fitnessCenter.findUnique({
+    where: {
+      id: centerId,
+    },
+    select: {
+      id: true,
+      title: true,
+    },
+  });
+
+  if (!fitnessCenter) {
+    throw new Error("센터를 찾을 수 없습니다.");
+  }
+
+  // 머신 목록 조회
+  const machines = await prisma.machine.findMany({
+    where: {
+      fitnessCenterId: centerId,
+    },
+    select: {
+      id: true,
+      title: true,
+    },
+    orderBy: {
+      title: "asc",
+    },
+  });
+
+  return {
+    center: fitnessCenter,
+    machines,
+  };
+};
+
 // 타입 추론
 export type ICenterWorkingHours = Awaited<
   ReturnType<typeof getCenterWorkingHours>
@@ -534,4 +571,7 @@ export type ITrainerMoveResult = Awaited<
 >;
 export type ICentersWithStats = Awaited<
   ReturnType<typeof getAllCentersWithStats>
+>;
+export type ICenterMachines = Awaited<
+  ReturnType<typeof getCenterMachines>
 >;

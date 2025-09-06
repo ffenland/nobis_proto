@@ -56,7 +56,7 @@ const MembershipManagementPage = async () => {
   };
 
   return (
-    <PageLayout maxWidth="xl">
+    <PageLayout>
       <PageHeader
         title="멤버십 관리"
         subtitle="회원들의 멤버십 현황을 관리합니다"

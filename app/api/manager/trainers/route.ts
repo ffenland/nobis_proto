@@ -5,7 +5,7 @@ import { getSession } from "@/app/lib/session";
 import {
   TrainerManagementService,
   type ITrainerListFilters,
-} from "@/app/lib/services/trainer-management.service";
+} from "@/app/lib/services/manager/manager-trainer.service";
 
 export async function GET(request: NextRequest) {
   try {

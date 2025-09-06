@@ -6,7 +6,6 @@ import Image from 'next/image';
 import useSWR from 'swr';
 import useSWRMutation from 'swr/mutation';
 import { getOptimizedImageUrl, formatFileSize, formatVideoDuration } from '@/app/lib/utils/media.utils';
-import { toast } from 'react-hot-toast';
 import type { EntityType } from '@/app/lib/utils/media.utils';
 
 interface MediaItem {
@@ -65,6 +64,7 @@ export default function MediaGallery({
   className = '',
 }: MediaGalleryProps) {
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+  const [toastMessage, setToastMessage] = useState<{type: 'success'|'error'|'warning'|'info', message: string} | null>(null);
 
   // URL 생성
   const params = new URLSearchParams();
@@ -80,18 +80,24 @@ export default function MediaGallery({
     fetcher
   );
 
+  // Toast 함수
+  const showToast = (type: 'success'|'error'|'warning'|'info', message: string) => {
+    setToastMessage({ type, message });
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
   // 삭제 뮤테이션
   const { trigger: deleteMedia, isMutating: isDeleting } = useSWRMutation(
     url,
     deleteMediaMutation,
     {
       onSuccess: () => {
-        toast.success('삭제되었습니다');
+        showToast('success', '삭제되었습니다');
         mutate(); // 목록 새로고침
         setSelectedItem(null);
       },
       onError: () => {
-        toast.error('삭제 중 오류가 발생했습니다');
+        showToast('error', '삭제 중 오류가 발생했습니다');
       },
     }
   );
@@ -244,6 +250,15 @@ export default function MediaGallery({
             {selectedItem.metadata?.uploadedAt && (
               <p>업로드: {new Date(selectedItem.metadata.uploadedAt).toLocaleDateString()}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toastMessage && (
+        <div className="toast toast-top toast-center">
+          <div className={`alert alert-${toastMessage.type}`}>
+            <span>{toastMessage.message}</span>
           </div>
         </div>
       )}

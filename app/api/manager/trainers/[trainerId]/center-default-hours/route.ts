@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import { getCenterWorkingHours } from "@/app/lib/services/fitness-center.service";
-import prisma from "@/app/lib/prisma";
+import { getTrainerCenterDefaultHours } from "@/app/lib/services/manager/manager-trainer.service";
 
 type Params = Promise<{ trainerId: string }>;
 
@@ -22,29 +21,8 @@ export async function GET(
       );
     }
 
-    // 트레이너 정보로 센터 ID 조회
-    const trainer = await prisma.trainer.findUnique({
-      where: { id: trainerId },
-      select: {
-        fitnessCenterId: true,
-      },
-    });
-
-    if (!trainer?.fitnessCenterId) {
-      return NextResponse.json(
-        { error: "트레이너가 소속된 센터를 찾을 수 없습니다." },
-        { status: 404 }
-      );
-    }
-
-    const centerWorkingHours = await getCenterWorkingHours(
-      trainer.fitnessCenterId
-    );
-
-    return NextResponse.json({
-      success: true,
-      data: centerWorkingHours,
-    });
+    const result = await getTrainerCenterDefaultHours(trainerId);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("센터 기본 근무시간 조회 오류:", error);
     return NextResponse.json(

@@ -1,22 +1,23 @@
-// app/api/trainer/dashboard-stats/route.ts
 import { NextResponse } from "next/server";
-import { getSessionOrRedirect } from "@/app/lib/session";
-import { getTrainerDashboardStatsService } from "@/app/lib/services/trainer.service";
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import { getTrainerDashboard } from "@/app/services/trainer/dashboard.service";
 
 export async function GET() {
   try {
-    const session = await getSessionOrRedirect();
-    if (session.role !== "TRAINER") {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+    const sessionOrResponse = await getSessionOrReturn401();
+    
+    // 401 응답인 경우 바로 반환
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
     }
-
-    const stats = await getTrainerDashboardStatsService(session.roleId);
-    return NextResponse.json(stats);
+    
+    // 정상 세션인 경우 서비스 함수 호출
+    // session.roleId는 Trainer 모델의 id
+    const dashboard = await getTrainerDashboard(sessionOrResponse.roleId);
+    
+    return NextResponse.json(dashboard);
   } catch (error) {
-    console.error("트레이너 대시보드 통계 조회 실패:", error);
-    return NextResponse.json(
-      { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
-    );
+    console.error('Dashboard fetch error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

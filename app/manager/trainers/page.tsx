@@ -60,7 +60,7 @@ export default function TrainersNavigationPage() {
 
   if (error) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">데이터를 불러오는데 실패했습니다</p>
           <button
@@ -77,7 +77,7 @@ export default function TrainersNavigationPage() {
   const centers = centersData?.data || [];
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <PageHeader
         title="트레이너 관리"
         subtitle="센터별 트레이너와 근무시간을 관리하세요"

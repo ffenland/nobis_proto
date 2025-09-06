@@ -31,30 +31,30 @@ enum WeekDay {
 }
 
 model User {
-  id                       String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
   username                 String
-  email                    String                    @unique
-  naverId                  String?                   @unique
-  kakaoId                  String?                   @unique
-  mobile                   String                    @unique
-  avatarImageId            String?                   @unique @db.Uuid
-  avatarImage              Image?                    @relation("UserAvatar", fields: [avatarImageId], references: [id], onDelete: SetNull)
-  usernameChangeCount      Int                       @default(0) // 변경 횟수
+  email                    String                  @unique
+  naverId                  String?                 @unique
+  kakaoId                  String?                 @unique
+  mobile                   String                  @unique
+  avatarImageId            String?                 @unique @db.Uuid
+  avatarImage              Image?                  @relation("UserAvatar", fields: [avatarImageId], references: [id], onDelete: SetNull)
+  usernameChangeCount      Int                     @default(0) // 변경 횟수
   lastUsernameChangeAt     DateTime? // 마지막 변경 시간
-  role                     UserRole                  @default(MEMBER)
+  role                     UserRole                @default(MEMBER)
   trainerProfile           Trainer?
   managerProfile           Manager?
   memberProfile            Member?
   userData                 UserData?
   deletedAt                DateTime?
   rateLimit                RateLimit[]
-  chatRoomsAsUserOne       ChatRoom[]                @relation("ChatRoomUserOne")
-  chatRoomsAsUserTwo       ChatRoom[]                @relation("ChatRoomUserTwo")
+  chatRoomsAsUserOne       ChatRoom[]              @relation("ChatRoomUserOne")
+  chatRoomsAsUserTwo       ChatRoom[]              @relation("ChatRoomUserTwo")
   sentMessages             Message[]
-  requestedScheduleChanges PtScheduleChangeRequest[] @relation("ScheduleChangeRequestor")
-  respondedScheduleChanges PtScheduleChangeRequest[] @relation("ScheduleChangeResponder")
+  requestedScheduleChanges ScheduleChangeRequest[] @relation("ScheduleChangeRequestor")
+  respondedScheduleChanges ScheduleChangeRequest[] @relation("ScheduleChangeResponder")
 
   // 업로드한 모든 미디어 (다대일 관계)
   uploadedVideo Video[]
@@ -70,27 +70,24 @@ model User {
 }
 
 model UserData {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  user       User         @relation(fields: [userId], references: [id], onDelete: NoAction)
-  userId     String       @unique @db.Uuid
-  logNicePay LogNicePay[]
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction)
+  userId    String   @unique @db.Uuid
 }
 
 model Member {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  user             User               @relation(fields: [userId], references: [id])
-  userId           String             @unique @db.Uuid
-  pt               Pt[]
-  membership       Membership[]
-  ptCoupon         PtCoupon[]
-  membershipCoupon MembershipCoupon[]
-  fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId  String?            @db.Uuid
-  active           Boolean            @default(true)
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id])
+  userId          String         @unique @db.Uuid
+  pt              Pt[]
+  membership      Membership[]
+  fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String?        @db.Uuid
+  active          Boolean        @default(true)
 }
 
 model WorkingHour {
@@ -106,39 +103,42 @@ model WorkingHour {
   @@unique([dayOfWeek, openTime, closeTime])
 }
 
+enum TrainerLevel {
+  JUNIOR
+  ASSOCIATE
+  SENIOR
+  MASTER
+}
+
 model Trainer {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  user             User               @relation(fields: [userId], references: [id])
-  userId           String             @unique @db.Uuid
-  introduce        String             @default("안녕하세요")
-  group            Group?             @relation(fields: [groupId], references: [id])
-  groupId          String?            @db.Uuid
-  pt               Pt[]
-  ptProduct        PtProduct[]
-  ptCoupon         PtCoupon[]
-  membershipCoupon MembershipCoupon[]
-  fitnessCenter    FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId  String?            @db.Uuid
-  trainerOff       TrainerOff[]
-  workingHours     WorkingHour[]
-  working          Boolean            @default(true)
-  auditLogs        PtRecordAuditLog[] // 감사 로그 관계
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id])
+  userId          String           @unique @db.Uuid
+  introduce       String           @default("안녕하세요")
+  level           TrainerLevel     @default(JUNIOR)
+  group           Group?           @relation(fields: [groupId], references: [id])
+  groupId         String?          @db.Uuid
+  pt              Pt[]
+  ptProduct       PtProduct[]
+  fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String?          @db.Uuid
+  trainerOff      TrainerOff[]
+  workingHours    WorkingHour[]
+  working         Boolean          @default(true)
+  auditLogs       LessonAuditLog[] // 감사 로그 관계
 }
 
 model Manager {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  user               User                 @relation(fields: [userId], references: [id])
-  userId             String               @unique @db.Uuid
-  group              Group[]
-  ptCoupon           PtCoupon[]
-  membershipCoupon   MembershipCoupon[]
-  membershipAddedDay MembershipAddedDay[]
-  fitnessCenter      FitnessCenter?       @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId    String?              @db.Uuid
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id])
+  userId          String         @unique @db.Uuid
+  group           Group[]
+  fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String?        @db.Uuid
 }
 
 model Group {
@@ -162,19 +162,21 @@ model ConfigurationValue {
 }
 
 model PtProduct {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  title       String
-  price       Int
-  description String
-  totalCount  Int
-  time        Int       @default(60) // minute
-  onSale      Boolean   @default(true)
-  trainer     Trainer[]
-  openedAt    DateTime  @default(now())
-  closedAt    DateTime  @default(dbgenerated("TIMESTAMP '2199-12-31 23:59:59'"))
-  pt          Pt[]
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  title             String
+  price             Int
+  expiration_period Int // 일(day)개념. 첫 수업일을 포함하여 수업이 가능한 날짜 수
+  incentivePercent  Int
+  description       String
+  totalCount        Int
+  time              Int       @default(60) // minute
+  onSale            Boolean   @default(true)
+  trainer           Trainer[]
+  openedAt          DateTime  @default(now())
+  closedAt          DateTime  @default(dbgenerated("TIMESTAMP '2199-12-31 23:59:59'"))
+  pt                Pt[]
 }
 
 enum PtState {
@@ -194,24 +196,65 @@ model PtRejectInfo {
 }
 
 model Pt {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  ptProduct        PtProduct     @relation(fields: [ptProductId], references: [id])
-  ptProductId      String        @db.Uuid
-  member           Member?       @relation(fields: [memberId], references: [id])
-  memberId         String?       @db.Uuid
-  trainer          Trainer?      @relation(fields: [trainerId], references: [id])
-  trainerId        String?       @db.Uuid
-  state            PtState       @default(PENDING)
-  trainerConfirmed Boolean       @default(false)
-  description      String        @default("")
-  ptRecord         PtRecord[]
-  ptCoupon         PtCoupon?
-  ptPayment        PtPayment?
-  startDate        DateTime
-  isRegular        Boolean
-  rejectInfo       PtRejectInfo?
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  ptProduct     PtProduct     @relation(fields: [ptProductId], references: [id])
+  ptProductId   String        @db.Uuid
+  member        Member?       @relation(fields: [memberId], references: [id])
+  memberId      String?       @db.Uuid
+  trainer       Trainer?      @relation(fields: [trainerId], references: [id])
+  trainerId     String?       @db.Uuid
+  state         PtState       @default(PENDING)
+  description   String        @default("")
+  goals         String        @default("") // PT 목표 (쉼표로 구분된 문자열)
+  lessons       Lesson[]
+  paymentAmount Int
+  startDate     DateTime
+  rejectInfo    PtRejectInfo?
+}
+
+model Lesson {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  pt              Pt            @relation(fields: [ptId], references: [id])
+  ptId            String        @db.Uuid
+  fitnessCenter   FitnessCenter @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId String        @db.Uuid
+
+  // 스케줄 정보 (LessonSchedule 통합)
+  scheduledAt           DateTime // 수업 시작 시간
+  endAt                 DateTime // 수업 종료 시간 (새로 추가)
+  records               LessonRecord[]
+  memo                  String                  @default("")
+  scheduleChangeRequest ScheduleChangeRequest[]
+  auditLogs             LessonAuditLog[] // 감사 로그 관계
+
+  // 컨디션 기록 관련 필드
+  conditionMemo   String? // 컨디션에 대한 텍스트 메모
+  conditionImages Image[] @relation("LessonConditionImages") // 여러 컨디션 이미지들
+
+  @@index([scheduledAt])
+  @@index([ptId, scheduledAt])
+}
+
+model LessonRecord {
+  id                        String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt                 DateTime                   @default(now())
+  lesson                    Lesson                     @relation(fields: [lessonId], references: [id])
+  lessonId                  String                     @db.Uuid
+  entry                     Int
+  description               String?
+  type                      RecordType
+  title                     String?
+  machineSetRecords         MachineSetRecord[]
+  freeSetRecords            FreeSetRecord[]
+  stretchingExerciseRecords StretchingExerciseRecord[]
+  images                    Image[]
+  videos                    Video[]
+  deletedAt                 DateTime? // 소프트 삭제 시간
+  deletedUserId             String?                    @db.Uuid // 삭제한 사용자 ID
 }
 
 enum ScheduleChangeState {
@@ -222,14 +265,14 @@ enum ScheduleChangeState {
   CANCELLED // 요청자가 취소
 }
 
-model PtScheduleChangeRequest {
+model ScheduleChangeRequest {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // PtRecord와 관계 (핵심!)
-  ptRecord   PtRecord @relation(fields: [ptRecordId], references: [id])
-  ptRecordId String   @db.Uuid
+  // Lesson과 관계 (핵심!)
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+  lessonId String @db.Uuid
 
   // 요청자 정보 (relation name 추가)
   requestor   User   @relation("ScheduleChangeRequestor", fields: [requestorId], references: [id])
@@ -257,25 +300,9 @@ model PtScheduleChangeRequest {
   // 만료 시간
   expiresAt DateTime
 
-  @@index([ptRecordId])
+  @@index([lessonId])
   @@index([state])
   @@index([expiresAt])
-}
-
-model PtRecord {
-  id                    String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
-  pt                    Pt                        @relation(fields: [ptId], references: [id])
-  ptId                  String                    @db.Uuid
-  ptSchedule            PtSchedule                @relation(fields: [ptScheduleId], references: [id])
-  ptScheduleId          String                    @db.Uuid
-  fitnessCenter         FitnessCenter             @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId       String                    @db.Uuid
-  items                 PtRecordItem[]
-  memo                  String                    @default("")
-  scheduleChangeRequest PtScheduleChangeRequest[]
-  auditLogs            PtRecordAuditLog[] // 감사 로그 관계
 }
 
 enum RecordType {
@@ -290,25 +317,6 @@ enum AuditAction {
   DELETE_ITEM
   CREATE_RECORD
   UPDATE_RECORD
-}
-
-model PtRecordItem {
-  id                        String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt                 DateTime                   @default(now())
-  ptRecord                  PtRecord                   @relation(fields: [ptRecordId], references: [id])
-  ptRecordId                String                     @db.Uuid
-  entry                     Int
-  description               String?
-  type                      RecordType
-  title                     String?
-  machineSetRecords         MachineSetRecord[]
-  freeSetRecords            FreeSetRecord[]
-  stretchingExerciseRecords StretchingExerciseRecord[]
-  images                    Image[]
-  isActive                  Boolean                    @default(true) // 현재 유효한 기록인지 여부
-  videos                    Video[]
-  deletedAt                 DateTime?                  // 소프트 삭제 시간
-  deletedBy                 String?                    @db.Uuid // 삭제한 트레이너 ID
 }
 
 model Machine {
@@ -343,46 +351,62 @@ model MachineSetRecord {
   settingValues  MachineSettingValue[]
   reps           Int
   set            Int // 몇번째 세트인지
-  ptRecordItem   PtRecordItem          @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
-  ptRecordItemId String                @db.Uuid
+  lessonRecord   LessonRecord          @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
+  lessonRecordId String                @db.Uuid
 }
 
-// 운동기구 카테고리 enum
-enum EquipmentCategory {
-  WEIGHT // 웨이트 (덤벨, 바벨, 원판)
-  CARDIO // 유산소 도구 (줄넘기, 스텝박스)
-  RESISTANCE // 저항 도구 (고무밴드, 저항밴드)
-  FUNCTIONAL // 기능성 도구 (폼롤러, 밸런스볼)
-  ACCESSORY // 액세서리 (벨트, 스트랩)
-  MOBILITY // 가동성 도구 (요가매트, 스트레칭 도구)
-  CORE // 코어 도구 (메디신볼, 슬라이딩 디스크)
-  SPECIALTY // 특수 도구 (케틀벨, 샌드백)
+// 운동기구 그룹 모델 (덤벨, 바벨, 케틀벨 등)
+model EquipmentGroup {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name        String // 그룹 이름 (예: "덤벨", "바벨", "케틀벨", "고무밴드")
+  description String? // 그룹 설명
+
+  // 관계
+  equipment Equipment[]
+
+  @@unique([name]) // 중복 방지
 }
 
-// 운동기구 통합 모델
+// 운동기구 브랜드 모델
+model EquipmentBrand {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name String // 브랜드 이름 (예: "Nike", "Adidas", "PowerTech")
+
+  // 관계
+  equipment Equipment[]
+
+  @@unique([name]) // 중복 방지
+}
+
+// 운동기구 통합 모델 (재설계)
 model Equipment {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // 기본 정보
-  title    String // 기구 이름 (예: "덤벨 5kg", "고무밴드 옐로우")
-  category EquipmentCategory // 카테고리
+  // 그룹 정보 (필수) - "덤벨", "바벨", "케틀벨" 등
+  group   EquipmentGroup @relation(fields: [groupId], references: [id])
+  groupId String         @db.Uuid
 
-  // 수치 정보 (유연한 구조)
-  primaryValue   Float? // 주요 값 (무게, 탄성도, 저항력 등)
-  primaryUnit    String? // 주요 단위 (kg, lbs, level, resistance 등)
-  secondaryValue Float? // 부차 값 (길이, 지름 등)
+  // 브랜드 정보 (선택)
+  brand   EquipmentBrand? @relation(fields: [brandId], references: [id])
+  brandId String?         @db.Uuid
+
+  // 수치 정보
+  primaryValue   String? // 주요 값 (무게, 탄성도 등) - String으로 변경하여 "상/중/하" 같은 값도 지원
+  primaryUnit    String? // 주요 단위 (kg, lbs, level 등)
+  secondaryValue String? // 부차 값 (길이, 지름 등) - String으로 변경
   secondaryUnit  String? // 부차 단위 (cm, inch 등)
 
   // 부가 정보
-  brand       String? // 브랜드
   model       String? // 모델명
   description String? // 설명
-
-  // 관리 정보
-  quantity Int     @default(1) // 수량
-  location String? // 보관 위치
 
   // 관계
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
@@ -395,7 +419,9 @@ model Equipment {
   // 미디어 (사진)
   images Image[]
 
-  @@index([fitnessCenterId, category])
+  @@index([fitnessCenterId, groupId])
+  @@index([groupId])
+  @@index([brandId])
 }
 
 model FreeExercise {
@@ -415,8 +441,8 @@ model FreeSetRecord {
   equipments     Equipment[]
   reps           Int // 횟수
   set            Int // 몇번째 세트인지
-  ptRecordItem   PtRecordItem @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
-  ptRecordItemId String       @db.Uuid
+  lessonRecord   LessonRecord @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
+  lessonRecordId String       @db.Uuid
 }
 
 model StretchingExercise {
@@ -435,20 +461,8 @@ model StretchingExerciseRecord {
   stretchingExerciseId String             @db.Uuid
   equipments           Equipment[]
   description          String?
-  ptRecordItem         PtRecordItem       @relation(fields: [ptRecordItemId], references: [id], onDelete: Cascade)
-  ptRecordItemId       String             @db.Uuid
-}
-
-model PtSchedule {
-  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  date      DateTime
-  startTime Int
-  endTime   Int
-  ptRecord  PtRecord[]
-
-  @@unique([date, startTime, endTime])
+  lessonRecord         LessonRecord       @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
+  lessonRecordId       String             @db.Uuid
 }
 
 enum ScheduleState {
@@ -472,107 +486,18 @@ model MembershipProduct {
 }
 
 model Membership {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
   startedAt           DateTime?
   closedAt            DateTime?
-  member              Member               @relation(fields: [memberId], references: [id])
-  memberId            String               @db.Uuid
-  paid                Boolean              @default(false)
-  membershipPayment   MembershipPayment?
+  member              Member            @relation(fields: [memberId], references: [id])
+  memberId            String            @db.Uuid
+  paid                Boolean           @default(false)
   totalDays           Int
-  isActive            Boolean              @default(false)
-  membershipProduct   MembershipProduct    @relation(fields: [membershipProductId], references: [id])
-  membershipProductId String               @db.Uuid
-  membershipCoupon    MembershipCoupon?
-  membershipAddedDay  MembershipAddedDay[]
-}
-
-model MembershipAddedDay {
-  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt    DateTime   @default(now())
-  issuer       Manager    @relation(fields: [issuerId], references: [id])
-  issuerId     String     @db.Uuid
-  membership   Membership @relation(fields: [membershipId], references: [id])
-  membershipId String     @db.Uuid
-  dayCount     Int
-  description  String?
-}
-
-model MembershipPayment {
-  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  membership   Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
-  membershipId String?     @unique @db.Uuid
-  nictTid      String?
-  paidAt       DateTime?
-  price        Int
-}
-
-enum PaymentType {
-  CARD
-  CASH
-  POINT
-}
-
-model PtPayment {
-  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  pt        Pt?         @relation(fields: [ptId], references: [id], onDelete: SetNull)
-  ptId      String?     @unique @db.Uuid
-  type      PaymentType @default(CASH)
-  paidAt    DateTime?
-  amount    Int
-}
-
-model PtCoupon {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  issuer    Manager  @relation(fields: [issuerId], references: [id])
-  issuerId  String   @db.Uuid
-  trainer   Trainer  @relation(fields: [trainerId], references: [id])
-  trainerId String   @db.Uuid
-  member    Member   @relation(fields: [memberId], references: [id])
-  memberId  String   @db.Uuid
-  pt        Pt       @relation(fields: [ptId], references: [id])
-  ptId      String   @unique @db.Uuid
-  discount  Int      @default(10)
-  maxPrice  Int      @default(100000)
-  onValid   Boolean  @default(true)
-  openedAt  DateTime @default(now())
-  closedAt  DateTime @default(dbgenerated("(NOW() + '30 days'::interval)"))
-}
-
-model MembershipCoupon {
-  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  issuer       Manager     @relation(fields: [issuerId], references: [id])
-  issuerId     String      @db.Uuid
-  trainer      Trainer     @relation(fields: [trainerId], references: [id])
-  trainerId    String      @db.Uuid
-  member       Member      @relation(fields: [memberId], references: [id])
-  memberId     String      @db.Uuid
-  discount     Int         @default(10)
-  maxPrice     Int         @default(100000)
-  onValid      Boolean     @default(true)
-  openedAt     DateTime    @default(now())
-  closedAt     DateTime    @default(dbgenerated("(NOW() + '30 days'::interval)"))
-  membership   Membership? @relation(fields: [membershipId], references: [id])
-  membershipId String?     @unique @db.Uuid
-}
-
-model LogNicePay {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  tid        String
-  userData   UserData @relation(fields: [userDataId], references: [id])
-  userDataId String   @db.Uuid
+  isActive            Boolean           @default(false)
+  membershipProduct   MembershipProduct @relation(fields: [membershipProductId], references: [id])
+  membershipProductId String            @db.Uuid
 }
 
 model OffDay {
@@ -613,7 +538,7 @@ model FitnessCenter {
   updatedAt           DateTime      @updatedAt
   equipments          Equipment[]
   images              Image[]
-  ptRecords           PtRecord[]
+  lessons             Lesson[]
   inOperation         Boolean       @default(true)
 }
 
@@ -725,8 +650,8 @@ model Image {
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
   fitnessCenterId String?        @db.Uuid
 
-  ptRecordItem   PtRecordItem? @relation(fields: [ptRecordItemId], references: [id], onDelete: SetNull)
-  ptRecordItemId String?       @db.Uuid
+  lessonRecord   LessonRecord? @relation(fields: [lessonRecordId], references: [id], onDelete: SetNull)
+  lessonRecordId String?       @db.Uuid
 
   equipment   Equipment? @relation(fields: [equipmentId], references: [id])
   equipmentId String?    @db.Uuid
@@ -736,6 +661,10 @@ model Image {
 
   stretchingExercise   StretchingExercise? @relation(fields: [stretchingExerciseId], references: [id])
   stretchingExerciseId String?             @db.Uuid
+
+  // 컨디션 이미지로 사용되는 경우 (Lesson과 Many-to-One)
+  lessonCondition   Lesson? @relation("LessonConditionImages", fields: [lessonConditionId], references: [id], onDelete: SetNull)
+  lessonConditionId String? @db.Uuid
 
   // 메타데이터                                                           
   metadata Json?
@@ -757,6 +686,7 @@ enum ImageType {
   PT_RECORD
   BEFORE_AFTER
   ACHIEVEMENT
+  CONDITION // 컨디션 기록용 이미지
 }
 
 enum ImageStatus {
@@ -792,8 +722,8 @@ model Video {
   uploadedById String @db.Uuid
 
   // 선택적 관계                                                          
-  ptRecordItem   PtRecordItem? @relation(fields: [ptRecordItemId], references: [id], onDelete: SetNull)
-  ptRecordItemId String?       @db.Uuid
+  lessonRecord   LessonRecord? @relation(fields: [lessonRecordId], references: [id], onDelete: SetNull)
+  lessonRecordId String?       @db.Uuid
 
   // 메타데이터                                                           
   metadata Json?
@@ -849,7 +779,7 @@ model MediaUsage {
 }
 
 // PT 기록 감사 로그
-model PtRecordAuditLog {
+model LessonAuditLog {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
 
@@ -858,9 +788,9 @@ model PtRecordAuditLog {
   trainer   Trainer @relation(fields: [trainerId], references: [id])
 
   // 작업 대상
-  ptRecordId     String   @db.Uuid
-  ptRecord       PtRecord @relation(fields: [ptRecordId], references: [id])
-  ptRecordItemId String?  @db.Uuid
+  lessonId       String  @db.Uuid
+  lesson         Lesson  @relation(fields: [lessonId], references: [id])
+  lessonRecordId String? @db.Uuid
 
   // 작업 정보
   action        AuditAction
@@ -876,7 +806,7 @@ model PtRecordAuditLog {
   notes     String?
 
   @@index([trainerId])
-  @@index([ptRecordId])
+  @@index([lessonId])
   @@index([action])
   @@index([isOutOfTime])
   @@index([createdAt])

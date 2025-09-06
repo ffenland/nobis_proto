@@ -4,7 +4,7 @@
 import useSWR from "swr";
 import { Button } from "@/app/components/ui/Button";
 import { ErrorMessage } from "@/app/components/ui/Loading";
-import { IFitnessCenters } from "@/app/lib/services/pt-apply.service";
+import type { FitnessCentersForPtApply } from "@/app/services/member/pt/pt.service";
 
 // API fetcher
 const fetcher = (url: string) =>
@@ -14,8 +14,8 @@ const fetcher = (url: string) =>
   });
 
 interface CenterSelectionStepProps {
-  selectedCenter: IFitnessCenters[number] | null;
-  onSelectCenter: (center: IFitnessCenters[number]) => void;
+  selectedCenter: FitnessCentersForPtApply[number] | null;
+  onSelectCenter: (center: FitnessCentersForPtApply[number]) => void;
   onNext: () => void;
 }
 
@@ -29,7 +29,7 @@ const CenterSelectionStep = ({
     data: centers,
     error,
     isLoading,
-  } = useSWR<IFitnessCenters>("/api/member/fitness-centers", fetcher);
+  } = useSWR<FitnessCentersForPtApply>("/api/member/new-pt/centers", fetcher);
 
   if (isLoading) {
     return (

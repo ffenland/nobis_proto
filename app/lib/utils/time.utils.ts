@@ -385,17 +385,19 @@ export const calculateEndTime = (
 export const generateTimeSlots = (
   openTime: number = 600,
   closeTime: number = 2200
-): number[] => {
+): TimeInt[] => {
   const rangeValidation = isValidTimeRange(openTime, closeTime);
   if (!rangeValidation.isValid) {
     throw new Error(`Invalid time range: ${rangeValidation.error?.message}`);
   }
 
-  const slots: number[] = [];
+  const slots: TimeInt[] = [];
   let currentTime = openTime;
 
   while (currentTime < closeTime) {
-    slots.push(currentTime);
+    if (isTimeInt(currentTime)) {
+      slots.push(currentTime);
+    }
     currentTime = addThirtyMinutes(currentTime);
 
     // 무한 루프 방지
@@ -768,4 +770,83 @@ export const formatDateTimeKR = (date: Date): string => {
   const timeStr = date.toTimeString().slice(0, 5);
 
   return `${dateStr} ${timeStr}`;
+};
+
+// UTC => KST
+export const convertUTCtoKST = (date: Date): Date => {
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
+};
+
+// ========================================
+// 실시간 시간 관리 및 과거 시간 차단
+// ========================================
+
+/**
+ * 현재 시간을 TimeInt 형식으로 반환
+ * @returns 현재 시간 (HHMM 형식)
+ * @example getCurrentTimeInt() // 1430 (현재가 14:30인 경우)
+ */
+export const getCurrentTimeInt = (): TimeInt => {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  return toTimeInt(hour * 100 + minute);
+};
+
+/**
+ * 선택한 날짜와 시간이 과거인지 확인
+ * @param selectedDate 선택된 날짜 (YYYY-MM-DD 형식)
+ * @param timeInt 선택된 시간 (HHMM 형식)
+ * @returns 과거 시간이면 true
+ * @example isTimeInPast("2025-01-15", 1430) // 현재보다 과거면 true
+ */
+export const isTimeInPast = (selectedDate: string, timeInt: TimeInt): boolean => {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // 선택한 날짜가 오늘 이전이면 과거
+  if (selectedDate < today) {
+    return true;
+  }
+
+  // 선택한 날짜가 오늘 이후면 미래
+  if (selectedDate > today) {
+    return false;
+  }
+
+  // 오늘 날짜인 경우 시간 비교
+  const currentTimeInt = getCurrentTimeInt();
+  return timeInt <= currentTimeInt;
+};
+
+/**
+ * 과거 시간을 제외한 시간 슬롯 반환
+ * @param timeSlots 전체 시간 슬롯 배열
+ * @param selectedDate 선택된 날짜 (YYYY-MM-DD 형식)
+ * @returns 미래 시간만 포함된 배열
+ * @example filterFutureTimeSlots([900, 1000, 1100], "2025-01-15")
+ */
+export const filterFutureTimeSlots = (
+  timeSlots: readonly TimeInt[], 
+  selectedDate: string
+): TimeInt[] => {
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 오늘이 아닌 날짜면 모든 시간 허용
+  if (selectedDate !== today) {
+    return [...timeSlots];
+  }
+  
+  // 오늘 날짜인 경우 현재 시간 이후만 허용
+  const currentTimeInt = getCurrentTimeInt();
+  return timeSlots.filter(slot => slot > currentTimeInt);
+};
+
+/**
+ * 최소 선택 가능한 날짜 반환 (오늘 날짜)
+ * @returns YYYY-MM-DD 형식의 오늘 날짜
+ * @example getMinSelectableDate() // "2025-01-15"
+ */
+export const getMinSelectableDate = (): string => {
+  return new Date().toISOString().split('T')[0];
 };

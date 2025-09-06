@@ -101,7 +101,7 @@ export default function TrainerOffSchedulePage() {
 
   if (isLoading) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -110,7 +110,7 @@ export default function TrainerOffSchedulePage() {
   }
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <div className="flex items-center justify-between mb-6">
         <PageHeader title="오프 일정 관리" />
         <Link href="/trainer/schedule">

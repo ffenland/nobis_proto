@@ -5,13 +5,13 @@ import { getSession } from "@/app/lib/session";
 import { createImageUploadUrl } from "@/app/lib/services/media/image.service";
 import {
   generateMediaId,
-  type EntityType,
   normalizeMetadata,
 } from "@/app/lib/utils/media.utils";
+import { ImageType } from "@prisma/client";
 
 // 요청 타입
 interface ImageUploadRequest {
-  entityType: EntityType;
+  entityType: ImageType;
   entityId?: string;
   metadata?: Record<string, unknown>;
   requireSignedURLs?: boolean;
@@ -29,15 +29,8 @@ export async function POST(request: NextRequest) {
     const body: ImageUploadRequest = await request.json();
     const { entityType, entityId, metadata, requireSignedURLs } = body;
 
-    // entityType 검증
-    const validEntityTypes: EntityType[] = [
-      "profile",
-      "pt-record",
-      "exercise",
-      "chat",
-      "review",
-      "machine",
-    ];
+    // entityType 검증 (Prisma enum 값들로 체크)
+    const validEntityTypes = Object.values(ImageType);
     if (!validEntityTypes.includes(entityType)) {
       return NextResponse.json(
         { error: "Invalid entity type" },
@@ -45,13 +38,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 권한 검증 (예: PT 기록은 트레이너만 가능)
-    if (entityType === "pt-record" && session.role !== "TRAINER") {
+    // 권한 검증 (Prisma ImageType enum 값 사용)
+    if (entityType === ImageType.PT_RECORD && session.role !== "TRAINER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // 머신 이미지는 매니저만 가능
-    if (entityType === "machine" && session.role !== "MANAGER") {
+    if (entityType === ImageType.MACHINE && session.role !== "MANAGER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // 컨디션 이미지는 트레이너만 가능
+    if (entityType === ImageType.CONDITION && session.role !== "TRAINER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

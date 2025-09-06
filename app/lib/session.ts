@@ -87,3 +87,17 @@ export const getSession = async (): Promise<
     return null;
   }
 };
+
+// API 라우트 전용 헬퍼 함수 - 세션이 없거나 불완전하면 NextResponse 401 반환
+export const getSessionOrReturn401 = async () => {
+  const session = await getSession();
+  
+  // 세션이 없거나 필수 정보(id, role, roleId)가 하나라도 없으면 401 반환
+  if (!session || !session.id || !session.role || !session.roleId) {
+    // 동적 import로 NextResponse 가져오기 (서버 전용)
+    const { NextResponse } = await import('next/server');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  
+  return session;
+};

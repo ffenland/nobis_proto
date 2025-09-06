@@ -156,7 +156,7 @@ const PtDetailPage = (props: { params: Params }) => {
   // 에러 상태
   if (error || !ptDetail) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <ErrorMessage
           message="PT 정보를 불러올 수 없습니다."
           action={
@@ -185,7 +185,7 @@ const PtDetailPage = (props: { params: Params }) => {
   const canDelete = pt.state === "PENDING" && !pt.trainerConfirmed;
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       {/* 헤더 - 모바일 최적화 */}
       <div className="px-3 py-2 border-b bg-white sticky top-0 z-10">
         <div className="flex items-center justify-between mb-2">

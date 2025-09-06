@@ -29,7 +29,7 @@ import {
   Badge,
 } from "@/app/components/ui/Loading";
 import type { IMembersWithStats } from "@/app/lib/services/member-management.service";
-import type { IFitnessCenterList } from "@/app/lib/services/trainer-management.service";
+import type { IFitnessCenterList } from "@/app/lib/services/manager/manager-trainer.service";
 
 // 데이터 페처 함수
 const fetcher = async (url: string) => {
@@ -86,7 +86,7 @@ export default function MembersPage() {
   // 에러 상태
   if (membersError) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">데이터를 불러오는데 실패했습니다</p>
           <Button variant="outline" onClick={() => window.location.reload()}>
@@ -139,7 +139,7 @@ export default function MembersPage() {
   //     : 0;
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <PageHeader
         title="회원 관리"
         subtitle="회원별 PT 현황과 이용 통계를 모니터링하세요"

@@ -101,7 +101,7 @@ export default function MemberDetailPage(props: { params: Params }) {
   // 에러 상태
   if (memberError) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">
             {memberError.message.includes("404")
@@ -124,7 +124,7 @@ export default function MemberDetailPage(props: { params: Params }) {
   const ptRecords = recordsData?.records || [];
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       {/* 뒤로가기 버튼 */}
       <div className="mb-4">
         <Link href="/manager/members">

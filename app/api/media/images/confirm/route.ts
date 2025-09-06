@@ -100,7 +100,10 @@ export async function POST(request: NextRequest) {
         if (entityId) entityConnections.stretchingExerciseId = entityId;
         break;
       case ImageType.PT_RECORD:
-        if (entityId) entityConnections.ptRecordItemId = entityId;
+        if (entityId) entityConnections.lessonRecordId = entityId;
+        break;
+      case ImageType.CONDITION:
+        if (entityId) entityConnections.lessonId = entityId;
         break;
     }
 

@@ -1,5 +1,5 @@
-import prisma from '@/app/lib/prisma';
-import { RecordType } from '@prisma/client';
+import prisma from "@/app/lib/prisma";
+import { RecordType } from "@prisma/client";
 
 // PT Record Item 생성
 export async function createPtRecordItem(data: {
@@ -12,14 +12,14 @@ export async function createPtRecordItem(data: {
   const maxEntry = await prisma.ptRecordItem.findFirst({
     where: {
       ptRecordId: data.ptRecordId,
-      deletedAt: null
+      deletedAt: null,
     },
     orderBy: {
-      entry: 'desc'
+      entry: "desc",
     },
     select: {
-      entry: true
-    }
+      entry: true,
+    },
   });
 
   return await prisma.ptRecordItem.create({
@@ -28,7 +28,7 @@ export async function createPtRecordItem(data: {
       type: data.type,
       title: data.title,
       description: data.description,
-      entry: (maxEntry?.entry ?? -1) + 1,  // 다음 번호 자동 할당
+      entry: (maxEntry?.entry ?? -1) + 1, // 다음 번호 자동 할당
     },
     select: {
       id: true,
@@ -38,16 +38,18 @@ export async function createPtRecordItem(data: {
       description: true,
       entry: true,
       createdAt: true,
-    }
+    },
   });
 }
 
 // 타입 추론
-export type CreatePtRecordItemResult = Awaited<ReturnType<typeof createPtRecordItem>>;
+export type CreatePtRecordItemResult = Awaited<
+  ReturnType<typeof createPtRecordItem>
+>;
 
 // 소프트 삭제 구현
 export async function softDeletePtRecordItem(
-  itemId: string, 
+  itemId: string,
   deletedBy: string
 ) {
   return await prisma.ptRecordItem.update({
@@ -61,12 +63,14 @@ export async function softDeletePtRecordItem(
       ptRecordId: true,
       deletedAt: true,
       entry: true,
-    }
+    },
   });
 }
 
 // 타입 추론
-export type SoftDeleteResult = Awaited<ReturnType<typeof softDeletePtRecordItem>>;
+export type SoftDeleteResult = Awaited<
+  ReturnType<typeof softDeletePtRecordItem>
+>;
 
 // 활성 아이템만 조회하도록 수정
 export async function getActivePtRecordItems(ptRecordId: string) {
@@ -84,8 +88,8 @@ export async function getActivePtRecordItems(ptRecordId: string) {
       createdAt: true,
     },
     orderBy: {
-      entry: 'asc',
-    }
+      entry: "asc",
+    },
   });
 }
 
@@ -113,13 +117,13 @@ export async function getPtRecordItemDetailForAudit(itemId: string) {
                   machine: {
                     select: {
                       title: true,
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       freeSetRecords: {
         select: {
@@ -129,14 +133,14 @@ export async function getPtRecordItemDetailForAudit(itemId: string) {
           freeExercise: {
             select: {
               title: true,
-            }
+            },
           },
           equipments: {
             select: {
               title: true,
-            }
-          }
-        }
+            },
+          },
+        },
       },
       stretchingExerciseRecords: {
         select: {
@@ -145,35 +149,35 @@ export async function getPtRecordItemDetailForAudit(itemId: string) {
           stretchingExercise: {
             select: {
               title: true,
-            }
+            },
           },
           equipments: {
             select: {
               title: true,
-            }
-          }
-        }
+            },
+          },
+        },
       },
-    }
+    },
   });
 }
 
 // 남은 아이템들의 entry 재정렬
 export async function reorderPtRecordItems(ptRecordId: string) {
   const remainingItems = await prisma.ptRecordItem.findMany({
-    where: { 
+    where: {
       ptRecordId,
-      deletedAt: null // 삭제되지 않은 것만
+      deletedAt: null, // 삭제되지 않은 것만
     },
-    orderBy: { entry: 'asc' },
+    orderBy: { entry: "asc" },
     select: {
       id: true,
       entry: true,
-    }
+    },
   });
 
   // entry 값을 0부터 순차적으로 재배열
-  const updatePromises = remainingItems.map((item, index) => 
+  const updatePromises = remainingItems.map((item, index) =>
     prisma.ptRecordItem.update({
       where: { id: item.id },
       data: { entry: index },
@@ -181,13 +185,13 @@ export async function reorderPtRecordItems(ptRecordId: string) {
   );
 
   await Promise.all(updatePromises);
-  
+
   return remainingItems.length;
 }
 
 // PT Record Item 권한 확인
 export async function checkPtRecordItemPermission(
-  itemId: string, 
+  itemId: string,
   trainerId: string
 ) {
   const item = await prisma.ptRecordItem.findFirst({
@@ -198,7 +202,7 @@ export async function checkPtRecordItemPermission(
         pt: {
           trainerId: trainerId,
           state: {
-            in: ['CONFIRMED', 'FINISHED'],
+            in: ["CONFIRMED", "FINISHED"],
           },
         },
       },
@@ -213,11 +217,11 @@ export async function checkPtRecordItemPermission(
               date: true,
               startTime: true,
               endTime: true,
-            }
-          }
-        }
-      }
-    }
+            },
+          },
+        },
+      },
+    },
   });
 
   return item;
@@ -260,7 +264,7 @@ export async function updatePtRecordItemFree(data: {
           set: setData.set,
           reps: setData.reps,
           equipments: {
-            connect: setData.equipmentIds.map(id => ({ id })),
+            connect: setData.equipmentIds.map((id) => ({ id })),
           },
         },
       });
@@ -317,20 +321,20 @@ export async function updatePtRecordItemMachine(data: {
         let settingValue = await tx.machineSettingValue.findFirst({
           where: {
             machineSettingId: setting.machineSettingId,
-            value: setting.value
-          }
+            value: setting.value,
+          },
         });
-        
+
         // 없으면 생성
         if (!settingValue) {
           settingValue = await tx.machineSettingValue.create({
             data: {
               machineSettingId: setting.machineSettingId,
-              value: setting.value
-            }
+              value: setting.value,
+            },
           });
         }
-        
+
         settingValueIds.push(settingValue.id);
       }
 
@@ -339,9 +343,9 @@ export async function updatePtRecordItemMachine(data: {
         where: { id: machineSetRecord.id },
         data: {
           settingValues: {
-            connect: settingValueIds.map(id => ({ id }))
-          }
-        }
+            connect: settingValueIds.map((id) => ({ id })),
+          },
+        },
       });
     }
 
@@ -376,7 +380,7 @@ export async function updatePtRecordItemStretching(data: {
         stretchingExerciseId: data.stretchingExerciseId,
         description: data.description,
         equipments: {
-          connect: data.equipmentIds.map(id => ({ id })),
+          connect: data.equipmentIds.map((id) => ({ id })),
         },
       },
     });
@@ -396,7 +400,7 @@ export async function checkPtRecordPermission(
       pt: {
         trainerId: trainerId,
         state: {
-          in: ['CONFIRMED', 'FINISHED'],
+          in: ["CONFIRMED", "FINISHED"],
         },
       },
     },
@@ -407,9 +411,9 @@ export async function checkPtRecordPermission(
           date: true,
           startTime: true,
           endTime: true,
-        }
-      }
-    }
+        },
+      },
+    },
   });
 
   return ptRecord;
@@ -420,7 +424,7 @@ export async function deletePtRecordItemMedia(params: {
   ptRecordId: string;
   itemId: string;
   mediaId: string;
-  mediaType: 'image' | 'video';
+  mediaType: "image" | "video";
   trainerId: string;
 }) {
   const { ptRecordId, itemId, mediaId, mediaType, trainerId } = params;
@@ -439,11 +443,11 @@ export async function deletePtRecordItemMedia(params: {
   });
 
   if (!ptRecordItem) {
-    throw new Error('PT record item not found or access denied');
+    throw new Error("PT record item not found or access denied");
   }
 
   // 2. 미디어 타입에 따라 처리
-  if (mediaType === 'image') {
+  if (mediaType === "image") {
     // 이미지 정보 조회
     const image = await prisma.image.findUnique({
       where: {
@@ -457,20 +461,22 @@ export async function deletePtRecordItemMedia(params: {
     });
 
     if (!image) {
-      throw new Error('Image not found');
+      throw new Error("Image not found");
     }
 
     // Cloudflare에서 먼저 삭제
-    const { deleteImage: deleteCloudflareImage } = await import('@/app/lib/services/media/image.service');
+    const { deleteImage: deleteCloudflareImage } = await import(
+      "@/app/lib/services/media/image.service"
+    );
     try {
       await deleteCloudflareImage(image.cloudflareId);
     } catch (error) {
       // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-      if (!(error instanceof Error && error.message?.includes('404'))) {
-        console.error('Failed to delete from Cloudflare:', error);
-        throw new Error('Failed to delete image from Cloudflare');
+      if (!(error instanceof Error && error.message?.includes("404"))) {
+        console.error("Failed to delete from Cloudflare:", error);
+        throw new Error("Failed to delete image from Cloudflare");
       }
-      console.log('Image already deleted from Cloudflare or not found');
+      console.log("Image already deleted from Cloudflare or not found");
     }
 
     // DB에서 삭제
@@ -480,7 +486,7 @@ export async function deletePtRecordItemMedia(params: {
       },
     });
 
-    return { success: true, type: 'image' };
+    return { success: true, type: "image" };
   } else {
     // 비디오 정보 조회
     const video = await prisma.video.findUnique({
@@ -495,20 +501,22 @@ export async function deletePtRecordItemMedia(params: {
     });
 
     if (!video) {
-      throw new Error('Video not found');
+      throw new Error("Video not found");
     }
 
     // Cloudflare에서 먼저 삭제
-    const { deleteVideo: deleteCloudflareVideo } = await import('@/app/lib/services/media/stream.service');
+    const { deleteVideo: deleteCloudflareVideo } = await import(
+      "@/app/lib/services/media/video.service"
+    );
     try {
       await deleteCloudflareVideo(video.streamId);
     } catch (error) {
       // 404 에러는 이미 삭제된 것으로 간주하고 계속 진행
-      if (!(error instanceof Error && error.message?.includes('404'))) {
-        console.error('Failed to delete from Cloudflare:', error);
-        throw new Error('Failed to delete video from Cloudflare');
+      if (!(error instanceof Error && error.message?.includes("404"))) {
+        console.error("Failed to delete from Cloudflare:", error);
+        throw new Error("Failed to delete video from Cloudflare");
       }
-      console.log('Video already deleted from Cloudflare or not found');
+      console.log("Video already deleted from Cloudflare or not found");
     }
 
     // DB에서 삭제
@@ -518,14 +526,67 @@ export async function deletePtRecordItemMedia(params: {
       },
     });
 
-    return { success: true, type: 'video' };
+    return { success: true, type: "video" };
   }
 }
 
 // 타입 추론들
-export type UpdatePtRecordItemFreeResult = Awaited<ReturnType<typeof updatePtRecordItemFree>>;
-export type UpdatePtRecordItemMachineResult = Awaited<ReturnType<typeof updatePtRecordItemMachine>>;
-export type UpdatePtRecordItemStretchingResult = Awaited<ReturnType<typeof updatePtRecordItemStretching>>;
-export type CheckPtRecordItemPermissionResult = Awaited<ReturnType<typeof checkPtRecordItemPermission>>;
-export type CheckPtRecordPermissionResult = Awaited<ReturnType<typeof checkPtRecordPermission>>;
-export type DeletePtRecordItemMediaResult = Awaited<ReturnType<typeof deletePtRecordItemMedia>>;
+export type UpdatePtRecordItemFreeResult = Awaited<
+  ReturnType<typeof updatePtRecordItemFree>
+>;
+export type UpdatePtRecordItemMachineResult = Awaited<
+  ReturnType<typeof updatePtRecordItemMachine>
+>;
+export type UpdatePtRecordItemStretchingResult = Awaited<
+  ReturnType<typeof updatePtRecordItemStretching>
+>;
+export type CheckPtRecordItemPermissionResult = Awaited<
+  ReturnType<typeof checkPtRecordItemPermission>
+>;
+export type CheckPtRecordPermissionResult = Awaited<
+  ReturnType<typeof checkPtRecordPermission>
+>;
+export type DeletePtRecordItemMediaResult = Awaited<
+  ReturnType<typeof deletePtRecordItemMedia>
+>;
+
+// PT Record Item 삭제 권한 확인 (deletedAt 조건 없이)
+export async function checkPtRecordItemPermissionForDelete(
+  itemId: string,
+  ptRecordId: string,
+  trainerId: string
+) {
+  return await prisma.ptRecordItem.findFirst({
+    where: {
+      id: itemId,
+      // deletedAt 조건 제거 - 이미 삭제된 것도 다시 삭제 시도 가능
+      ptRecord: {
+        id: ptRecordId,
+        pt: {
+          trainerId: trainerId,
+          state: {
+            in: ['CONFIRMED', 'FINISHED'],
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      deletedAt: true,
+      ptRecord: {
+        select: {
+          ptSchedule: {
+            select: {
+              date: true,
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// 타입 추론
+export type CheckPtRecordItemPermissionForDeleteResult = Awaited<
+  ReturnType<typeof checkPtRecordItemPermissionForDelete>
+>;

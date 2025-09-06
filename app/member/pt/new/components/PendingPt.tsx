@@ -3,13 +3,13 @@
 import { Button } from "@/app/components/ui/Button";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { PageHeader, PageLayout } from "@/app/components/ui/Dropdown";
-import { IPendingPt } from "@/app/lib/services/pt-apply.service";
+import { IPendingPt } from "@/app/services/member/pt/pt.service";
 import { useRouter } from "next/navigation";
 
 const PendingPt = ({ pendingPt }: { pendingPt: IPendingPt }) => {
   const router = useRouter();
   return (
-    <PageLayout maxWidth="md">
+    <PageLayout>
       <PageHeader title="PT 신청" subtitle="승인 대기 중인 신청이 있습니다" />
 
       <Card>

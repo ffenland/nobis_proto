@@ -112,7 +112,7 @@ export default function SetTrainersPage(props: { params: Params }) {
   // 에러 상태
   if (error || !data?.data) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">데이터를 불러오는데 실패했습니다</p>
           <Link href={`/manager/trainers/${centerId}`}>
@@ -126,7 +126,7 @@ export default function SetTrainersPage(props: { params: Params }) {
   const { center, trainers } = data.data;
 
   return (
-    <PageLayout maxWidth="md">
+    <PageLayout>
       {/* 헤더 */}
       <div className="mb-6">
         <Link

@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import { TrainerManagementService } from "@/app/lib/services/trainer-management.service";
+import { TrainerManagementService } from "@/app/lib/services/manager/manager-trainer.service";
 
 type Params = Promise<{ trainerId: string }>;
 

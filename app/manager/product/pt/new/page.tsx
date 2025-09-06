@@ -190,7 +190,7 @@ const PtProductNewPage = () => {
 
   if (trainersLoading) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="flex items-center justify-center py-12">
           <p className="text-gray-600">트레이너 목록을 불러오는 중...</p>
         </div>
@@ -200,7 +200,7 @@ const PtProductNewPage = () => {
 
   if (trainersError) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">
             트레이너 목록을 불러오는데 실패했습니다.
@@ -214,7 +214,7 @@ const PtProductNewPage = () => {
   }
 
   return (
-    <PageLayout maxWidth="md">
+    <PageLayout>
       <PageHeaderWithActions
         title="새 PT 상품 등록"
         subtitle="PT 상품의 정보를 입력하여 등록합니다"

@@ -14,7 +14,7 @@ export default async function TrainerProfilePage() {
     trainerProfile = await getTrainerProfileAction();
   } catch (error) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="text-center py-12">
           <div className="text-red-600 mb-4">
             <span className="text-4xl">⚠️</span>
@@ -44,7 +44,7 @@ export default async function TrainerProfilePage() {
   };
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <PageHeader title="내 프로필" />
 
       <div className="space-y-6">

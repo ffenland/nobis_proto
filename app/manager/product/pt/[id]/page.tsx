@@ -29,7 +29,7 @@ const PtProductDetailPage = async (props: { params: Params }) => {
     new Date(product.closedAt).getTime() > new Date("2099-01-01").getTime();
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <PageHeader
         title={product.title}
         subtitle="PT 상품 상세 정보"

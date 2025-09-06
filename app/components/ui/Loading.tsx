@@ -47,7 +47,7 @@ const LoadingPage: React.FC<LoadingPageProps> = ({
 
 // Badge 컴포넌트
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "success" | "warning" | "error";
+  variant?: "default" | "success" | "warning" | "error" | "outline" | "info";
   children: React.ReactNode;
 }
 
@@ -62,6 +62,8 @@ const Badge: React.FC<BadgeProps> = ({
     success: "bg-emerald-50 text-emerald-600",
     warning: "bg-amber-50 text-amber-600",
     error: "bg-red-50 text-red-600",
+    outline: "bg-white border border-gray-300 text-gray-700",
+    info: "bg-blue-50 text-blue-600",
   };
 
   return (

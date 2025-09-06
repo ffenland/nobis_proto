@@ -142,7 +142,7 @@ const TrainerRejectedPtsPage = async () => {
     rejectedPts = await getRejectedPtsAction();
   } catch (error) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="text-center py-12">
           <div className="text-red-600 mb-4">
             <XCircle className="w-12 h-12 mx-auto" />
@@ -161,7 +161,7 @@ const TrainerRejectedPtsPage = async () => {
   }
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <PageHeader
         title="거절된 PT 신청"
         subtitle={`${rejectedPts.length}건의 거절된 신청 목록`}

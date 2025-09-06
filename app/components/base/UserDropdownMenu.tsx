@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSWRConfig } from "swr";
 import { ChevronDown, LogOut, UserCog } from "lucide-react";
 import { cn } from "@/app/lib/utils";
-import { logoutSession } from "@/app/lib/session";
+import { logoutUser } from "@/app/services/auth/auth.service";
 
 interface UserDropdownMenuProps {
   username: string;
@@ -23,6 +24,7 @@ export default function UserDropdownMenu({
   const [isLoading, setIsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { mutate } = useSWRConfig();
 
   // 외부 클릭 감지
   useEffect(() => {
@@ -68,9 +70,21 @@ export default function UserDropdownMenu({
     
     setIsLoading(true);
     try {
-      await logoutSession();
+      // API를 통해 로그아웃 요청
+      await logoutUser();
+      
+      // SWR 세션 캐시 무효화
+      await mutate('/api/auth/session', null, false);
+      
+      // 로그인 페이지로 리다이렉트
+      router.push('/login');
     } catch (error) {
       console.error("로그아웃 실패:", error);
+      
+      // 에러가 발생해도 로그인 페이지로 보냄 (안전장치)
+      await mutate('/api/auth/session', null, false);
+      router.push('/login');
+    } finally {
       setIsLoading(false);
     }
   };

@@ -83,6 +83,23 @@ The application has three distinct user roles with different interfaces:
 - Social login support (Kakao, Naver) in `app/lib/socialLogin.ts`
 - Role-based middleware in `middleware.ts`
 
+**Session Structure:**
+```typescript
+interface Session {
+  id: string;        // User 모델의 id (사용자 고유 ID)
+  role: "MANAGER" | "MEMBER" | "TRAINER";  // 로그인한 유저의 역할
+  roleId: string;    // 해당 역할 모델의 id
+                     // - role이 "TRAINER"면 Trainer 모델의 id
+                     // - role이 "MEMBER"면 Member 모델의 id  
+                     // - role이 "MANAGER"면 Manager 모델의 id
+}
+```
+
+**Important:** API routes should use `session.roleId` when accessing role-specific data:
+- `/api/trainer/*` routes: use `session.roleId` as trainerId
+- `/api/member/*` routes: use `session.roleId` as memberId
+- `/api/manager/*` routes: use `session.roleId` as managerId
+
 #### Media Management
 
 - Unified media system supporting images and videos
@@ -122,6 +139,30 @@ The application has three distinct user roles with different interfaces:
 - React Query for complex server state management
 - Form state managed with React Hook Form
 - Session state through Iron Session with secure cookies
+
+### Responsive Design Standards
+
+#### Mobile-First Breakpoint System
+
+The application follows a **768px (md)** breakpoint as the boundary between mobile and tablet/desktop layouts, consistent with industry standards and Tailwind CSS defaults.
+
+**Breakpoint Guidelines:**
+- **Mobile**: 0px - 767px (default)
+- **Tablet**: 768px+ (`md:` prefix)
+- **Desktop**: 1280px+ (`xl:` prefix)
+
+**Implementation Rules:**
+- All UI components should use `md:` (768px) as the mobile/tablet breakpoint
+- Avoid fixed pixel values for responsive elements
+- Use Tailwind's responsive utilities: `md:`, `lg:`, `xl:`
+- Mobile-first approach: design for mobile, then enhance for larger screens
+
+**Layout Patterns:**
+- **Mobile**: Full-width content, single column
+- **Tablet**: Content with side elements (ads, navigation)
+- **Desktop**: Multi-column layouts with centered content
+
+All components in `app/components/ui/` and layout components should follow this 768px standard for consistency across the application.
 
 ## PT Recording System Architecture
 
@@ -239,6 +280,14 @@ const { trigger } = useSWRMutation('/api/trainer/pt-records', updateFetcher);
 - **API route 파일은 순수하게 라우팅작업만 담당한다**: 비즈니스 로직 분리
 - **서비스함수에서 반환하는 값에 대한 타입은 추론을 사용한다**: 유지보수성 향상을 위한 타입 추론 활용
 - **Prisma select만 사용**: include 대신 select만 사용하여 불필요한 서버 요청 최소화
+
+### Service File Organization
+
+**IMPORTANT: Service File Locations**
+- **Legacy services**: `app/lib/services/` - 레거시 파일들, 점진적으로 마이그레이션 중
+- **New services**: `app/services/` - 새로운 서비스 파일들은 모두 여기에 작성
+
+모든 새로운 서비스 로직은 `app/services/` 폴더에 작성하며, 레거시 코드는 필요시에만 참조합니다.
 
 ### Data Fetching Architecture
 
@@ -1044,3 +1093,54 @@ When updating error handling in existing code:
 3. **Korean Context**: Built-in support for Korean error descriptions
 4. **Type Safety**: Strongly typed interfaces for all operations
 5. **Consistent Metadata**: Standardized metadata structure across all tracking
+
+## Trainer Dashboard Requirements (2025년 08월 30일 기준)
+
+### Dashboard 페이지 요구사항 (/trainer/page.tsx)
+
+Dashboard 페이지는 로그인 직후 보여지는 가장 메인 페이지로서, 종합적인 정보를 보여주어야 하지만 그 초점은 PT에 맞춘다.
+
+#### 1. 오늘 PT 카드
+
+- Lesson 중 startedAt이 현재 시점보다 미래인 Lesson 중 시간이 가장 가까운 1개만 보여준다
+- member.username과 정확한 수업시간, 그리고 얼마나 남았는지 정보를 넣어서 버튼으로 만든다
+- 해당 버튼을 누르면 해당 lesson detail 페이지로 이동한다
+- 전체 PT 목록을 확인할 수 있는 /trainer/pt 페이지로 이동할 수 있는 버튼도 만들어서 위의 버튼과 가로로 배치하며 너비 값은 위의 버튼보다 많이 좁게 한다
+
+#### 2. 주간 정보 카드
+
+- 일요일을 제외한 과거 2일, 오늘, 미래 2일, 총 5일의 일정을 보여준다
+- 5일간의 일정표에 보여줄 내용도 간단히 표시하자 Lesson의 state별로 구분해서 count 값만 보여준다
+  - 과거의 경우: 완료된 일정, 불참한 일정, 취소된 일정. 총 3가지
+  - 현재의 경우: 예정된 일정, 완료된 일정, 불참한 일정, 취소된 일정. 총 4가지
+  - 미래의 경우: 예정된 일정, 취소된 일정. 총 2가지
+
+#### 3. PT 수업의 현황 카드
+
+- 현재 진행중(Pt.state 값이 "CONFIRMED"인 PT)인 PT의 count
+- 이번 달에 시작한 PT(Pt.startDate의 값이 이번달에 포함되는 경우)중 해당 member와 수업한 lesson이 최근 이번달을 포함해서 지난달에 존재하는 경우의 count (재등록한 PT)
+- 이번 달에 시작한 PT(Pt.startDate의 값이 이번달에 포함되는 경우)중 위의 조건에 해당하지 않는 count (신규 등록한 PT)
+- 이번 달에 종료 예정인 PT{(Pt.lessons의 요소들 중 [scheduledAt이 과거이면서 records의 길이가 1이상이다 or scheduledAt이 미래이다.] 조건을 만족하는 lesson의 갯수가 ptProduct의 totalCount 값과 동일할때) 혹은 앞의 조건에 해당하지 않으면서 (pt.startDate의 값이 현재 시점 기준 2개월 전인 경우)}
+
+### LessonRecord 페이지 요구사항 (/trainer/lesson/[id]/record/page.tsx)
+
+#### LessonRecord 데이터 관리 원칙
+
+- **entry 값 관리**:
+  - LessonRecord를 새로 생성하는 경우 entry 값은 기존의 lessonRecord(삭제상태의 lessonRecord 포함)들의 entry 값을 확인하고 가장 큰 값에 +1을 하여 정한다
+  - 중간에 LessonRecord를 끼워넣어서 순서를 바꾸는 기능은 현재로서는 구현하지 않는다
+
+- **삭제 처리**:
+  - LessonRecord는 삭제해도 실제 db에서 그 데이터가 삭제되지 않고 deletedAt에 삭제한 날짜정보가 기록되며, deletedAt 값이 있으면 삭제된 값으로 간주한다
+  - deletedUserId를 다른 모델과 relation 하지 않았는데, relation이 좋을지 어떨지는 검토가 필요하다
+
+- **데이터 무결성 제약사항**:
+  - LessonRecord는 machineSetRecords, freeSetRecords, stretchingExerciseRecords 중 하나의 값만 그 배열의 길이가 1 이상이며 나머지는 빈 배열이어야만 한다
+  - 이는 3가지의 다른 타입의 운동을 기록하기 위한 통합모델이기 때문이며 어떤 운동을 기록했는지는 type이라는 별도의 값으로 구분되게 해 두었다
+  - type 값과 다른 운동기록은 유저가 볼 수도 없고 죽은 데이터가 된다
+
+#### UI/UX 개선사항
+
+- 페이지를 처음 로딩할때 기존에 기록된 LessonRecord들의 정보를 가져오는 api호출(/api/trainer/lesson/${id}/records)을 한다
+- 새로 LessonRecord를 생성하거나, 삭제, 수정하는 경우 POST요청이 정상적으로 완료된 뒤에는 해당 api를 mutate해서 변경된 정보를 반영해서 화면에 표시한다
+- 운동을 추가(handleAddExercise) 또는 삭제하는 경우 현재 적용된 optimistic update 로직은 제거하고, 각각의 상황(추가, 삭제, 수정)에 맞는 위치에 로딩스피너를 표시하고 서버데이터의 변경이 정상적으로 진행된 뒤 mutate를 통해 업데이트되면 그때 정보를 표시해주는 방식으로 변경한다

@@ -5,7 +5,7 @@ import { getSession } from "@/app/lib/session";
 import {
   createVideoUploadUrl,
   createVideoTusUploadUrl,
-} from "@/app/lib/services/media/stream.service";
+} from "@/app/lib/services/media/video.service";
 import {
   type EntityType,
   normalizeMetadata,

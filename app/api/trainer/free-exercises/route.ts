@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { getFreeExercises, createFreeExercise } from "@/app/lib/services/free-exercise.service";
-import prisma from "@/app/lib/prisma";
+import { checkFreeExerciseExists } from "@/app/lib/services/trainer/exercise-set-record.service";
 
 export async function GET() {
   try {
@@ -60,16 +60,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 중복 체크
-    const existingExercise = await prisma.freeExercise.findFirst({
-      where: {
-        title: {
-          equals: title.trim(),
-          mode: "insensitive",
-        },
-      },
-    });
+    const exists = await checkFreeExerciseExists(title);
 
-    if (existingExercise) {
+    if (exists) {
       return NextResponse.json(
         { error: "이미 존재하는 운동명입니다." },
         { status: 409 }

@@ -19,7 +19,7 @@ export default async function MachineDetailPage({ params }: PageProps) {
     machine = await getMachineDetail(machineId);
   } catch (error) {
     return (
-      <PageLayout maxWidth="2xl">
+      <PageLayout>
         <div className="text-center py-12">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             머신을 찾을 수 없습니다
@@ -37,7 +37,7 @@ export default async function MachineDetailPage({ params }: PageProps) {
 
   if (!machine) {
     return (
-      <PageLayout maxWidth="2xl">
+      <PageLayout>
         <div className="text-center py-12">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             머신을 찾을 수 없습니다
@@ -51,7 +51,7 @@ export default async function MachineDetailPage({ params }: PageProps) {
   }
 
   return (
-    <PageLayout maxWidth="2xl">
+    <PageLayout>
       <PageHeader 
         title={machine.title} 
         subtitle={machine.fitnessCenter?.title || ""}

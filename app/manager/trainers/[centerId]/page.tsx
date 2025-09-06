@@ -93,7 +93,7 @@ export default function CenterTrainersPage(props: { params: Params }) {
 
   if (centerError || trainersError) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">데이터를 불러오는데 실패했습니다</p>
           <Button variant="outline" onClick={() => window.location.reload()}>
@@ -109,7 +109,7 @@ export default function CenterTrainersPage(props: { params: Params }) {
 
   if (!center) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">센터를 찾을 수 없습니다</p>
           <Link href="/manager/trainers">
@@ -121,7 +121,7 @@ export default function CenterTrainersPage(props: { params: Params }) {
   }
 
   return (
-    <PageLayout maxWidth="md">
+    <PageLayout>
       <PageHeaderWithActions
         title={center.title}
         subtitle="센터별 트레이너 관리"

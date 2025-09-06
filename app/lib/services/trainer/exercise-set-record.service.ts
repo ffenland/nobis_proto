@@ -1,5 +1,22 @@
 import prisma from '@/app/lib/prisma';
 
+// 프리 운동 중복 체크
+export async function checkFreeExerciseExists(title: string): Promise<boolean> {
+  const existingExercise = await prisma.freeExercise.findFirst({
+    where: {
+      title: {
+        equals: title.trim(),
+        mode: "insensitive",
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return !!existingExercise;
+}
+
 // 머신 세트 일괄 생성
 export async function createMachineSetRecords(data: {
   ptRecordId: string;

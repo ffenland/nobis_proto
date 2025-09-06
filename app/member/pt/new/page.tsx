@@ -5,20 +5,17 @@ import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 
-import {
-  IFitnessCenters,
-  IPtProgramsByCenter,
-  IDaySchedule,
-  type IPendingPtCheck,
-  IPreschedulePtResult,
-} from "@/app/lib/services/pt-apply.service";
-import { ISchedulePattern } from "@/app/lib/services/schedule.service";
+import type { IPendingPtCheck } from "@/app/services/member/pt/pt.service";
+import type {
+  FitnessCentersForPtApply,
+  TrainersWithPtProgramsByCenter,
+} from "@/app/services/member/pt/pt.service";
 // components import
 import PendingPt from "./components/PendingPt";
 import StepIndicator from "./components/StepIndicator";
 import CenterSelectionStep from "./components/CenterSelectionStep";
-import PtSelectionStep from "./components/PtSelectionStep";
-import ScheduleSelectionStep from "./components/ScheduleSelectionStep";
+import TrainerSelectionStep from "./components/TrainerSelectionStep";
+import DateSelectionStep from "./components/DateSelectionStep";
 import ConfirmationStep from "./components/ConfirmationStep";
 
 const PtApplicationPage = () => {
@@ -30,29 +27,23 @@ const PtApplicationPage = () => {
   });
   const [isCheckingPending, setIsCheckingPending] = useState(true);
 
-  // 기존 선택된 데이터 (그대로 유지)
+  // 선택된 데이터
   const [selectedCenter, setSelectedCenter] = useState<
-    IFitnessCenters[number] | null
-  >(null);
-  const [selectedPt, setSelectedPt] = useState<
-    IPtProgramsByCenter[number] | null
+    FitnessCentersForPtApply[number] | null
   >(null);
   const [selectedTrainer, setSelectedTrainer] = useState<
-    IPtProgramsByCenter[number]["trainer"][number] | null
+    TrainersWithPtProgramsByCenter[number] | null
   >(null);
-  const [pattern, setPattern] = useState<ISchedulePattern>({
-    regular: true,
-    count: 2,
-  });
-  const [chosenSchedule, setChosenSchedule] = useState<IDaySchedule>({});
+  const [selectedPt, setSelectedPt] = useState<
+    TrainersWithPtProgramsByCenter[number]["ptProduct"][number] | null
+  >(null);
+  const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [message, setMessage] = useState("");
-  const [prescheduleResult, setPrescheduleResult] =
-    useState<IPreschedulePtResult | null>(null);
 
   const stepTitles = [
     "헬스장 선택",
-    "PT 프로그램 선택",
-    "스케줄 설정",
+    "트레이너 선택",
+    "시작일 선택",
     "신청 확인",
   ];
 
@@ -64,30 +55,23 @@ const PtApplicationPage = () => {
     switch (newStep) {
       case 0: // 헬스장 선택으로 돌아감
         setSelectedCenter(null);
-        setSelectedPt(null);
         setSelectedTrainer(null);
-        setPattern({ regular: true, count: 2 });
-        setChosenSchedule({});
-        setMessage("");
-        setPrescheduleResult(null);
-        break;
-      case 1: // PT 프로그램 선택으로 돌아감
         setSelectedPt(null);
-        setSelectedTrainer(null);
-        setPattern({ regular: true, count: 2 });
-        setChosenSchedule({});
+        setSelectedStartDate(null);
         setMessage("");
-        setPrescheduleResult(null);
         break;
-      case 2: // 스케줄 설정으로 돌아감
-        setPattern({ regular: true, count: 2 });
-        setChosenSchedule({});
+      case 1: // 트레이너 선택으로 돌아감
+        setSelectedTrainer(null);
+        setSelectedPt(null);
+        setSelectedStartDate(null);
         setMessage("");
-        setPrescheduleResult(null);
+        break;
+      case 2: // 시작일 선택으로 돌아감
+        setSelectedStartDate(null);
+        setMessage("");
         break;
       case 3: // 신청 확인으로 돌아감
         setMessage("");
-        setPrescheduleResult(null);
         break;
     }
 
@@ -99,7 +83,7 @@ const PtApplicationPage = () => {
     const checkPendingPt = async () => {
       try {
         setIsCheckingPending(true);
-        const response = await fetch("/api/member/pending-pt-check");
+        const response = await fetch("/api/member/new-pt/check-pending");
 
         if (!response.ok) {
           throw new Error("PENDING PT 체크 실패");
@@ -122,7 +106,7 @@ const PtApplicationPage = () => {
   // 🚨 NEW: 로딩 중 (PENDING 체크)
   if (isCheckingPending) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center space-y-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
@@ -139,7 +123,6 @@ const PtApplicationPage = () => {
     return <PendingPt pendingPt={pendingPt} />;
   }
 
-  // 기존 renderCurrentStep 함수 (완전히 그대로 유지)
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 0:
@@ -152,27 +135,23 @@ const PtApplicationPage = () => {
         );
       case 1:
         return selectedCenter ? (
-          <PtSelectionStep
-            centerId={selectedCenter.id}
-            selectedPt={selectedPt}
+          <TrainerSelectionStep
+            selectedCenter={selectedCenter}
             selectedTrainer={selectedTrainer}
-            onSelectPt={setSelectedPt}
+            selectedPt={selectedPt}
             onSelectTrainer={setSelectedTrainer}
+            onSelectPt={setSelectedPt}
             onNext={() => setCurrentStep(2)}
           />
         ) : null;
       case 2:
         return selectedPt && selectedTrainer ? (
-          <ScheduleSelectionStep
+          <DateSelectionStep
             selectedCenter={selectedCenter}
             selectedPt={selectedPt}
             selectedTrainer={selectedTrainer}
-            pattern={pattern}
-            setPattern={setPattern}
-            chosenSchedule={chosenSchedule}
-            setChosenSchedule={setChosenSchedule}
-            onNext={(result) => {
-              setPrescheduleResult(result);
+            onNext={(startDate) => {
+              setSelectedStartDate(startDate);
               setCurrentStep(3);
             }}
           />
@@ -181,16 +160,14 @@ const PtApplicationPage = () => {
         return selectedCenter &&
           selectedPt &&
           selectedTrainer &&
-          prescheduleResult ? (
+          selectedStartDate ? (
           <ConfirmationStep
             selectedCenter={selectedCenter}
             selectedPt={selectedPt}
             selectedTrainer={selectedTrainer}
-            pattern={pattern}
-            chosenSchedule={chosenSchedule}
+            selectedStartDate={selectedStartDate}
             message={message}
             setMessage={setMessage}
-            prescheduleResult={prescheduleResult}
             onGoBack={goToPreviousStep}
           />
         ) : null;
@@ -201,14 +178,14 @@ const PtApplicationPage = () => {
 
   // 기존 return 문 (완전히 그대로 유지)
   return (
-    <PageLayout maxWidth="md">
+    <PageLayout>
       <PageHeader
         title="PT 신청"
         subtitle="새로운 PT 프로그램을 신청해보세요"
       />
 
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="pt-6 px-0">
           <StepIndicator
             currentStep={currentStep}
             totalSteps={4}
@@ -220,10 +197,7 @@ const PtApplicationPage = () => {
           {/* 이전 버튼 */}
           {currentStep > 0 && (
             <div className="mt-6 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={goToPreviousStep}
-              >
+              <Button variant="outline" onClick={goToPreviousStep}>
                 이전 단계
               </Button>
             </div>

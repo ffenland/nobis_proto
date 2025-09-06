@@ -24,7 +24,7 @@ export default function TrainerScheduleMenuPage() {
   ];
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <PageHeader title="스케줄 관리" />
       
       <div className="space-y-6">

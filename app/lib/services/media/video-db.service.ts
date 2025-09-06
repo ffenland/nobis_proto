@@ -2,7 +2,7 @@
 
 import prisma from "@/app/lib/prisma";
 import { VideoType, VideoStatus, Prisma } from "@prisma/client";
-import { deleteVideo as deleteCloudflareVideo } from "./stream.service";
+import { deleteVideo as deleteCloudflareVideo } from "./video.service";
 
 // DB Video 레코드 생성
 export async function createVideoRecord(params: {
@@ -39,7 +39,7 @@ export async function createVideoRecord(params: {
     type,
     status: VideoStatus.READY,
     uploadedBy: { connect: { id: uploadedById } },
-    metadata: metadata ? metadata as Prisma.InputJsonValue : undefined,
+    metadata: metadata ? (metadata as Prisma.InputJsonValue) : undefined,
   };
 
   // 엔티티 연결 (있는 경우만)

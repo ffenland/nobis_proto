@@ -10,11 +10,6 @@ const SecretTestLogin = async ({
 }) => {
   const { key } = await searchParams;
 
-  // 환경변수와 키 비교
-  if (!key || key !== process.env.TEST_LOGIN_KEY) {
-    notFound();
-  }
-
   return (
     <main className="min-h-screen bg-gray-100 py-8 max-w-sm mx-auto">
       <div className="container mx-auto px-4">

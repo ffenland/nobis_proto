@@ -8,7 +8,7 @@ const ProductsPage = async () => {
   const { ptProducts, membershipProducts } = await getProductsOverviewService();
 
   return (
-    <PageLayout maxWidth="xl">
+    <PageLayout>
       <PageHeader
         title="제품 관리"
         subtitle="PT 상품과 멤버십 상품을 관리합니다"

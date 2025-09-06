@@ -41,7 +41,7 @@ import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import type {
   ITrainerDetail,
   ITrainerPtList,
-} from "@/app/lib/services/trainer-management.service";
+} from "@/app/lib/services/manager/manager-trainer.service";
 import Image from "next/image";
 
 // 데이터 페처 함수
@@ -291,7 +291,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
   // 에러 상태
   if (trainerError) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-red-600 mb-4">
             트레이너 정보를 불러오는데 실패했습니다
@@ -309,7 +309,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
 
   if (!trainer) {
     return (
-      <PageLayout maxWidth="md">
+      <PageLayout>
         <div className="text-center py-12">
           <p className="text-gray-500">트레이너를 찾을 수 없습니다</p>
           <Link href={`/manager/trainers/${centerId}`}>
@@ -554,7 +554,7 @@ export default function CenterTrainerDetailPage(props: { params: Params }) {
   };
 
   return (
-    <PageLayout maxWidth="md">
+    <PageLayout>
       <PageHeaderWithActions
         title={`${trainer.user.username} 트레이너`}
         subtitle="트레이너 상세 정보 및 PT 관리"

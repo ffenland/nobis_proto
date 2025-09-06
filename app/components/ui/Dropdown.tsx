@@ -71,24 +71,12 @@ const Dropdown: React.FC<DropdownProps> = ({
 // Layout 컴포넌트들
 interface PageLayoutProps {
   children: React.ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
 }
 
-const PageLayout: React.FC<PageLayoutProps> = ({
-  children,
-  maxWidth = "md",
-}) => {
-  const maxWidths = {
-    sm: "max-w-sm",
-    md: "max-w-md",
-    lg: "max-w-2xl",
-    xl: "max-w-4xl",
-    "2xl": "max-w-6xl",
-  };
-
+const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
   return (
     <div className="flex-1 bg-gray-50">
-      <div className={cn("w-full py-2", maxWidths[maxWidth])}>{children}</div>
+      <div className="w-full md:max-w-md mx-auto py-2">{children}</div>
     </div>
   );
 };

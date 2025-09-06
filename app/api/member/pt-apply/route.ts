@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrRedirect } from "@/app/lib/session";
 import {
-  applyPtService,
-  IPtApplicationData,
-  getPendingPtDetails,
-} from "@/app/lib/services/pt-apply.service";
+  applyForPt,
+  PtApplicationData,
+  checkPendingPt,
+} from "@/app/services/member/pt/pt.service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,17 +15,16 @@ export async function POST(request: NextRequest) {
     }
 
     // 🚨 개선된 PENDING PT 체크
-    const pendingPtDetails = await getPendingPtDetails(session.roleId);
-    if (pendingPtDetails) {
+    const pendingPtCheck = await checkPendingPt(session.roleId);
+    if (pendingPtCheck.hasPending && pendingPtCheck.pendingPt) {
       return NextResponse.json(
         {
           error: "이미 승인 대기 중인 PT 신청이 있습니다.",
           details: {
-            pendingPtId: pendingPtDetails.id,
-            ptTitle: pendingPtDetails.ptProduct.title,
-            trainerName:
-              pendingPtDetails.trainer?.user.username || "트레이너 미배정",
-            appliedDate: pendingPtDetails.createdAt.toISOString(),
+            pendingPtId: pendingPtCheck.pendingPt.id,
+            ptTitle: pendingPtCheck.pendingPt.ptTitle,
+            trainerName: pendingPtCheck.pendingPt.trainerName,
+            appliedDate: pendingPtCheck.pendingPt.appliedDate,
             message: "기존 신청을 취소한 후 새로 신청해주세요.",
           },
         },
@@ -119,21 +118,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // PT 신청 데이터 구성 (duration 추가)
-    const applicationData: IPtApplicationData = {
-      memberId: session.roleId,
+    // PT 신청 데이터 구성 (simplified for new service)
+    const applicationData: PtApplicationData = {
+      centerId: fitnessCenterId,
       ptProductId,
       trainerId,
       startDate: parsedStartDate,
-      isRegular,
-      chosenSchedule,
-      fitnessCenterId,
-      duration,
-      message: message || "",
+      description: message || "",
     };
 
     // PT 신청 처리
-    const newPt = await applyPtService(applicationData);
+    const newPt = await applyForPt(session.roleId, applicationData);
 
     return NextResponse.json(
       {
@@ -143,7 +138,7 @@ export async function POST(request: NextRequest) {
         data: {
           ptId: newPt.id,
           state: newPt.state,
-          isRegular: newPt.isRegular,
+          startDate: newPt.startDate,
         },
       },
       { status: 201 }

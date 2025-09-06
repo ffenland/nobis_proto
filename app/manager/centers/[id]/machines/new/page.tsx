@@ -10,7 +10,7 @@ export default async function NewMachinePage({ params }: PageProps) {
   const { id: centerId } = await params;
 
   return (
-    <PageLayout maxWidth="2xl">
+    <PageLayout>
       <PageHeader 
         title="새 머신 등록" 
         subtitle="센터에 새로운 머신을 등록합니다"

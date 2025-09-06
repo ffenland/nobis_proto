@@ -40,7 +40,7 @@ const MemberScheduleChangePage = async ({ params }: PageProps) => {
     );
   } catch (error) {
     return (
-      <PageLayout maxWidth="2xl">
+      <PageLayout>
         <div className="text-center py-12">
           <div className="text-red-600 mb-4">
             <AlertCircle className="w-12 h-12 mx-auto" />
@@ -78,7 +78,7 @@ const MemberScheduleChangePage = async ({ params }: PageProps) => {
   const canRequestChange = isUpcoming && hoursUntilClass >= 24;
 
   return (
-    <PageLayout maxWidth="2xl">
+    <PageLayout>
       <PageHeader
         title="일정 변경 요청"
         subtitle={`${formatDateThisYear(ptScheduleDetail.ptSchedule.date)} ${

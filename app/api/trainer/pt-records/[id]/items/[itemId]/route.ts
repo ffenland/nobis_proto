@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import prisma from "@/app/lib/prisma";
 import { createAuditLog } from "@/app/lib/services/audit/pt-record-audit.service";
 import { 
   softDeletePtRecordItem, 
@@ -9,7 +8,8 @@ import {
   checkPtRecordItemPermission,
   updatePtRecordItemFree,
   updatePtRecordItemMachine,
-  updatePtRecordItemStretching
+  updatePtRecordItemStretching,
+  checkPtRecordItemPermissionForDelete
 } from "@/app/lib/services/trainer/pt-record-item.service";
 
 // PT Record Item 수정
@@ -205,34 +205,11 @@ export async function DELETE(
     const { id: ptRecordId, itemId } = await params;
 
     // PT Record Item 권한 확인 (deletedAt 조건 없이)
-    const ptRecordItem = await prisma.ptRecordItem.findFirst({
-      where: {
-        id: itemId,
-        // deletedAt 조건 제거 - 이미 삭제된 것도 다시 삭제 시도 가능
-        ptRecord: {
-          id: ptRecordId,
-          pt: {
-            trainerId: session.roleId,
-            state: {
-              in: ['CONFIRMED', 'FINISHED'],
-            },
-          },
-        },
-      },
-      select: {
-        id: true,
-        deletedAt: true,
-        ptRecord: {
-          select: {
-            ptSchedule: {
-              select: {
-                date: true,
-              }
-            }
-          }
-        }
-      }
-    });
+    const ptRecordItem = await checkPtRecordItemPermissionForDelete(
+      itemId,
+      ptRecordId,
+      session.roleId
+    );
 
     if (!ptRecordItem) {
       return NextResponse.json(

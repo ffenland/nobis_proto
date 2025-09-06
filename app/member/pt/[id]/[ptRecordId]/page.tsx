@@ -32,7 +32,7 @@ const MemberPtRecordDetailPage = async ({ params }: PageProps) => {
     ptRecordDetail = await getPtRecordDetailAction(ptRecordId);
   } catch (error) {
     return (
-      <PageLayout maxWidth="2xl">
+      <PageLayout>
         <div className="text-center py-12">
           <div className="text-red-600 mb-4">
             <FileText className="w-12 h-12 mx-auto" />
@@ -110,7 +110,7 @@ const MemberPtRecordDetailPage = async ({ params }: PageProps) => {
   const attendanceStyle = getAttendanceStyle(attendanceStatus);
 
   return (
-    <PageLayout maxWidth="2xl">
+    <PageLayout>
       {/* 헤더 */}
       <PageHeader
         title="PT 수업 상세"

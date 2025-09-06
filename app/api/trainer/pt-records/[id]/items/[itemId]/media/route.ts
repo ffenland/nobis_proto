@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { generateMediaId } from "@/app/lib/utils/media.utils";
 import { createImageUploadUrl } from "@/app/lib/services/media/image.service";
-import { createVideoUploadUrl } from "@/app/lib/services/media/stream.service";
-import { checkPtRecordItemMediaOwnership, savePtRecordItemImage } from "@/app/lib/services/media/image-db.service";
+import { createVideoUploadUrl } from "@/app/lib/services/media/video.service";
+import {
+  checkPtRecordItemMediaOwnership,
+  savePtRecordItemImage,
+} from "@/app/lib/services/media/image-db.service";
 import { savePtRecordItemVideo } from "@/app/lib/services/media/video-db.service";
 
 // 미디어 업로드 URL 생성
@@ -14,17 +17,11 @@ export async function POST(
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id: ptRecordId, itemId: ptRecordItemId } = await params;
@@ -114,22 +111,24 @@ export async function PUT(
   try {
     const session = await getSession();
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id: ptRecordId, itemId: ptRecordItemId } = await params;
     const body = await request.json();
-    const { mediaType, cloudflareId, streamId, originalName, mimeType, size, duration } = body;
+    const {
+      mediaType,
+      cloudflareId,
+      streamId,
+      originalName,
+      mimeType,
+      size,
+      duration,
+    } = body;
 
     // PT Record Item 권한 확인
     const ownership = await checkPtRecordItemMediaOwnership({

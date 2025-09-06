@@ -12,9 +12,12 @@ interface TrainerSelectProps {
   onBack: () => void;
 }
 
-export default function TrainerSelect({ onSelect, onBack }: TrainerSelectProps) {
+export default function TrainerSelect({
+  onSelect,
+  onBack,
+}: TrainerSelectProps) {
   const [selectedCenter, setSelectedCenter] = useState<string | null>(null);
-  
+
   const { data: trainers, isLoading } = useSWR<GetTrainersResult>(
     "/api/manager/direct-registration/trainers",
     fetcher
@@ -26,16 +29,17 @@ export default function TrainerSelect({ onSelect, onBack }: TrainerSelectProps) 
     if (!acc[centerKey]) {
       acc[centerKey] = {
         center: trainer.fitnessCenter,
-        trainers: []
+        trainers: [],
       };
     }
     acc[centerKey].trainers.push(trainer);
     return acc;
-  }, {} as Record<string, { center: GetTrainersResult[0]["fitnessCenter"], trainers: GetTrainersResult[] }>);
+  }, {} as Record<string, { center: GetTrainersResult[0]["fitnessCenter"]; trainers: GetTrainersResult }>);
 
-  const filteredTrainers = selectedCenter && trainersByCenter
-    ? trainersByCenter[selectedCenter]?.trainers || []
-    : trainers || [];
+  const filteredTrainers =
+    selectedCenter && trainersByCenter
+      ? trainersByCenter[selectedCenter]?.trainers || []
+      : trainers || [];
 
   return (
     <div className="space-y-6">
@@ -51,7 +55,7 @@ export default function TrainerSelect({ onSelect, onBack }: TrainerSelectProps) 
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">트레이너 선택</h2>
-        
+
         {/* 센터 필터 */}
         {trainersByCenter && Object.keys(trainersByCenter).length > 1 && (
           <div className="mb-4">
@@ -113,7 +117,9 @@ export default function TrainerSelect({ onSelect, onBack }: TrainerSelectProps) 
       {filteredTrainers.length === 0 && !isLoading && (
         <div className="bg-white rounded-lg shadow-md p-6 text-center">
           <p className="text-gray-600">
-            {selectedCenter ? "선택한 센터에 트레이너가 없습니다." : "등록된 트레이너가 없습니다."}
+            {selectedCenter
+              ? "선택한 센터에 트레이너가 없습니다."
+              : "등록된 트레이너가 없습니다."}
           </p>
         </div>
       )}

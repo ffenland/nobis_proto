@@ -357,7 +357,7 @@ export default function TrainerProfileEditPage() {
 
   if (isLoading) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="flex justify-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -367,7 +367,7 @@ export default function TrainerProfileEditPage() {
 
   if (error && !profileData) {
     return (
-      <PageLayout maxWidth="lg">
+      <PageLayout>
         <div className="text-center py-12">
           <div className="text-red-600 mb-4">
             <span className="text-4xl">⚠️</span>
@@ -385,7 +385,7 @@ export default function TrainerProfileEditPage() {
   }
 
   return (
-    <PageLayout maxWidth="lg">
+    <PageLayout>
       <PageHeader title="프로필 수정" />
 
       <div className="space-y-6">

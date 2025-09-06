@@ -13,9 +13,6 @@
     "migrate:working-hours": "npx tsx scripts/migrate-trainer-working-hours.ts",
     "migrate:working-hours:rollback": "npx tsx scripts/migrate-trainer-working-hours.ts --rollback"
   },
-  "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
-  },
   "dependencies": {
     "@chatscope/chat-ui-kit-react": "^2.1.1",
     "@chatscope/chat-ui-kit-styles": "^1.4.0",
@@ -25,6 +22,7 @@
     "@sentry/nextjs": "^10.0.0",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/react-query": "^5.83.0",
+    "@types/react-signature-canvas": "^1.0.7",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.13",
     "dotenv": "^17.2.0",
@@ -38,6 +36,7 @@
     "react-hook-form": "^7.56.4",
     "react-hot-toast": "^2.5.2",
     "react-icons": "^5.5.0",
+    "react-signature-canvas": "^1.1.0-alpha.2",
     "swr": "^2.3.3",
     "tailwind-merge": "^3.3.1",
     "zod": "^3.24.2"

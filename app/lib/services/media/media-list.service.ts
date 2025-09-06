@@ -1,7 +1,7 @@
 // app/lib/services/media/media-list.service.ts
 
 import { listImages } from "./image.service";
-import { listVideos } from "./stream.service";
+import { listVideos } from "./video.service";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import type { EntityType } from "@/app/lib/utils/media.utils";
 
@@ -29,14 +29,16 @@ interface GetMediaListParams {
  * 엔티티 타입과 ID로 미디어 목록 조회
  * Cloudflare에서 이미지와 비디오를 병렬로 가져와 필터링
  */
-export async function getMediaList(params: GetMediaListParams): Promise<MediaItem[]> {
+export async function getMediaList(
+  params: GetMediaListParams
+): Promise<MediaItem[]> {
   const { userId, userRole, entityType, entityId } = params;
-  
+
   // creator ID로 필터링하기 위한 문자열 생성
   const creatorFilter = `${userRole.toLowerCase()}-${userId}`;
 
   // 병렬로 이미지와 비디오 목록 가져오기
-  // 참고: listImages API는 search 파라미터를 지원하지 않으므로 
+  // 참고: listImages API는 search 파라미터를 지원하지 않으므로
   // 전체 목록을 가져온 후 메타데이터로 필터링
   const [imagesResponse, videosResponse] = await Promise.allSettled([
     listImages({ page: 1, perPage: 100 }), // 최대 100개로 제한
@@ -111,7 +113,9 @@ export async function getMediaList(params: GetMediaListParams): Promise<MediaIte
 /**
  * 엔티티 타입 검증
  */
-export function isValidEntityType(entityType: string): entityType is EntityType {
+export function isValidEntityType(
+  entityType: string
+): entityType is EntityType {
   const validEntityTypes: EntityType[] = [
     "profile",
     "pt-record",

@@ -3,9 +3,8 @@
 
 import { useState, useRef } from 'react';
 import Image from 'next/image';
-import { useMutation } from '@tanstack/react-query';
+import useSWRMutation from 'swr/mutation';
 import { getOptimizedImageUrl, validateImageFile, createImagePreviewUrl, revokeImagePreviewUrl } from '@/app/lib/utils/media.utils';
-import { toast } from 'react-hot-toast';
 
 interface ProfileImageUploadProps {
   currentImageId?: string;
@@ -62,10 +61,18 @@ export default function ProfileImageUpload({
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [toastMessage, setToastMessage] = useState<{type: 'success'|'error'|'warning'|'info', message: string} | null>(null);
 
-  // 업로드 뮤테이션
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+  // Toast 함수
+  const showToast = (type: 'success'|'error'|'warning'|'info', message: string) => {
+    setToastMessage({ type, message });
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  // 업로드 뮤테이션 - SWR mutation 사용
+  const { trigger: uploadMutation, isMutating: isUploading } = useSWRMutation(
+    'profile-image-upload',
+    async (_key, { arg: file }: { arg: File }) => {
       // 1. 업로드 URL 생성
       const { uploadURL, customId } = await createUploadUrl();
       
@@ -74,22 +81,24 @@ export default function ProfileImageUpload({
       
       return customId;
     },
-    onSuccess: (imageId) => {
-      toast.success('프로필 이미지가 업로드되었습니다');
-      onUploadComplete?.(imageId);
-      setPreview(null);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || '업로드 중 오류가 발생했습니다');
-    },
-  });
+    {
+      onSuccess: (imageId) => {
+        showToast('success', '프로필 이미지가 업로드되었습니다');
+        onUploadComplete?.(imageId);
+        setPreview(null);
+      },
+      onError: (error: Error) => {
+        showToast('error', error.message || '업로드 중 오류가 발생했습니다');
+      },
+    }
+  );
 
   // 파일 처리
   const handleFile = (file: File) => {
     // 파일 유효성 검사
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      toast.error(validation.error!);
+      showToast('error', validation.error!);
       return;
     }
 
@@ -103,7 +112,7 @@ export default function ProfileImageUpload({
     setPreview(previewUrl);
 
     // 업로드 시작
-    uploadMutation.mutate(file);
+    uploadMutation(file);
   };
 
   // 파일 선택 핸들러
@@ -149,7 +158,7 @@ export default function ProfileImageUpload({
         className={`
           relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed
           ${isDragging ? 'border-primary bg-primary/10' : 'border-base-300'}
-          ${uploadMutation.isPending ? 'opacity-50' : ''}
+          ${isUploading ? 'opacity-50' : ''}
           cursor-pointer transition-all
         `}
         onClick={() => fileInputRef.current?.click()}
@@ -185,7 +194,7 @@ export default function ProfileImageUpload({
         )}
 
         {/* 업로드 중 오버레이 */}
-        {uploadMutation.isPending && (
+        {isUploading && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <span className="loading loading-spinner loading-md text-white"></span>
           </div>
@@ -197,9 +206,9 @@ export default function ProfileImageUpload({
         type="button"
         className="btn btn-sm btn-primary mt-2 w-full"
         onClick={() => fileInputRef.current?.click()}
-        disabled={uploadMutation.isPending}
+        disabled={isUploading}
       >
-        {uploadMutation.isPending ? '업로드 중...' : '이미지 변경'}
+        {isUploading ? '업로드 중...' : '이미지 변경'}
       </button>
 
       {/* 숨겨진 파일 입력 */}
@@ -215,6 +224,15 @@ export default function ProfileImageUpload({
       <p className="text-xs text-base-content/70 mt-2 text-center">
         JPG, PNG, WebP, GIF (최대 10MB)
       </p>
+
+      {/* Toast */}
+      {toastMessage && (
+        <div className="toast toast-top toast-center">
+          <div className={`alert alert-${toastMessage.type}`}>
+            <span>{toastMessage.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

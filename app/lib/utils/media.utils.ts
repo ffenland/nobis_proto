@@ -7,15 +7,12 @@ const CLOUDFLARE_IMAGES_DELIVERY_URL =
 const CLOUDFLARE_ACCOUNT_HASH =
   process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH || "";
 
+import { ImageType } from "@prisma/client";
+
 // 타입 정의
 export type MediaType = "image" | "video";
-export type EntityType =
-  | "profile"
-  | "pt-record"
-  | "exercise"
-  | "chat"
-  | "review"
-  | "machine";
+// Prisma ImageType enum을 직접 사용
+export { ImageType as EntityType };
 export type ImageVariant =
   | "public"
   | "thumbnail"
@@ -27,7 +24,7 @@ export type ImageVariant =
 // ID 생성 옵션
 export interface MediaIdOptions {
   userId: string;
-  entityType: EntityType;
+  entityType: ImageType;
   entityId?: string;
   mediaType: MediaType;
   timestamp?: boolean;

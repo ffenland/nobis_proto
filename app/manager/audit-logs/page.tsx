@@ -55,7 +55,7 @@ export default function AuditLogsPage() {
 
   if (error) {
     return (
-      <PageLayout maxWidth="xl">
+      <PageLayout>
         <ErrorMessage
           message="감사 로그를 불러올 수 없습니다."
           action={
@@ -71,7 +71,7 @@ export default function AuditLogsPage() {
   const totalPages = Math.ceil((data?.total || 0) / limit);
 
   return (
-    <PageLayout maxWidth="xl">
+    <PageLayout>
       <PageHeader
         title="PT 기록 감사 로그"
         subtitle="트레이너들의 PT 기록 작업 내역을 확인합니다"

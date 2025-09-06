@@ -2,9 +2,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import useSWRMutation from 'swr/mutation';
 import { validateVideoFile, formatFileSize, formatVideoDuration, calculateUploadProgress } from '@/app/lib/utils/media.utils';
-import { toast } from 'react-hot-toast';
 import type { EntityType } from '@/app/lib/utils/media.utils';
 
 interface VideoUploaderProps {
@@ -135,10 +134,18 @@ export default function VideoUploader({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [toastMessage, setToastMessage] = useState<{type: 'success'|'error'|'warning'|'info', message: string} | null>(null);
 
-  // 업로드 뮤테이션
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+  // Toast 함수
+  const showToast = (type: 'success'|'error'|'warning'|'info', message: string) => {
+    setToastMessage({ type, message });
+    setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  // 업로드 뮤테이션 - SWR mutation 사용
+  const { trigger: uploadVideo, isMutating: isUploading } = useSWRMutation(
+    'video-upload',
+    async (_key, { arg: file }: { arg: File }) => {
       // 1. 업로드 URL 생성
       const response = await createUploadUrl(entityType, entityId, useTus);
       
@@ -156,17 +163,19 @@ export default function VideoUploader({
       
       return response.uid || 'uploaded';
     },
-    onSuccess: (videoId) => {
-      toast.success('비디오가 업로드되었습니다');
-      onUploadComplete?.(videoId);
-      setSelectedFile(null);
-      setUploadProgress(0);
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || '업로드 중 오류가 발생했습니다');
-      setUploadProgress(0);
-    },
-  });
+    {
+      onSuccess: (videoId) => {
+        showToast('success', '비디오가 업로드되었습니다');
+        onUploadComplete?.(videoId);
+        setSelectedFile(null);
+        setUploadProgress(0);
+      },
+      onError: (error: Error) => {
+        showToast('error', error.message || '업로드 중 오류가 발생했습니다');
+        setUploadProgress(0);
+      },
+    }
+  );
 
   // 파일 선택 핸들러
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,7 +185,7 @@ export default function VideoUploader({
     // 파일 유효성 검사
     const validation = validateVideoFile(file);
     if (!validation.valid) {
-      toast.error(validation.error!);
+      showToast('error', validation.error!);
       return;
     }
 
@@ -186,7 +195,7 @@ export default function VideoUploader({
   // 업로드 시작
   const handleUpload = () => {
     if (!selectedFile) return;
-    uploadMutation.mutate(selectedFile);
+    uploadVideo(selectedFile);
   };
 
   // 취소
@@ -201,7 +210,7 @@ export default function VideoUploader({
   return (
     <div className={`${className}`}>
       {/* 파일 선택 영역 */}
-      {!selectedFile && !uploadMutation.isPending && (
+      {!selectedFile && !isUploading && (
         <div
           className="border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
           onClick={() => fileInputRef.current?.click()}
@@ -230,7 +239,7 @@ export default function VideoUploader({
       )}
 
       {/* 선택된 파일 정보 */}
-      {selectedFile && !uploadMutation.isPending && (
+      {selectedFile && !isUploading && (
         <div className="border border-base-300 rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -256,7 +265,7 @@ export default function VideoUploader({
       )}
 
       {/* 업로드 진행 상황 */}
-      {uploadMutation.isPending && (
+      {isUploading && (
         <div className="border border-base-300 rounded-lg p-4">
           <div className="mb-4">
             <div className="flex justify-between text-sm mb-2">
@@ -283,6 +292,15 @@ export default function VideoUploader({
         onChange={handleFileSelect}
         className="hidden"
       />
+
+      {/* Toast */}
+      {toastMessage && (
+        <div className="toast toast-top toast-center">
+          <div className={`alert alert-${toastMessage.type}`}>
+            <span>{toastMessage.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
