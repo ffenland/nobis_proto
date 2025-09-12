@@ -1,25 +1,32 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
-import { getManagerDashboardPT } from "@/app/services/manager/dashboard.service";
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import { getPtStats } from "@/app/services/mananger/dashboard.service";
 
 export async function GET() {
   try {
-    const session = await getSession();
-    
-    if (!session || !session.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 세션 확인
+    const sessionOrResponse = await getSessionOrReturn401();
+
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
     }
-    
-    if (session.role !== "MANAGER") {
-      return NextResponse.json({ error: "Manager role required" }, { status: 403 });
+
+    // 매니저 권한 확인
+    if (sessionOrResponse.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "매니저 권한이 필요합니다." },
+        { status: 403 }
+      );
     }
-    
-    const ptData = await getManagerDashboardPT(session.roleId);
-    return NextResponse.json(ptData);
+
+    // PT 현황 조회
+    const ptStats = await getPtStats(sessionOrResponse.roleId);
+
+    return NextResponse.json(ptStats);
   } catch (error) {
-    console.error("Manager dashboard PT API error:", error);
+    console.error("Get PT stats API error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "PT 현황을 불러오는 중 오류가 발생했습니다." },
       { status: 500 }
     );
   }

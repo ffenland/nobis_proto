@@ -39,10 +39,11 @@ export async function checkTrainerLessonConflict(
           trainerId: trainerId,
           state: PtState.CONFIRMED,
         },
+        isCanceled: false, // 취소되지 않은 레슨만 충돌 체크
         AND: [
-          { scheduledAt: { lt: endAt } },    // 기존 수업 시작 < 새 수업 종료
-          { endAt: { gt: scheduledAt } }     // 기존 수업 종료 > 새 수업 시작
-        ]
+          { scheduledAt: { lt: endAt } }, // 기존 수업 시작 < 새 수업 종료
+          { endAt: { gt: scheduledAt } }, // 기존 수업 종료 > 새 수업 시작
+        ],
       },
       select: {
         id: true,
@@ -55,13 +56,13 @@ export async function checkTrainerLessonConflict(
                 user: {
                   select: {
                     username: true,
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     // 충돌하는 수업들을 ConflictingLesson 타입으로 변환하여 반환
@@ -72,7 +73,7 @@ export async function checkTrainerLessonConflict(
       const endTime = formatTime(
         lesson.endAt.getHours() * 100 + lesson.endAt.getMinutes()
       );
-      
+
       // 수업 시간 계산 (분 단위)
       const durationMinutes = Math.floor(
         (lesson.endAt.getTime() - lesson.scheduledAt.getTime()) / (1000 * 60)
@@ -198,23 +199,6 @@ export const getLessonDetailRecords = async ({
                 },
               },
             },
-
-            // 미디어
-            images: {
-              select: {
-                id: true,
-                cloudflareId: true,
-                status: true,
-              },
-            },
-            videos: {
-              select: {
-                id: true,
-                streamId: true,
-                status: true,
-                duration: true,
-              },
-            },
           },
           orderBy: {
             entry: "asc",
@@ -238,8 +222,6 @@ export const getLessonDetailRecords = async ({
       machineSetRecords: record.machineSetRecords,
       freeSetRecords: record.freeSetRecords,
       stretchingExerciseRecords: record.stretchingExerciseRecords,
-      images: record.images,
-      videos: record.videos,
     }));
     return records;
   } catch (error) {
@@ -313,6 +295,23 @@ export async function getLessonDetail({
             title: true,
           },
         },
+
+        // 레슨 미디어
+        images: {
+          select: {
+            id: true,
+            cloudflareId: true,
+            status: true,
+          },
+        },
+        videos: {
+          select: {
+            id: true,
+            streamId: true,
+            status: true,
+            duration: true,
+          },
+        },
       },
     });
 
@@ -371,6 +370,10 @@ export async function getLessonDetail({
       // 센터 정보 (플랫하게)
       centerId: lesson.fitnessCenter?.id || "",
       centerName: lesson.fitnessCenter?.title || "센터 정보 없음",
+
+      // 미디어 정보
+      images: lesson.images,
+      videos: lesson.videos,
 
       // TODO 항목
       scheduleChangeRequest: [], // TODO: 스케줄 변경 요청 구현
@@ -1001,188 +1004,6 @@ export async function checkTrainerScheduleConflict(
   return await checkTrainerLessonConflict(trainerId, scheduledAt, endAt);
 }
 
-// PT 승인과 첫 레슨 생성을 동시에 처리하는 함수
-export async function createLessonWithPtApproval(
-  trainerId: string,
-  ptId: string,
-  lessonData: CreateLessonInput
-) {
-  try {
-    // 사전 PT 확인 (트레이너 센터 정보 필요)
-    const ptInfo = await prisma.pt.findUnique({
-      where: {
-        id: ptId,
-        trainerId: trainerId,
-        state: PtState.PENDING,
-      },
-      select: {
-        id: true,
-        trainer: {
-          select: {
-            fitnessCenterId: true,
-          },
-        },
-      },
-    });
-
-    if (!ptInfo || !ptInfo.trainer?.fitnessCenterId) {
-      return {
-        success: false,
-        message: "해당 PT를 찾을 수 없거나 트레이너의 센터 정보가 없습니다.",
-      };
-    }
-
-    // 시간 파싱
-    const scheduledAt = new Date(lessonData.scheduledAt);
-    const endAt = new Date(lessonData.endAt);
-    
-    // 안전장치: 간단한 스케줄 체크 (레이스 컨디션 방지)
-    const conflictingLessons = await checkTrainerLessonConflict(
-      trainerId,
-      scheduledAt,
-      endAt
-    );
-
-    if (conflictingLessons.length > 0) {
-      const firstConflict = conflictingLessons[0];
-      const message = `선택하신 날짜에 ${firstConflict.startTime}부터 ${firstConflict.endTime}까지 ${firstConflict.memberName}님과의 수업이 있습니다.`;
-      
-      return {
-        success: false,
-        message: message,
-      };
-    }
-
-    // 트랜잭션으로 PT 승인과 레슨 생성을 원자적으로 처리
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. PT 확인 및 승인
-      const pt = await tx.pt.findUnique({
-        where: {
-          id: ptId,
-          trainerId: trainerId,
-          state: PtState.PENDING, // PENDING 상태의 PT만 승인 가능
-        },
-        select: {
-          id: true,
-          startDate: true,
-          trainer: {
-            select: {
-              fitnessCenterId: true,
-            },
-          },
-        },
-      });
-
-      if (!pt) {
-        throw new Error("해당 PT를 찾을 수 없거나 이미 처리되었습니다.");
-      }
-
-      if (!pt.trainer?.fitnessCenterId) {
-        throw new Error("트레이너의 센터 정보가 없습니다.");
-      }
-
-      // 2. PT 승인 (PENDING → CONFIRMED)
-      const approvedPt = await tx.pt.update({
-        where: { id: ptId },
-        data: { state: PtState.CONFIRMED },
-        select: {
-          id: true,
-          state: true,
-          member: {
-            select: {
-              user: {
-                select: {
-                  username: true,
-                },
-              },
-            },
-          },
-          ptProduct: {
-            select: {
-              title: true,
-            },
-          },
-        },
-      });
-
-      // 3. 첫 레슨 생성 (중복 체크는 이미 트랜잭션 밖에서 완료됨)
-      const lesson = await tx.lesson.create({
-        data: {
-          ptId: ptId,
-          scheduledAt: scheduledAt,
-          endAt: endAt,
-          fitnessCenterId: ptInfo.trainer!.fitnessCenterId!,
-          memo: lessonData.memo || "",
-        },
-        select: {
-          id: true,
-          scheduledAt: true,
-          endAt: true,
-          memo: true,
-        },
-      });
-
-      return {
-        pt: approvedPt,
-        lesson: lesson,
-      };
-    });
-
-    return {
-      success: true,
-      ptId: result.pt.id,
-      lessonId: result.lesson.id,
-      message: `${result.pt.member?.user.username}님의 ${result.pt.ptProduct.title} PT가 승인되고 첫 수업이 등록되었습니다.`,
-      data: {
-        pt: result.pt,
-        lesson: result.lesson,
-      },
-    };
-  } catch (error) {
-    console.error("Create lesson with PT approval error:", error);
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "PT 승인 및 레슨 생성 중 오류가 발생했습니다.";
-    return {
-      success: false,
-      message: errorMessage,
-    };
-  }
-}
-
-// PT 승인과 레슨 생성 결과 타입
-export type CreateLessonWithPtApprovalResult =
-  | {
-      success: true;
-      ptId: string;
-      lessonId: string;
-      message: string;
-      data: {
-        pt: {
-          id: string;
-          state: PtState;
-          member: {
-            user: {
-              username: string;
-            };
-          } | null;
-          ptProduct: {
-            title: string;
-          };
-        };
-        lesson: {
-          id: string;
-          scheduledAt: Date;
-          endAt: Date;
-          memo: string;
-        };
-      };
-    }
-  | {
-      success: false;
-      message: string;
-    };
 
 // ===== 컨디션 기록 관련 서비스 =====
 
@@ -1234,29 +1055,33 @@ export async function createLessonCondition(
 
     // 템플릿별 중복 체크 및 기존 이미지 교체
     const templatesToUpdate = new Map<string, string[]>(); // templateName -> imageIds[]
-    
+
     for (const newImage of newImages) {
       const metadata = newImage.metadata as any;
       const templateName = metadata?.templateName;
-      
+
       if (templateName) {
         if (!templatesToUpdate.has(templateName)) {
           templatesToUpdate.set(templateName, []);
         }
         templatesToUpdate.get(templateName)!.push(newImage.id);
-        
+
         // 동일한 템플릿의 기존 이미지가 있다면 연결 해제
-        const existingImagesForTemplate = lesson.conditionImages.filter(img => {
-          const imgMetadata = img.metadata as any;
-          return imgMetadata?.templateName === templateName;
-        });
-        
+        const existingImagesForTemplate = lesson.conditionImages.filter(
+          (img) => {
+            const imgMetadata = img.metadata as any;
+            return imgMetadata?.templateName === templateName;
+          }
+        );
+
         if (existingImagesForTemplate.length > 0) {
           await prisma.lesson.update({
             where: { id: lessonId },
             data: {
               conditionImages: {
-                disconnect: existingImagesForTemplate.map(img => ({ id: img.id })),
+                disconnect: existingImagesForTemplate.map((img) => ({
+                  id: img.id,
+                })),
               },
             },
           });
@@ -1322,7 +1147,6 @@ export async function getLessonCondition(lessonId: string, trainerId: string) {
           select: {
             id: true,
             cloudflareId: true,
-            originalName: true,
             createdAt: true,
             metadata: true,
           },
@@ -1392,7 +1216,7 @@ export async function deleteLessonConditionByTemplate(
     }
 
     // 해당 템플릿의 이미지들 찾기
-    const templateImages = lesson.conditionImages.filter(img => {
+    const templateImages = lesson.conditionImages.filter((img) => {
       const metadata = img.metadata as any;
       return metadata?.templateName === templateName;
     });
@@ -1514,3 +1338,71 @@ export type CreateLessonConditionResult = Awaited<
 export type DeleteLessonConditionResult = Awaited<
   ReturnType<typeof deleteLessonCondition>
 >;
+
+// 레슨 취소
+export async function cancelLesson(
+  trainerId: string,
+  lessonId: string,
+  reason?: string
+) {
+  try {
+    // 권한 체크 및 레슨 존재 확인
+    const lesson = await prisma.lesson.findFirst({
+      where: {
+        id: lessonId,
+        pt: {
+          trainerId: trainerId,
+        },
+        isCanceled: false, // 이미 취소된 레슨은 취소 불가
+      },
+      select: {
+        id: true,
+        scheduledAt: true,
+        pt: {
+          select: {
+            member: {
+              select: {
+                user: {
+                  select: {
+                    username: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      throw new Error("레슨을 찾을 수 없거나 권한이 없습니다.");
+    }
+
+    // 레슨 취소 처리
+    const updatedLesson = await prisma.lesson.update({
+      where: { id: lessonId },
+      data: {
+        isCanceled: true,
+        memo: reason ? `[취소사유] ${reason}` : "[취소됨]",
+      },
+      select: {
+        id: true,
+        scheduledAt: true,
+        isCanceled: true,
+        memo: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: updatedLesson,
+      message: "레슨이 취소되었습니다.",
+    };
+  } catch (error) {
+    console.error("Cancel lesson error:", error);
+    throw error;
+  }
+}
+
+// 타입 추론
+export type CancelLessonResult = Awaited<ReturnType<typeof cancelLesson>>;

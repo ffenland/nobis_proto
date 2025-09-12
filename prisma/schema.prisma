@@ -131,14 +131,13 @@ model Trainer {
 }
 
 model Manager {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  user            User           @relation(fields: [userId], references: [id])
-  userId          String         @unique @db.Uuid
-  group           Group[]
-  fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId String?        @db.Uuid
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id])
+  userId        String          @unique @db.Uuid
+  group         Group[]
+  fitnessCenter FitnessCenter[]
 }
 
 model Group {
@@ -196,22 +195,24 @@ model PtRejectInfo {
 }
 
 model Pt {
-  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  ptProduct     PtProduct     @relation(fields: [ptProductId], references: [id])
-  ptProductId   String        @db.Uuid
-  member        Member?       @relation(fields: [memberId], references: [id])
-  memberId      String?       @db.Uuid
-  trainer       Trainer?      @relation(fields: [trainerId], references: [id])
-  trainerId     String?       @db.Uuid
-  state         PtState       @default(PENDING)
-  description   String        @default("")
-  goals         String        @default("") // PT 목표 (쉼표로 구분된 문자열)
-  lessons       Lesson[]
-  paymentAmount Int
-  startDate     DateTime
-  rejectInfo    PtRejectInfo?
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  ptProduct      PtProduct     @relation(fields: [ptProductId], references: [id])
+  ptProductId    String        @db.Uuid
+  member         Member?       @relation(fields: [memberId], references: [id])
+  memberId       String?       @db.Uuid
+  trainer        Trainer?      @relation(fields: [trainerId], references: [id])
+  trainerId      String?       @db.Uuid
+  state          PtState       @default(PENDING)
+  stateUpdatedAt DateTime?
+  description    String        @default("")
+  goals          String        @default("") // PT 목표 (쉼표로 구분된 문자열)
+  expirationDate DateTime?
+  lessons        Lesson[]
+  paymentAmount  Int           @default(0)
+  startDate      DateTime
+  rejectInfo     PtRejectInfo?
 }
 
 model Lesson {
@@ -228,12 +229,17 @@ model Lesson {
   endAt                 DateTime // 수업 종료 시간 (새로 추가)
   records               LessonRecord[]
   memo                  String                  @default("")
+  isCanceled            Boolean                 @default(false)
   scheduleChangeRequest ScheduleChangeRequest[]
   auditLogs             LessonAuditLog[] // 감사 로그 관계
 
   // 컨디션 기록 관련 필드
   conditionMemo   String? // 컨디션에 대한 텍스트 메모
   conditionImages Image[] @relation("LessonConditionImages") // 여러 컨디션 이미지들
+
+  // 레슨 미디어 (운동 기록용)
+  images Image[]
+  videos Video[]
 
   @@index([scheduledAt])
   @@index([ptId, scheduledAt])
@@ -251,8 +257,6 @@ model LessonRecord {
   machineSetRecords         MachineSetRecord[]
   freeSetRecords            FreeSetRecord[]
   stretchingExerciseRecords StretchingExerciseRecord[]
-  images                    Image[]
-  videos                    Video[]
   deletedAt                 DateTime? // 소프트 삭제 시간
   deletedUserId             String?                    @db.Uuid // 삭제한 사용자 ID
 }
@@ -418,6 +422,9 @@ model Equipment {
 
   // 미디어 (사진)
   images Image[]
+
+  // 현재 사용여부
+  disabledAt DateTime?
 
   @@index([fitnessCenterId, groupId])
   @@index([groupId])
@@ -625,11 +632,6 @@ model Image {
   // Cloudflare Images ID (custom ID)                                  
   cloudflareId String @unique
 
-  // 파일 정보                                                         
-  originalName String
-  mimeType     String
-  size         Int
-
   // 이미지 타입                                                       
   type ImageType
 
@@ -650,8 +652,8 @@ model Image {
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
   fitnessCenterId String?        @db.Uuid
 
-  lessonRecord   LessonRecord? @relation(fields: [lessonRecordId], references: [id], onDelete: SetNull)
-  lessonRecordId String?       @db.Uuid
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  lessonId String? @db.Uuid
 
   equipment   Equipment? @relation(fields: [equipmentId], references: [id])
   equipmentId String?    @db.Uuid
@@ -681,12 +683,13 @@ enum ImageType {
   PROFILE
   MACHINE
   CENTER
-  EXERCISE
+  FREE_EXERCISE
   STRETCHING
-  PT_RECORD
+  LESSON
   BEFORE_AFTER
   ACHIEVEMENT
   CONDITION // 컨디션 기록용 이미지
+  EQUIPMENT
 }
 
 enum ImageStatus {
@@ -701,11 +704,6 @@ model Video {
 
   // Cloudflare Stream ID                                                 
   streamId String @unique
-
-  // 파일 정보                                                            
-  originalName String
-  mimeType     String
-  size         Int
 
   // 비디오 정보                                                          
   duration   Int // 초 단위                                           
@@ -722,8 +720,8 @@ model Video {
   uploadedById String @db.Uuid
 
   // 선택적 관계                                                          
-  lessonRecord   LessonRecord? @relation(fields: [lessonRecordId], references: [id], onDelete: SetNull)
-  lessonRecordId String?       @db.Uuid
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  lessonId String? @db.Uuid
 
   // 메타데이터                                                           
   metadata Json?
@@ -736,7 +734,7 @@ model Video {
 
 enum VideoType {
   EXERCISE_DEMO
-  PT_RECORD
+  LESSON
   FORM_CHECK
   PROGRESS
   INSTRUCTION

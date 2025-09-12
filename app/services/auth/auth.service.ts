@@ -166,5 +166,158 @@ export async function logoutUser(): Promise<LogoutResponse> {
   }
 }
 
+// 카카오 로그인 처리 타입
+export interface KakaoLoginResult {
+  success: boolean;
+  role?: UserRole;
+  error?: string;
+}
+
+interface KakaoAccessTokenResponse {
+  access_token: string;
+  token_type: string;
+  refresh_token: string;
+  expires_in: number;
+  scope: string;
+  refresh_token_expires_in: number;
+}
+
+// 카카오 로그인 처리 함수
+export async function processKakaoLogin(code: string): Promise<KakaoLoginResult> {
+  try {
+    // 1. 액세스 토큰 획득
+    const accessTokenURL = "https://kauth.kakao.com/oauth/token";
+    const accessTokenResponse = await fetch(accessTokenURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: process.env.KAKAO_REST_API_KEY!,
+        client_secret: process.env.KAKAO_CLIENT_SECRET!,
+        redirect_uri: process.env.KAKAO_REDIRECT_URI!,
+        code,
+      }).toString(),
+    });
+
+    const accessTokenData = await accessTokenResponse.json();
+
+    if (!accessTokenData.access_token) {
+      return { success: false, error: 'failkakaotoken' };
+    }
+
+    // 2. 사용자 정보 획득
+    const kakaoUserInfoURL = "https://kapi.kakao.com/v2/user/me";
+    const userProfileResponse = await fetch(kakaoUserInfoURL, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessTokenData.access_token}`,
+        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+      },
+    });
+
+    const userProfile = await userProfileResponse.json();
+
+    if (!userProfile.id) {
+      return { success: false, error: 'failkakao' };
+    }
+
+    const kakaoId = userProfile.id.toString();
+    const email = userProfile.kakao_account?.email;
+
+    if (!email) {
+      return { success: false, error: 'noemail' };
+    }
+
+    // 3. 사용자 확인 및 로그인/회원가입 처리
+    const { loginToSession } = await import('@/app/lib/socialLogin');
+    
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        role: true,
+        kakaoId: true,
+        managerProfile: { select: { id: true } },
+        trainerProfile: { select: { id: true } },
+        memberProfile: { select: { id: true } },
+      },
+    });
+
+    if (user && user.kakaoId === kakaoId) {
+      // 기존 카카오 회원
+      if (user.role === "MANAGER" && user.managerProfile) {
+        await loginToSession(user.id, user.role, user.managerProfile.id);
+        return { success: true, role: user.role };
+      } else if (user.role === "TRAINER" && user.trainerProfile) {
+        await loginToSession(user.id, user.role, user.trainerProfile.id);
+        return { success: true, role: user.role };
+      } else if (user.role === "MEMBER" && user.memberProfile) {
+        await loginToSession(user.id, user.role, user.memberProfile.id);
+        return { success: true, role: user.role };
+      } else {
+        return { success: false, error: 'norole' };
+      }
+    } else if (user && user.kakaoId !== kakaoId) {
+      // 이메일은 있지만 다른 소셜 로그인 사용
+      return { success: false, error: 'alreadynaver' };
+    } else if (user && user.kakaoId === null) {
+      // 기존 회원, kakaoId 업데이트
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { kakaoId },
+      });
+      
+      if (user.role === "MANAGER" && user.managerProfile) {
+        await loginToSession(user.id, user.role, user.managerProfile.id);
+        return { success: true, role: user.role };
+      } else if (user.role === "TRAINER" && user.trainerProfile) {
+        await loginToSession(user.id, user.role, user.trainerProfile.id);
+        return { success: true, role: user.role };
+      } else if (user.role === "MEMBER" && user.memberProfile) {
+        await loginToSession(user.id, user.role, user.memberProfile.id);
+        return { success: true, role: user.role };
+      } else {
+        return { success: false, error: 'norole' };
+      }
+    } else {
+      // 신규 회원가입
+      const { createRandomUsername } = await import('@/app/lib/socialLogin');
+      const username = await createRandomUsername("kakao");
+      
+      const newUser = await prisma.$transaction(async (trPrisma) => {
+        const createdUser = await trPrisma.user.create({
+          data: {
+            email,
+            kakaoId,
+            username,
+            mobile: "", // 카카오는 전화번호 미제공
+            role: "MEMBER",
+          },
+        });
+
+        const newMember = await trPrisma.member.create({
+          data: {
+            userId: createdUser.id,
+          },
+        });
+
+        return { 
+          id: createdUser.id, 
+          role: createdUser.role as UserRole, 
+          memberId: newMember.id 
+        };
+      });
+
+      await loginToSession(newUser.id, newUser.role, newUser.memberId);
+      return { success: true, role: newUser.role };
+    }
+  } catch (error) {
+    console.error('Kakao login process error:', error);
+    return { success: false, error: 'unexpected' };
+  }
+}
+
 // 타입 추론 헬퍼
 export type GetSessionUserInfoResult = Awaited<ReturnType<typeof getSessionUserInfo>>;

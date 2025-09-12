@@ -5,7 +5,22 @@ import { useState } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { Badge } from "@/app/components/ui/Loading";
 import useSWR from "swr";
-import type { MachineForRecord } from "@/app/services/fitness-center/machine.service";
+import type { IMachinesByFitnessCenter } from "@/app/services/fitness-center/machine.service";
+
+// Form 데이터 타입 - page.tsx의 MachineFormData와 일치
+interface MachineFormData {
+  type: "MACHINE";
+  title: string;
+  description?: string;
+  exerciseId: string; // Machine ID (exerciseId로 명명됨)
+  sets: Array<{
+    reps: number;
+    settings: Array<{
+      settingId: string;
+      valueId: string;
+    }>;
+  }>;
+}
 
 // MachineSetRecord 구조 - schema.prisma와 일치
 interface SetRecord {
@@ -20,16 +35,24 @@ interface SetRecord {
 }
 
 interface MachineRecordFormProps {
-  onComplete: (data: any) => void;
+  onComplete: (data: MachineFormData) => void;
   onCancel: () => void;
   nextEntry: number;
   centerId?: string; // parent에서 전달받을 centerId
-  preloadedMachines?: MachineForRecord[]; // 프리로딩된 머신 데이터
+  preloadedMachines?: IMachinesByFitnessCenter[]; // 프리로딩된 머신 데이터
   isLoading?: boolean; // 로딩 상태
 }
 
-export default function MachineRecordForm({ onComplete, onCancel, nextEntry, centerId, preloadedMachines, isLoading: isLoadingProp }: MachineRecordFormProps) {
-  const [selectedMachine, setSelectedMachine] = useState<MachineForRecord | null>(null);
+export default function MachineRecordForm({
+  onComplete,
+  onCancel,
+  nextEntry,
+  centerId,
+  preloadedMachines,
+  isLoading: isLoadingProp,
+}: MachineRecordFormProps) {
+  const [selectedMachine, setSelectedMachine] =
+    useState<IMachinesByFitnessCenter | null>(null);
   const [sets, setSets] = useState<SetRecord[]>([
     {
       id: `set-${Date.now()}-0`,
@@ -41,11 +64,19 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // 머신 데이터: 프리로딩된 데이터 우선 사용, 없으면 SWR로 조회
-  const { data: machineList, error, isLoading } = useSWR<{
+  const {
+    data: machineList,
+    error,
+    isLoading,
+  } = useSWR<{
     ok: boolean;
-    data: MachineForRecord[];
+    data: IMachinesByFitnessCenter[];
   }>(
-    preloadedMachines ? null : (centerId ? `/api/fitness-center/${centerId}/machines` : null)
+    preloadedMachines
+      ? null
+      : centerId
+      ? `/api/fitness-center/${centerId}/machines`
+      : null
   );
 
   // 머신 리스트 데이터 추출 - 프리로딩된 데이터 우선
@@ -75,7 +106,7 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
       return;
     }
 
-    setSets(prevSets => [
+    setSets((prevSets) => [
       ...prevSets,
       {
         id: `set-${Date.now()}-${prevSets.length}`,
@@ -88,20 +119,20 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
   // 세트 삭제
   const removeSet = (setId: string) => {
     if (sets.length > 1) {
-      setSets(prevSets => prevSets.filter(set => set.id !== setId));
+      setSets((prevSets) => prevSets.filter((set) => set.id !== setId));
     }
   };
 
   // 세트 값 변경 - 함수형 업데이트로 최신 상태 보장
   const updateSet = (
     setId: string,
-    field: keyof Omit<SetRecord, 'id'>,
+    field: keyof Omit<SetRecord, "id">,
     value: string | { settingId: string; valueId: string }
   ) => {
-    setSets(prevSets => 
-      prevSets.map(set => {
+    setSets((prevSets) =>
+      prevSets.map((set) => {
         if (set.id !== setId) return set;
-        
+
         if (field === "settingValues") {
           const { settingId, valueId } = value as {
             settingId: string;
@@ -120,7 +151,6 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
       })
     );
   };
-
 
   // 저장
   const handleSave = () => {
@@ -149,33 +179,24 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
       }
     }
 
-    // MachineSetRecord 배열 생성 - schema.prisma 구조와 일치
-    const machineSetRecords = sets.map((set, index) => {
-      const settingValueIds = Object.values(set.settingValues).map(
-        ({ valueId }) => valueId
-      );
-
-      return {
-        set: index + 1,
-        reps: parseInt(set.reps),
-        settingValueIds,
-      };
-    });
-
-    const exerciseData = {
-      id: `machine-${selectedMachine.id}-${Date.now()}`,
-      type: "MACHINE" as const,
+    // MachineFormData 구조로 생성
+    const formData: MachineFormData = {
+      type: "MACHINE",
       title: selectedMachine.name,
-      entry: nextEntry,
-      details: {
-        machineId: selectedMachine.id,
-        machineName: selectedMachine.name,
-        sets: machineSetRecords, // machineSetRecords → sets로 변경
-        description,
-      },
+      description: description || undefined,
+      exerciseId: selectedMachine.id, // exerciseId로 명명됨 (실제로는 machineId)
+      sets: sets.map((set) => ({
+        reps: parseInt(set.reps),
+        settings: Object.values(set.settingValues).map(
+          ({ settingId, valueId }) => ({
+            settingId,
+            valueId,
+          })
+        ),
+      })),
     };
 
-    onComplete(exerciseData);
+    onComplete(formData);
   };
 
   // 로딩 상태 처리
@@ -215,7 +236,7 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
         <select
           value={selectedMachine?.id || ""}
           onChange={(e) => {
-            const machine = machines.find(m => m.id === e.target.value);
+            const machine = machines.find((m) => m.id === e.target.value);
             setSelectedMachine(machine || null);
             // 머신 변경 시 세트 초기화
             setSets([
@@ -228,14 +249,13 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
           }}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
-          <option value="">
-            {isLoadingProp ? "로딩중..." : "선택하세요"}
-          </option>
-          {!isLoadingProp && machines.map((machine) => (
-            <option key={machine.id} value={machine.id}>
-              {machine.name}
-            </option>
-          ))}
+          <option value="">{isLoadingProp ? "로딩중..." : "선택하세요"}</option>
+          {!isLoadingProp &&
+            machines.map((machine) => (
+              <option key={machine.id} value={machine.id}>
+                {machine.name}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -267,7 +287,10 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
           {/* 세트 목록 */}
           <div className="space-y-2">
             {sets.map((set, index) => (
-              <div key={set.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div
+                key={set.id}
+                className="p-3 bg-gray-50 rounded-lg border border-gray-200"
+              >
                 <div className="flex items-center justify-between mb-3">
                   <Badge variant="info" className="text-xs">
                     Set {index + 1}
@@ -281,18 +304,20 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
                     </button>
                   )}
                 </div>
-                
+
                 {/* 반복 횟수와 설정값 */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs text-gray-600 font-medium">반복 횟수</label>
+                    <label className="text-xs text-gray-600 font-medium">
+                      반복 횟수
+                    </label>
                     <input
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       value={set.reps}
                       onChange={(e) => {
-                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        const value = e.target.value.replace(/[^0-9]/g, "");
                         updateSet(set.id, "reps", value);
                       }}
                       onWheel={(e) => e.currentTarget.blur()}
@@ -322,20 +347,21 @@ export default function MachineRecordForm({ onComplete, onCancel, nextEntry, cen
                             // 문자열에서 숫자 부분 추출
                             const aMatch = a.value.match(/^(\d+\.?\d*)/);
                             const bMatch = b.value.match(/^(\d+\.?\d*)/);
-                            
+
                             // 둘 다 숫자로 시작하는 경우 숫자로 정렬
                             if (aMatch && bMatch) {
                               const aNum = parseFloat(aMatch[1]);
                               const bNum = parseFloat(bMatch[1]);
                               return aNum - bNum;
                             }
-                            
+
                             // 그 외의 경우 문자열로 정렬
                             return a.value.localeCompare(b.value);
                           })
                           .map((val) => (
                             <option key={val.id} value={val.id}>
-                              {val.value}{setting.unit}
+                              {val.value}
+                              {setting.unit}
                             </option>
                           ))}
                       </select>

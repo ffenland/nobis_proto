@@ -529,15 +529,6 @@ export class ChatService {
               totalCount: true,
             },
           },
-          ptRecord: {
-            select: {
-              items: {
-                select: {
-                  id: true,
-                },
-              },
-            },
-          },
         },
       });
 
@@ -581,7 +572,9 @@ export type IChatRoomsData = Awaited<
   ReturnType<typeof ChatService.prototype.getChatRooms>
 >;
 export type IChatRoomData = IChatRoomsData[0];
-export type IMessagesData = Awaited<ReturnType<typeof ChatService.prototype.getMessages>>;
+export type IMessagesData = Awaited<
+  ReturnType<typeof ChatService.prototype.getMessages>
+>;
 export type IMessageData = IMessagesData[0];
 export type IChatRoomInfoData = Awaited<
   ReturnType<typeof ChatService.prototype.getChatRoomInfo>

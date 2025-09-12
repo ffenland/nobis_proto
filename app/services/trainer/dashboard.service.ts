@@ -260,6 +260,7 @@ export async function getTrainerDashboard(trainerId: string) {
           gte: weekStart,
           lte: weekEnd,
         },
+        isCanceled: false, // 취소되지 않은 레슨만 조회
       },
       select: {
         id: true,

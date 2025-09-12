@@ -1,200 +1,340 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 import useSWR from "swr";
+import Link from "next/link";
 import {
-  Building2,
-  Users,
-  Clock,
-  ChevronRight,
-  MapPin,
+  User,
+  Building,
   Phone,
+  Mail,
+  Users,
+  Calendar,
+  CheckCircle,
+  Clock,
+  XCircle,
+  Award,
 } from "lucide-react";
+import { TrainerListItem } from "@/app/services/mananger/manager-trainer.service";
 
-import { PageLayout, PageHeader } from "@/app/components/ui/Dropdown";
-import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
-import { LoadingPage } from "@/app/components/ui/Loading";
-import { Badge } from "@/app/components/ui/Loading";
-import { ICentersWithStats } from "@/app/lib/services/fitness-center.service";
-import { formatTime } from "@/app/lib/utils/time.utils";
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-// 데이터 페처 함수
-const fetcher = async (url: string) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error("데이터를 불러오는데 실패했습니다");
-  }
-  return response.json();
+const trainerLevelLabels: Record<string, string> = {
+  JUNIOR: "주니어",
+  ASSOCIATE: "어소시에이트",
+  SENIOR: "시니어",
+  MASTER: "마스터",
 };
 
-// 요일 한글 변환 함수
-const getWeekDayKorean = (weekDay: string) => {
-  const weekDayMap: Record<string, string> = {
-    MON: "월",
-    TUE: "화",
-    WED: "수",
-    THU: "목",
-    FRI: "금",
-    SAT: "토",
-    SUN: "일",
-  };
-  return weekDayMap[weekDay] || weekDay;
+const trainerLevelColors: Record<string, string> = {
+  JUNIOR: "bg-gray-100 text-gray-800",
+  ASSOCIATE: "bg-blue-100 text-blue-800",
+  SENIOR: "bg-green-100 text-green-800",
+  MASTER: "bg-purple-100 text-purple-800",
 };
 
-export default function TrainersNavigationPage() {
-  // 모든 센터 목록과 통계 조회
+export default function TrainersPage() {
+  const [selectedCenter, setSelectedCenter] = useState<string>("");
+
   const {
-    data: centersData,
+    data: trainers,
     error,
     isLoading,
-  } = useSWR<{
-    success: boolean;
-    data: ICentersWithStats;
-  }>("/api/centers", fetcher, {
-    refreshInterval: 60000, // 1분마다 갱신
-  });
+  } = useSWR<TrainerListItem[]>("/api/manager/trainers", fetcher);
 
   if (isLoading) {
-    return <LoadingPage message="센터 정보를 불러오는 중..." />;
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <span className="loading loading-spinner loading-lg"></span>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <PageLayout>
-        <div className="text-center py-12">
-          <p className="text-red-600 mb-4">데이터를 불러오는데 실패했습니다</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            다시 시도
-          </button>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-red-500 text-lg mb-2">
+              데이터를 불러올 수 없습니다
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn btn-primary"
+            >
+              다시 시도
+            </button>
+          </div>
         </div>
-      </PageLayout>
+      </div>
     );
   }
 
-  const centers = centersData?.data || [];
+  // 피트니스 센터별로 그룹화
+  const centerOptions = Array.from(
+    new Set(
+      trainers
+        ?.filter((trainer) => trainer.fitnessCenter)
+        .map((trainer) =>
+          JSON.stringify({
+            id: trainer.fitnessCenter!.id,
+            title: trainer.fitnessCenter!.title,
+          })
+        )
+    )
+  ).map((centerStr) => JSON.parse(centerStr));
+
+  // 필터링된 트레이너
+  const filteredTrainers =
+    trainers?.filter((trainer) => {
+      if (!selectedCenter) return true;
+      if (selectedCenter === "NO_CENTER") {
+        return !trainer.fitnessCenter;
+      }
+      return trainer.fitnessCenter?.id === selectedCenter;
+    }) || [];
+
+  // 통계 계산
+  const stats = {
+    total: trainers?.length || 0,
+    working: trainers?.filter((t) => t.working).length || 0,
+    withCenter: trainers?.filter((t) => t.fitnessCenter).length || 0,
+    withoutCenter: trainers?.filter((t) => !t.fitnessCenter).length || 0,
+  };
 
   return (
-    <PageLayout>
-      <PageHeader
-        title="트레이너 관리"
-        subtitle="센터별 트레이너와 근무시간을 관리하세요"
-      />
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">트레이너 관리</h1>
+          <p className="text-gray-600 mt-1">
+            전체 {stats.total}명 · 활성 {stats.working}명
+          </p>
+        </div>
+      </div>
 
-      {/* 센터별 카드 목록 */}
-      {centers.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">등록된 센터가 없습니다</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {centers.map((center) => (
-            <Link
-              key={center.id}
-              href={`/manager/trainers/${center.id}`}
-              className="block"
+      {/* 통계 카드 */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="stats shadow">
+          <div className="stat">
+            <div className="stat-figure text-primary">
+              <Users className="w-8 h-8" />
+            </div>
+            <div className="stat-title">전체 트레이너</div>
+            <div className="stat-value text-primary">{stats.total}</div>
+          </div>
+        </div>
+
+        <div className="stats shadow">
+          <div className="stat">
+            <div className="stat-figure text-success">
+              <CheckCircle className="w-8 h-8" />
+            </div>
+            <div className="stat-title">활성 트레이너</div>
+            <div className="stat-value text-success">{stats.working}</div>
+          </div>
+        </div>
+
+        <div className="stats shadow">
+          <div className="stat">
+            <div className="stat-figure text-info">
+              <Building className="w-8 h-8" />
+            </div>
+            <div className="stat-title">센터 소속</div>
+            <div className="stat-value text-info">{stats.withCenter}</div>
+          </div>
+        </div>
+
+        <div className="stats shadow">
+          <div className="stat">
+            <div className="stat-figure text-warning">
+              <XCircle className="w-8 h-8" />
+            </div>
+            <div className="stat-title">소속 없음</div>
+            <div className="stat-value text-warning">{stats.withoutCenter}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 필터 */}
+      <div className="mb-6">
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">피트니스 센터</span>
+            </label>
+            <select
+              className="select select-bordered w-full max-w-xs"
+              value={selectedCenter}
+              onChange={(e) => setSelectedCenter(e.target.value)}
             >
-              <Card className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500 h-full">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        {center.title}
-                      </h3>
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-2" />
-                          <span className="truncate">{center.address}</span>
-                        </div>
-                        {center.phone && (
-                          <div className="flex items-center">
-                            <Phone className="w-4 h-4 mr-2" />
-                            <span>{center.phone}</span>
-                          </div>
+              <option value="">전체 센터</option>
+              {centerOptions.map((center) => (
+                <option key={center.id} value={center.id}>
+                  {center.title}
+                </option>
+              ))}
+              <option value="NO_CENTER">소속 없음</option>
+            </select>
+          </div>
+
+          {selectedCenter && (
+            <div className="mt-8">
+              <button
+                onClick={() => setSelectedCenter("")}
+                className="btn btn-ghost btn-sm"
+              >
+                필터 초기화
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 트레이너 목록 */}
+      {filteredTrainers.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTrainers.map((trainer) => (
+            <Link
+              key={trainer.id}
+              href={`/manager/trainers/${trainer.id}`}
+              className="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer"
+            >
+              <div className="card-body">
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="avatar placeholder">
+                      <div className="bg-neutral-focus text-neutral-content rounded-full w-12 h-12">
+                        <span className="text-lg font-medium">
+                          {trainer.username[0]}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg">{trainer.username}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span
+                          className={`badge badge-sm ${
+                            trainerLevelColors[trainer.level]
+                          }`}
+                        >
+                          {trainerLevelLabels[trainer.level]}
+                        </span>
+                        {!trainer.working && (
+                          <span className="badge badge-error badge-sm">
+                            휴무
+                          </span>
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                   </div>
-                </CardHeader>
+                </div>
 
-                <CardContent className="pt-0">
-                  {/* 트레이너 수 통계 */}
-                  <div className="flex items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <Users className="w-5 h-5 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-600">
-                        소속 트레이너
+                {/* 연락처 정보 */}
+                <div className="space-y-2 mt-4">
+                  {trainer.email && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Mail className="w-4 h-4" />
+                      {trainer.email}
+                    </div>
+                  )}
+                  {trainer.mobile && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Phone className="w-4 h-4" />
+                      {trainer.mobile}
+                    </div>
+                  )}
+                </div>
+
+                {/* 소속 센터 */}
+                <div className="mt-4">
+                  {trainer.fitnessCenter ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Building className="w-4 h-4 text-blue-500" />
+                      <span className="font-medium">
+                        {trainer.fitnessCenter.title}
                       </span>
                     </div>
-                    <Badge variant="default" className="bg-blue-600">
-                      {center._count.trainers}명
-                    </Badge>
-                  </div>
-
-                  {/* 기본 근무시간 정보 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Clock className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700">
-                        기본 근무시간
-                      </span>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Building className="w-4 h-4" />
+                      <span>소속 없음</span>
                     </div>
+                  )}
+                </div>
 
-                    {center.defaultWorkingHours.length === 0 ? (
-                      <p className="text-sm text-gray-500 italic">
-                        기본 근무시간 미설정
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {center.defaultWorkingHours
-                          .slice(0, 3) // 최대 3개까지만 표시
-                          .map((workingHour) => (
-                            <div
-                              key={workingHour.id}
-                              className="flex items-center justify-between text-xs bg-gray-50 px-2 py-1 rounded"
-                            >
-                              <span className="font-medium">
-                                {getWeekDayKorean(workingHour.dayOfWeek)}요일
-                              </span>
-                              <span className="text-gray-600">
-                                {formatTime(workingHour.openTime)} ~{" "}
-                                {formatTime(workingHour.closeTime)}
-                              </span>
-                            </div>
-                          ))}
-                        {center.defaultWorkingHours.length > 3 && (
-                          <p className="text-xs text-gray-500 text-center">
-                            +{center.defaultWorkingHours.length - 3}개 더
-                          </p>
-                        )}
-                      </div>
-                    )}
+                {/* PT 통계 */}
+                <div className="divider my-4"></div>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <div className="text-lg font-bold text-primary">
+                      {trainer.stats.totalPt}
+                    </div>
+                    <div className="text-xs text-gray-500">총 PT</div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div>
+                    <div className="text-lg font-bold text-success">
+                      {trainer.stats.activePt}
+                    </div>
+                    <div className="text-xs text-gray-500">진행중</div>
+                  </div>
+                </div>
+
+                {/* 최근 수업 */}
+                {trainer.recentLesson && (
+                  <div className="mt-4">
+                    <div className="text-xs text-gray-500 mb-1">최근 수업</div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="w-4 h-4" />
+                      {new Date(
+                        trainer.recentLesson.scheduledAt
+                      ).toLocaleDateString("ko-KR")}
+                      {trainer.recentLesson.hasRecords && (
+                        <span className="badge badge-success badge-xs">
+                          완료
+                        </span>
+                      )}
+                      {trainer.recentLesson.isCanceled && (
+                        <span className="badge badge-error badge-xs">취소</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 소개 */}
+                {trainer.introduce && trainer.introduce !== "안녕하세요" && (
+                  <div className="mt-4">
+                    <div className="text-sm text-gray-600 line-clamp-2">
+                      {trainer.introduce}
+                    </div>
+                  </div>
+                )}
+              </div>
             </Link>
           ))}
         </div>
+      ) : (
+        // Empty State
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Users className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+            <h2 className="text-xl font-semibold text-gray-600 mb-2">
+              {selectedCenter
+                ? "해당 센터에 등록된 트레이너가 없습니다"
+                : "등록된 트레이너가 없습니다"}
+            </h2>
+            <p className="text-gray-500">
+              {selectedCenter
+                ? "다른 센터를 선택하거나 필터를 초기화해 보세요."
+                : "트레이너를 등록해 주세요."}
+            </p>
+          </div>
+        </div>
       )}
-
-      {/* 추가 안내 */}
-      <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-        <h4 className="font-medium text-blue-900 mb-2">
-          💡 트레이너 관리 기능
-        </h4>
-        <ul className="text-sm text-blue-800 space-y-1">
-          <li>• 센터별 트레이너 목록 및 상세 정보 관리</li>
-          <li>• 센터의 기본 근무시간 설정 및 편집</li>
-          <li>• 트레이너별 개별 근무시간 조정</li>
-          <li>• 트레이너의 센터 이동 관리</li>
-        </ul>
-      </div>
-    </PageLayout>
+    </div>
   );
 }

@@ -143,7 +143,6 @@ export const getCenterStats = async (centerId: string) => {
       prisma.pt.count({
         where: {
           state: "CONFIRMED",
-          trainerConfirmed: true,
           trainer: {
             fitnessCenterId: centerId,
           },

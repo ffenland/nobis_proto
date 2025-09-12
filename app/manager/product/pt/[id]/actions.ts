@@ -16,6 +16,8 @@ export const getPtProductDetailService = cache(async (productId: string) => {
       price: true,
       totalCount: true,
       time: true,
+      expiration_period: true,
+      incentivePercent: true,
       onSale: true,
       createdAt: true,
       updatedAt: true,
@@ -25,9 +27,17 @@ export const getPtProductDetailService = cache(async (productId: string) => {
         select: {
           id: true,
           introduce: true,
+          level: true,
+          working: true,
           user: {
             select: {
               username: true,
+              email: true,
+            },
+          },
+          fitnessCenter: {
+            select: {
+              title: true,
             },
           },
         },
@@ -36,11 +46,26 @@ export const getPtProductDetailService = cache(async (productId: string) => {
         select: {
           id: true,
           state: true,
-          trainerConfirmed: true,
-          ptRecord: {
+          stateUpdatedAt: true,
+          startDate: true,
+          expirationDate: true,
+          paymentAmount: true,
+          member: {
+            select: {
+              user: {
+                select: {
+                  username: true,
+                },
+              },
+            },
+          },
+          lessons: {
             select: {
               id: true,
-              items: {
+              scheduledAt: true,
+              endAt: true,
+              isCanceled: true,
+              records: {
                 select: {
                   id: true,
                 },
@@ -62,19 +87,22 @@ export const getPtProductDetailService = cache(async (productId: string) => {
     (pt) => pt.state === PtState.PENDING
   ).length;
   const confirmedPt = product.pt.filter(
-    (pt) => pt.state === PtState.CONFIRMED && pt.trainerConfirmed
+    (pt) => pt.state === PtState.CONFIRMED
+  ).length;
+  const rejectedPt = product.pt.filter(
+    (pt) => pt.state === PtState.REJECTED
   ).length;
 
-  // 완료된 PT 계산 (모든 레코드에 아이템이 있는 경우)
-  const completedPt = product.pt.filter((pt) => {
-    if (pt.state !== PtState.CONFIRMED || !pt.trainerConfirmed) return false;
+  // 완료된 PT 계산 (모든 수업이 완료된 경우)
+  const finishedPt = product.pt.filter(
+    (pt) => pt.state === PtState.FINISHED
+  ).length;
 
-    // 총 수업 횟수만큼 완료된 레코드가 있는지 확인
-    const completedRecords = pt.ptRecord.filter(
-      (record) => record.items.length > 0
-    ).length;
-
-    return completedRecords >= product.totalCount;
+  // 진행중인 PT 중 실제 수업이 진행된 PT 계산
+  const activePt = product.pt.filter((pt) => {
+    if (pt.state !== PtState.CONFIRMED) return false;
+    // 최소 1개 이상의 수업 기록이 있는 경우
+    return pt.lessons.some((lesson) => lesson.records.length > 0);
   }).length;
 
   return {
@@ -84,6 +112,8 @@ export const getPtProductDetailService = cache(async (productId: string) => {
     price: product.price,
     totalCount: product.totalCount,
     time: product.time,
+    expiration_period: product.expiration_period,
+    incentivePercent: product.incentivePercent,
     onSale: product.onSale,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
@@ -92,13 +122,19 @@ export const getPtProductDetailService = cache(async (productId: string) => {
     trainers: product.trainer.map((trainer) => ({
       id: trainer.id,
       username: trainer.user.username,
+      email: trainer.user.email,
       introduce: trainer.introduce,
+      level: trainer.level,
+      working: trainer.working,
+      centerName: trainer.fitnessCenter?.title || "소속 없음",
     })),
     stats: {
       totalPt,
       pendingPt,
       confirmedPt,
-      completedPt,
+      rejectedPt,
+      finishedPt,
+      activePt,
     },
   };
 });

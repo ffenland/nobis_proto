@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
-import { 
-  updateLessonRecordSets, 
-  deleteLessonRecordItem 
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import {
+  updateLessonRecordSets,
+  deleteLessonRecordItem,
 } from "@/app/services/trainer/lesson.service";
 
 type Params = Promise<{ id: string; recordId: string }>;
@@ -12,9 +12,10 @@ export async function PUT(
   segmentData: { params: Params }
 ) {
   try {
-    const session = await getSession();
-    if (!session?.id || session.role !== "TRAINER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sessionOrResponse = await getSessionOrReturn401();
+
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
     }
 
     const params = await segmentData.params;
@@ -30,7 +31,7 @@ export async function PUT(
     const result = await updateLessonRecordSets(
       recordId,
       lessonId,
-      session.roleId,
+      sessionOrResponse.roleId,
       sets
     );
 
@@ -49,9 +50,10 @@ export async function DELETE(
   segmentData: { params: Params }
 ) {
   try {
-    const session = await getSession();
-    if (!session?.id || session.role !== "TRAINER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sessionOrResponse = await getSessionOrReturn401();
+
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
     }
 
     const params = await segmentData.params;
@@ -60,7 +62,7 @@ export async function DELETE(
     const result = await deleteLessonRecordItem(
       recordId,
       lessonId,
-      session.roleId
+      sessionOrResponse.roleId
     );
 
     return NextResponse.json(result);

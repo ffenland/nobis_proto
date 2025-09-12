@@ -94,7 +94,8 @@ const MemberPtPage = () => {
                   <span>{activePt.ptProduct.price.toLocaleString()}원</span>
                   <span>•</span>
                   <span>
-                    시작일: {new Date(activePt.startDate).toLocaleDateString("ko-KR")}
+                    시작일:{" "}
+                    {new Date(activePt.startDate).toLocaleDateString("ko-KR")}
                   </span>
                 </div>
               </div>
@@ -108,7 +109,9 @@ const MemberPtPage = () => {
           <CardContent className="p-6">
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-900">진행 현황</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  진행 현황
+                </h3>
                 <span className="text-2xl font-bold text-blue-600">
                   {activePt.progress.percentage}%
                 </span>
@@ -121,10 +124,12 @@ const MemberPtPage = () => {
               </div>
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <span>
-                  완료: {activePt.progress.completed}회 / {activePt.progress.total}회
+                  완료: {activePt.progress.completed}회 /{" "}
+                  {activePt.progress.total}회
                 </span>
                 <span>
-                  잔여: {activePt.progress.total - activePt.progress.completed}회
+                  잔여: {activePt.progress.total - activePt.progress.completed}
+                  회
                 </span>
               </div>
             </div>
@@ -137,13 +142,16 @@ const MemberPtPage = () => {
                   <h4 className="font-medium text-blue-900">다음 수업</h4>
                 </div>
                 <p className="text-blue-800 text-sm">
-                  {new Date(activePt.nextLesson.scheduledAt).toLocaleString("ko-KR", {
-                    month: "long",
-                    day: "numeric",
-                    weekday: "long",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}{" "}
+                  {new Date(activePt.nextLesson.scheduledAt).toLocaleString(
+                    "ko-KR",
+                    {
+                      month: "long",
+                      day: "numeric",
+                      weekday: "long",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }
+                  )}{" "}
                   ({activePt.nextLesson.duration}분)
                 </p>
               </div>
@@ -164,7 +172,9 @@ const MemberPtPage = () => {
         {/* 트레이너 정보 카드 */}
         <Card>
           <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">담당 트레이너</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              담당 트레이너
+            </h3>
             <div className="flex items-start gap-4">
               <div className="w-16 h-16 flex-shrink-0">
                 <ProfileImagePreview
@@ -195,7 +205,7 @@ const MemberPtPage = () => {
                   {activePt.trainer?.user.mobile && (
                     <div className="flex items-center gap-2">
                       <span>📞</span>
-                      <a 
+                      <a
                         href={`tel:${activePt.trainer.user.mobile}`}
                         className="text-blue-600 hover:underline"
                       >
@@ -220,7 +230,9 @@ const MemberPtPage = () => {
         {activePt.goals && (
           <Card>
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">PT 목표</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                PT 목표
+              </h3>
               <p className="text-gray-700">{activePt.goals}</p>
             </CardContent>
           </Card>
@@ -230,14 +242,16 @@ const MemberPtPage = () => {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">최근 수업 기록</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                최근 수업 기록
+              </h3>
               <Link href={`/member/pt/${activePt.id}/lessons`}>
                 <Button variant="ghost" size="sm">
                   전체 보기
                 </Button>
               </Link>
             </div>
-            
+
             {activePt.recentLessons.length > 0 ? (
               <div className="space-y-3">
                 {activePt.recentLessons.map((lesson) => (
@@ -253,11 +267,14 @@ const MemberPtPage = () => {
                           }`}
                         />
                         <span className="font-medium text-gray-900">
-                          {new Date(lesson.scheduledAt).toLocaleDateString("ko-KR", {
-                            month: "short",
-                            day: "numeric",
-                            weekday: "short",
-                          })}
+                          {new Date(lesson.scheduledAt).toLocaleDateString(
+                            "ko-KR",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              weekday: "short",
+                            }
+                          )}
                         </span>
                         <span className="text-gray-500 text-sm">
                           {lesson.duration}분
@@ -272,7 +289,6 @@ const MemberPtPage = () => {
                     <div className="flex items-center gap-2">
                       <Badge
                         variant={lesson.isCompleted ? "success" : "default"}
-                        size="sm"
                       >
                         {lesson.isCompleted ? "완료" : "예정"}
                       </Badge>

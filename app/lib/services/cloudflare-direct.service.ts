@@ -181,7 +181,7 @@ export class CloudflareStreamService {
       maxDurationSeconds: number;
       metadata: Record<string, string>;
     }
-    
+
     const requestBody: StreamUploadRequest = {
       maxDurationSeconds: maxDurationSeconds || 3600, // 기본 1시간
       metadata: metadata || {},
@@ -388,9 +388,9 @@ export const getPhotoTypeFromCategory = (category: string): ImageType => {
     profile: "PROFILE",
     machine: "MACHINE",
     center: "CENTER",
-    exercise: "EXERCISE",
+    exercise: "FREE_EXERCISE",
     stretching: "STRETCHING",
-    pt_record: "PT_RECORD",
+    pt_record: "LESSON",
     before_after: "BEFORE_AFTER",
     achievement: "ACHIEVEMENT",
   };
@@ -400,10 +400,10 @@ export const getPhotoTypeFromCategory = (category: string): ImageType => {
 export const getVideoTypeFromCategory = (category: string): VideoType => {
   const mapping: Record<string, VideoType> = {
     exercise_demo: "EXERCISE_DEMO",
-    pt_record: "PT_RECORD",
+    pt_record: "LESSON",
     form_check: "FORM_CHECK",
     progress: "PROGRESS",
     instruction: "INSTRUCTION",
   };
-  return mapping[category] || "PT_RECORD";
+  return mapping[category] || "LESSON";
 };

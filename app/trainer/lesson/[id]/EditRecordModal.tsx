@@ -10,14 +10,14 @@ import {
 } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import useSWRMutation from "swr/mutation";
-import type { RecordedExerciseState } from "./record/page";
+import type { LessonDetailRecord } from "@/app/services/trainer/lesson.service";
 
 interface EditRecordModalProps {
   isOpen: boolean;
   onClose: () => void;
-  record: RecordedExerciseState | null;
+  record: LessonDetailRecord | null;
   lessonId: string;
-  onSuccess?: (updatedRecord?: RecordedExerciseState) => void;
+  onSuccess?: (updatedRecord?: LessonDetailRecord) => void;
 }
 
 // PUT 요청을 위한 fetcher
@@ -55,7 +55,7 @@ export default function EditRecordModal({
   lessonId,
   onSuccess,
 }: EditRecordModalProps) {
-  const [formData, setFormData] = useState<RecordedExerciseState | null>(null);
+  const [formData, setFormData] = useState<LessonDetailRecord | null>(null);
 
   // 모달이 열릴 때 초기 데이터 설정
   useEffect(() => {
@@ -66,15 +66,15 @@ export default function EditRecordModal({
     }
   }, [isOpen, record]);
 
-  // SWR Mutation으로 PUT 요청 관리 - 올바른 API 경로 사용
+  // SWR Mutation으로 PUT 요청 관리
   const { trigger: updateRecord, isMutating } = useSWRMutation(
-    record?.dbId ? `/api/trainer/lesson/${lessonId}/records/${record.dbId}` : null,
+    record?.id ? `/api/trainer/lesson/${lessonId}/records/${record.id}` : null,
     updateRecordFetcher
   );
 
   // SWR Mutation으로 DELETE 요청 관리
   const { trigger: deleteRecord, isMutating: isDeleting } = useSWRMutation(
-    record?.dbId ? `/api/trainer/lesson/${lessonId}/records/${record.dbId}` : null,
+    record?.id ? `/api/trainer/lesson/${lessonId}/records/${record.id}` : null,
     deleteRecordFetcher
   );
 
@@ -82,24 +82,31 @@ export default function EditRecordModal({
     if (!record || !formData) return;
 
     try {
-      // 세트 데이터 추출 (reps만 전송)
-      const sets = formData.details?.sets?.map(set => ({ reps: set.reps })) || [];
-      
+      // API에서 기대하는 sets 형태로 데이터 구성
+      let sets: Array<{ reps: number }> = [];
+
+      if (record.type === "MACHINE") {
+        // 머신 운동의 경우 reps만 업데이트
+        sets = formData.machineSetRecords.map((set) => ({
+          reps: set.reps,
+        }));
+      } else if (record.type === "FREE") {
+        // 프리 운동의 경우 reps만 업데이트
+        sets = formData.freeSetRecords.map((set) => ({
+          reps: set.reps,
+        }));
+      }
+      // 스트레칭의 경우는 수정 가능한 필드가 없으므로 패스
+
+      if (sets.length === 0) {
+        alert("수정할 데이터가 없습니다.");
+        return;
+      }
+
       const result = await updateRecord({ sets });
       
       if (result?.success) {
-        // 업데이트된 데이터로 상태 업데이트
-        const updatedRecord = {
-          ...formData,
-          details: {
-            ...formData.details,
-            sets: formData.details?.sets?.map((set, index) => ({
-              ...set,
-              reps: sets[index]?.reps || set.reps
-            })) || []
-          }
-        };
-        onSuccess?.(updatedRecord);
+        onSuccess?.(formData);
         onClose();
       }
     } catch (error) {
@@ -136,34 +143,36 @@ export default function EditRecordModal({
         {record.type === "MACHINE" && (
           <div className="space-y-4">
             <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">머신 운돐 상세</h4>
+              <h4 className="font-medium text-blue-900 mb-2">머신 운동 상세</h4>
               <div className="space-y-2 text-sm">
                 <div><span className="font-medium">머신:</span> {record.title}</div>
-                <div><span className="font-medium">세트 수:</span> {record.details.sets?.length || 0}세트</div>
+                <div><span className="font-medium">세트 수:</span> {record.machineSetRecords?.length || 0}세트</div>
               </div>
             </div>
             
             {/* 세트별 상세 정보 */}
             <div className="space-y-3">
               <h5 className="font-medium text-gray-900">세트 정보</h5>
-              {record.details.sets?.map((set, index) => (
-                <div key={index} className="border rounded-lg p-3">
+              {record.machineSetRecords?.map((set, index) => (
+                <div key={set.id} className="border rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm">세트 {index + 1}</span>
+                    <span className="font-medium text-sm">세트 {set.set}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-600">횟수:</span>
                       <input
                         type="number"
-                        value={formData?.details?.sets?.[index]?.reps ?? set.reps}
+                        value={formData?.machineSetRecords?.[index]?.reps ?? set.reps}
                         className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
                         onChange={(e) => {
                           if (formData) {
-                            const newSets = [...(formData.details?.sets || [])];
-                            newSets[index] = { ...newSets[index], reps: parseInt(e.target.value) || 0 };
-                            setFormData({
-                              ...formData,
-                              details: { ...formData.details, sets: newSets }
-                            });
+                            const newRecords = [...(formData.machineSetRecords || [])];
+                            if (newRecords[index]) {
+                              newRecords[index] = { ...newRecords[index], reps: parseInt(e.target.value) || 0 };
+                              setFormData({
+                                ...formData,
+                                machineSetRecords: newRecords
+                              });
+                            }
                           }
                         }}
                       />
@@ -172,9 +181,9 @@ export default function EditRecordModal({
                   </div>
                   {/* 설정값 표시 (읽기전용) */}
                   <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                    {set.settings?.map((setting, idx) => (
-                      <span key={idx} className="mr-3">
-                        {setting.settingName}: {setting.value}{setting.unit}
+                    {set.settingValues?.map((setting) => (
+                      <span key={setting.id} className="mr-3">
+                        {setting.machineSetting.title}: {setting.value}{setting.machineSetting.unit}
                       </span>
                     )) || '설정 없음'}
                   </div>
@@ -191,12 +200,18 @@ export default function EditRecordModal({
         {record.type === "FREE" && (
           <div className="space-y-4">
             <div className="bg-green-50 p-4 rounded-lg">
-              <h4 className="font-medium text-green-900 mb-2">프리웨이트 운돐 상세</h4>
+              <h4 className="font-medium text-green-900 mb-2">프리웨이트 운동 상세</h4>
               <div className="space-y-2 text-sm">
                 <div><span className="font-medium">운동명:</span> {record.title}</div>
-                <div><span className="font-medium">세트 수:</span> {record.details.sets?.length || 0}세트</div>
-                {record.details.equipmentNames && record.details.equipmentNames.length > 0 && (
-                  <div><span className="font-medium">사용 장비:</span> {record.details.equipmentNames.join(", ")}</div>
+                <div><span className="font-medium">세트 수:</span> {record.freeSetRecords?.length || 0}세트</div>
+                {record.freeSetRecords?.[0]?.equipments && record.freeSetRecords[0].equipments.length > 0 && (
+                  <div>
+                    <span className="font-medium">사용 장비:</span> {
+                      record.freeSetRecords[0].equipments.map(eq => 
+                        `${eq.group} ${eq.primaryValue || ''}${eq.primaryUnit || ''}`
+                      ).join(", ")
+                    }
+                  </div>
                 )}
               </div>
             </div>
@@ -204,24 +219,26 @@ export default function EditRecordModal({
             {/* 세트별 상세 정보 */}
             <div className="space-y-3">
               <h5 className="font-medium text-gray-900">세트 정보</h5>
-              {record.details.sets?.map((set, index) => (
-                <div key={index} className="border rounded-lg p-3">
+              {record.freeSetRecords?.map((set, index) => (
+                <div key={set.id} className="border rounded-lg p-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">세트 {index + 1}</span>
+                    <span className="font-medium text-sm">세트 {set.set}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-600">횟수:</span>
                       <input
                         type="number"
-                        value={formData?.details?.sets?.[index]?.reps ?? set.reps}
+                        value={formData?.freeSetRecords?.[index]?.reps ?? set.reps}
                         className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
                         onChange={(e) => {
                           if (formData) {
-                            const newSets = [...(formData.details?.sets || [])];
-                            newSets[index] = { ...newSets[index], reps: parseInt(e.target.value) || 0 };
-                            setFormData({
-                              ...formData,
-                              details: { ...formData.details, sets: newSets }
-                            });
+                            const newRecords = [...(formData.freeSetRecords || [])];
+                            if (newRecords[index]) {
+                              newRecords[index] = { ...newRecords[index], reps: parseInt(e.target.value) || 0 };
+                              setFormData({
+                                ...formData,
+                                freeSetRecords: newRecords
+                              });
+                            }
                           }
                         }}
                       />
@@ -241,17 +258,23 @@ export default function EditRecordModal({
         {record.type === "STRETCHING" && (
           <div className="space-y-4">
             <div className="bg-purple-50 p-4 rounded-lg">
-              <h4 className="font-medium text-purple-900 mb-2">스트레칭 운돐 상세</h4>
+              <h4 className="font-medium text-purple-900 mb-2">스트레칭 운동 상세</h4>
               <div className="space-y-2 text-sm">
                 <div><span className="font-medium">운동명:</span> {record.title}</div>
-                {record.details.duration && (
-                  <div><span className="font-medium">시간/반복:</span> {record.details.duration}</div>
+                {record.stretchingExerciseRecords?.[0]?.stretchingExercise && (
+                  <div><span className="font-medium">운동 정보:</span> {record.stretchingExerciseRecords[0].stretchingExercise.title}</div>
                 )}
-                {record.details.equipmentNames && record.details.equipmentNames.length > 0 && (
-                  <div><span className="font-medium">사용 장비:</span> {record.details.equipmentNames.join(", ")}</div>
+                {record.stretchingExerciseRecords?.[0]?.equipments && record.stretchingExerciseRecords[0].equipments.length > 0 && (
+                  <div>
+                    <span className="font-medium">사용 장비:</span> {
+                      record.stretchingExerciseRecords[0].equipments.map(eq => 
+                        `${eq.group} ${eq.primaryValue || ''}${eq.primaryUnit || ''}`
+                      ).join(", ")
+                    }
+                  </div>
                 )}
-                {record.details.stretchingDescription && (
-                  <div><span className="font-medium">설명:</span> {record.details.stretchingDescription}</div>
+                {record.stretchingExerciseRecords?.[0]?.description && (
+                  <div><span className="font-medium">설명:</span> {record.stretchingExerciseRecords[0].description}</div>
                 )}
               </div>
             </div>
@@ -259,11 +282,11 @@ export default function EditRecordModal({
         )}
 
         {/* 공통 메모 필드 */}
-        {record.details.description && (
+        {record.description && (
           <div className="mt-4">
             <h5 className="font-medium text-gray-900 mb-2">메모</h5>
             <div className="text-sm text-gray-600 p-3 bg-gray-50 rounded">
-              {record.details.description}
+              {record.description}
             </div>
           </div>
         )}
@@ -286,13 +309,15 @@ export default function EditRecordModal({
             >
               닫기
             </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              disabled={isMutating || isDeleting}
-            >
-              세트 수 저장
-            </Button>
+            {(record.type === "MACHINE" || record.type === "FREE") && (
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                disabled={isMutating || isDeleting}
+              >
+                수정 저장
+              </Button>
+            )}
           </div>
         </div>
       </ModalFooter>

@@ -52,12 +52,6 @@ export const loginToSession = async (
           select: { fitnessCenterId: true },
         });
         centerId = trainer?.fitnessCenterId ?? undefined;
-      } else if (role === "MANAGER") {
-        const manager = await prisma.manager.findUnique({
-          where: { id: roleId },
-          select: { fitnessCenterId: true },
-        });
-        centerId = manager?.fitnessCenterId ?? undefined;
       }
 
       setSentryUser({
@@ -268,7 +262,7 @@ export const kakaoLogin = async (code: string) => {
       const kakaoId: string = userProfileResponse.id.toString();
       const kakaoAccount = userProfileResponse.kakao_account;
       const email: string = kakaoAccount.email;
-      
+
       // 카카오는 전화번호를 기본적으로 제공하지 않음
       const mobile = "";
 

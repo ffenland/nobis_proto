@@ -84,18 +84,20 @@ The application has three distinct user roles with different interfaces:
 - Role-based middleware in `middleware.ts`
 
 **Session Structure:**
+
 ```typescript
 interface Session {
-  id: string;        // User 모델의 id (사용자 고유 ID)
-  role: "MANAGER" | "MEMBER" | "TRAINER";  // 로그인한 유저의 역할
-  roleId: string;    // 해당 역할 모델의 id
-                     // - role이 "TRAINER"면 Trainer 모델의 id
-                     // - role이 "MEMBER"면 Member 모델의 id  
-                     // - role이 "MANAGER"면 Manager 모델의 id
+  id: string; // User 모델의 id (사용자 고유 ID)
+  role: "MANAGER" | "MEMBER" | "TRAINER"; // 로그인한 유저의 역할
+  roleId: string; // 해당 역할 모델의 id
+  // - role이 "TRAINER"면 Trainer 모델의 id
+  // - role이 "MEMBER"면 Member 모델의 id
+  // - role이 "MANAGER"면 Manager 모델의 id
 }
 ```
 
 **Important:** API routes should use `session.roleId` when accessing role-specific data:
+
 - `/api/trainer/*` routes: use `session.roleId` as trainerId
 - `/api/member/*` routes: use `session.roleId` as memberId
 - `/api/manager/*` routes: use `session.roleId` as managerId
@@ -147,17 +149,19 @@ interface Session {
 The application follows a **768px (md)** breakpoint as the boundary between mobile and tablet/desktop layouts, consistent with industry standards and Tailwind CSS defaults.
 
 **Breakpoint Guidelines:**
+
 - **Mobile**: 0px - 767px (default)
 - **Tablet**: 768px+ (`md:` prefix)
-- **Desktop**: 1280px+ (`xl:` prefix)
 
 **Implementation Rules:**
+
 - All UI components should use `md:` (768px) as the mobile/tablet breakpoint
 - Avoid fixed pixel values for responsive elements
 - Use Tailwind's responsive utilities: `md:`, `lg:`, `xl:`
 - Mobile-first approach: design for mobile, then enhance for larger screens
 
 **Layout Patterns:**
+
 - **Mobile**: Full-width content, single column
 - **Tablet**: Content with side elements (ads, navigation)
 - **Desktop**: Multi-column layouts with centered content
@@ -221,7 +225,7 @@ export async function PUT(request: Request) {
 }
 
 // Client component
-const { trigger } = useSWRMutation('/api/trainer/pt-records', updateFetcher);
+const { trigger } = useSWRMutation("/api/trainer/pt-records", updateFetcher);
 ```
 
 #### 4. Type Safety Architecture
@@ -284,6 +288,7 @@ const { trigger } = useSWRMutation('/api/trainer/pt-records', updateFetcher);
 ### Service File Organization
 
 **IMPORTANT: Service File Locations**
+
 - **Legacy services**: `app/lib/services/` - 레거시 파일들, 점진적으로 마이그레이션 중
 - **New services**: `app/services/` - 새로운 서비스 파일들은 모두 여기에 작성
 
@@ -296,7 +301,7 @@ const { trigger } = useSWRMutation('/api/trainer/pt-records', updateFetcher);
 ```typescript
 // ✅ Service Layer
 // app/lib/services/member.service.ts
-import prisma from '@/app/lib/prisma';
+import prisma from "@/app/lib/prisma";
 
 // 타입 정의
 export type MemberProfile = {
@@ -315,51 +320,61 @@ export async function getMemberProfile(userId: string) {
       username: true,
       email: true,
       // ... 필요한 필드들 (include 사용 금지)
-    }
+    },
   });
-  
-  if (!profile) throw new Error('Profile not found');
+
+  if (!profile) throw new Error("Profile not found");
   return profile;
 }
 
 // 타입 추론
-export type GetMemberProfileResult = Awaited<ReturnType<typeof getMemberProfile>>;
+export type GetMemberProfileResult = Awaited<
+  ReturnType<typeof getMemberProfile>
+>;
 
 // ✅ API Route - 순수 라우팅만 담당
 // app/api/member/profile/route.ts
-import { NextResponse } from 'next/server';
-import { getSession } from '@/app/lib/session';
-import { getMemberProfile } from '@/app/lib/services/member.service';
+import { NextResponse } from "next/server";
+import { getSession } from "@/app/lib/session";
+import { getMemberProfile } from "@/app/lib/services/member.service";
 
 export async function GET() {
   try {
     const session = await getSession();
     if (!session.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
+
     const profile = await getMemberProfile(session.userId);
     return NextResponse.json(profile);
   } catch (error) {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
 // ✅ Client Component with SWR
-import useSWR from 'swr';
+import useSWR from "swr";
 
-const { data, error, isLoading } = useSWR('/api/member/profile');
+const { data, error, isLoading } = useSWR("/api/member/profile");
 ```
 
 ### 데이터 변경 예시 (POST/PUT/DELETE)
 
 ```typescript
 // Service Layer
-export async function updateMemberProfile(userId: string, data: UpdateProfileInput) {
+export async function updateMemberProfile(
+  userId: string,
+  data: UpdateProfileInput
+) {
   const updated = await prisma.member.update({
     where: { userId },
     data,
-    select: { /* 필요한 필드 */ }
+    select: {
+      /* 필요한 필드 */
+    },
   });
   return updated;
 }
@@ -369,26 +384,29 @@ export async function PUT(request: Request) {
   try {
     const session = await getSession();
     if (!session.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
+
     const body = await request.json();
     const result = await updateMemberProfile(session.userId, body);
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 
 // Client Component with SWR mutation
-import useSWRMutation from 'swr/mutation';
+import useSWRMutation from "swr/mutation";
 
 const { trigger, isMutating } = useSWRMutation(
-  '/api/member/profile',
+  "/api/member/profile",
   async (url, { arg }) => {
     const response = await fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(arg),
     });
     return response.json();
@@ -403,16 +421,46 @@ const { trigger, isMutating } = useSWRMutation(
 - **API Route는 단순 라우팅**: 인증 확인과 서비스 함수 호출만 담당
 - **SWR 사용**: 데이터 페칭과 캐싱을 위해 SWR 사용 (React Query 대신)
 
+### Equipment 표시 규칙
+
+#### Equipment 이름 표시 표준화
+
+**중요:** 모든 Equipment 이름 표시는 `@/app/lib/utils/equipment.utils.ts`의 `getEquipmentTitle` 함수를 사용해야 합니다.
+
+- `equipment.group.name`을 직접 사용하는 것은 **금지**
+- 브랜드, 무게, 색상, 모델 등이 포함된 완전한 표시명을 제공
+- UI에서 일관성 있는 Equipment 표시 보장
+
+**올바른 사용법:**
+
+```typescript
+import { getEquipmentTitle } from "@/app/lib/utils/equipment.utils";
+
+// ✅ 올바른 방법
+const title = getEquipmentTitle(equipment);
+
+// ❌ 잘못된 방법
+const title = equipment.group.name;
+```
+
+**함수별 용도:**
+
+- `getEquipmentTitle(equipment)`: 브랜드 포함 전체 이름 (권장)
+- `getEquipmentDisplayTitle(equipment)`: 브랜드 제외 간단한 이름
+- `generateEquipmentTitle(data)`: 저수준 타이틀 생성 (직접 사용 지양)
+
 ### Time Management Convention
 
 #### 시간 데이터 저장 및 처리 규칙
 
 **저장 형식:**
+
 - 모든 시간 정보는 **number(Int) 타입**으로 저장
 - **군대식 4자리 표기법** 사용 (HHMM)
 - 예시: 1430 = 14시 30분, 900 = 9시 0분, 2200 = 22시 0분
 
 **시간 처리 함수:**
+
 - 모든 시간 관련 함수는 `@/app/lib/utils/time.utils.ts`에 정의
 - 주요 함수:
   - `formatTime(time: number): string` - "14:30" 형식으로 변환
@@ -421,13 +469,14 @@ const { trigger, isMutating } = useSWRMutation(
   - `isValidTimeSlot(time: number): boolean` - 30분 단위 검증
 
 **구현 예시:**
+
 ```typescript
 // DB에서 시간 가져오기
 const schedule = await prisma.ptSchedule.findUnique({
   select: {
     startTime: true, // 1430 (number)
-    endTime: true,   // 1530 (number)
-  }
+    endTime: true, // 1530 (number)
+  },
 });
 
 // 클라이언트에 전달할 때 포맷팅
@@ -435,7 +484,7 @@ import { formatTime } from "@/app/lib/utils/time.utils";
 
 return {
   startTime: formatTime(schedule.startTime), // "14:30" (string)
-  endTime: formatTime(schedule.endTime),     // "15:30" (string)
+  endTime: formatTime(schedule.endTime), // "15:30" (string)
 };
 
 // 사용자 입력 받을 때
@@ -445,17 +494,19 @@ const timeInt = parseTime("14:30"); // 1430 (number)
 await prisma.ptSchedule.create({
   data: {
     startTime: timeInt, // DB에는 number로 저장
-  }
+  },
 });
 ```
 
 **주의사항:**
+
 - DB 스키마에서 시간 필드는 항상 `Int` 타입
 - 클라이언트 표시용으로만 string 변환
 - 시간 계산이나 비교는 number 상태에서 수행
 - 새로운 시간 관련 유틸리티가 필요하면 `time.utils.ts`에 추가
 
 **날짜/시간 유틸리티 사용 원칙:**
+
 - 날짜, 시간과 관련된 util 함수가 필요한 경우 `time.utils.ts`를 확인하고, 필요한 함수가 존재한다면 import 해서 사용한다
 - 필요한 함수가 없다면 `time.utils.ts` 파일에 작성하고 import해서 사용한다
 - 모든 시간/날짜 관련 유틸리티는 중앙화하여 일관성을 유지한다
@@ -465,22 +516,24 @@ await prisma.ptSchedule.create({
 Next.js 15에서 동적 라우트 파라미터 처리 방식이 변경되었습니다. 파라미터는 이제 Promise로 제공됩니다.
 
 **올바른 사용법:**
+
 ```typescript
 // API Route with dynamic params
-type Params = Promise<{ id: string }>
+type Params = Promise<{ id: string }>;
 
 export async function GET(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
-  const params = await segmentData.params
-  const { id } = params
-  
+  const params = await segmentData.params;
+  const { id } = params;
+
   // 이제 id를 사용할 수 있음
 }
 ```
 
 **잘못된 사용법 (이전 방식):**
+
 ```typescript
 // ❌ Next.js 15에서는 작동하지 않음
 export async function GET(
@@ -492,15 +545,12 @@ export async function GET(
 ```
 
 **Page 컴포넌트에서도 동일:**
-```typescript
-type Params = Promise<{ id: string }>
 
-export default async function Page({
-  params,
-}: {
-  params: Params
-}) {
-  const { id } = await params
+```typescript
+type Params = Promise<{ id: string }>;
+
+export default async function Page({ params }: { params: Params }) {
+  const { id } = await params;
   // ...
 }
 ```
@@ -562,26 +612,79 @@ export default async function Page({
 
 The application uses Cloudflare Images and Stream services for handling all media uploads (images and videos). The system implements Direct Creator Upload method with custom ID management for systematic organization.
 
+### **IMPORTANT: Media Upload Guidelines**
+
+**모든 이미지/비디오 업로드는 통합 미디어 시스템을 사용해야 합니다:**
+
+- ❌ **금지**: 직접 Cloudflare API 호출 또는 개별 업로드 시스템 구현
+- ✅ **필수**: `/app/services/media/media.service.ts`의 통합 미디어 시스템 사용
+
+**표준 업로드 패턴:**
+
+```typescript
+// 1. Upload URL 요청
+const uploadUrlResponse = await fetch("/api/media/images/upload", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    entityType: "EQUIPMENT", // 또는 다른 타입
+    entityId: entityId,
+  }),
+});
+const { uploadURL, customId } = await uploadUrlResponse.json();
+
+// 2. Cloudflare 직접 업로드
+const formData = new FormData();
+formData.append("file", file);
+await fetch(uploadURL, { method: "POST", body: formData });
+
+// 3. 업로드 확인 및 DB 저장
+await fetch("/api/media/images/confirm", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    cloudflareId: customId,
+    entityType: "EQUIPMENT",
+    entityId: entityId,
+  }),
+});
+```
+
+**이미지 삭제:**
+```typescript
+await fetch(`/api/media/images/${imageId}`, { method: "DELETE" });
+```
+
 ### Architecture Components
 
-#### Service Layer (`/app/lib/services/media/`)
-- **`image.service.ts`**: Cloudflare Images API integration
-- **`stream.service.ts`**: Cloudflare Stream API integration with TUS protocol support
+#### Service Layer (`/app/services/media/media.service.ts`)
+
+통합 미디어 서비스로 모든 업로드/삭제 로직을 중앙화:
+
+- `requestImageUpload()`: 이미지 업로드 URL 생성
+- `confirmImageUpload()`: 업로드 확인 및 DB 저장
+- `deleteImage()`: 이미지 삭제 (Cloudflare → DB)
+- `requestVideoUpload()` / `confirmVideoUpload()`: 비디오 처리
+- 권한 검증 및 메타데이터 관리 자동화
+
+#### API Routes (`/app/api/media/`)
+
+- **Images**: `/images/upload` (URL 생성), `/images/confirm` (확인), `/images/[id]` (삭제)
+- **Videos**: `/videos/upload` (URL 생성), `/videos/confirm` (확인), `/videos/[id]` (삭제)
+- **List**: `/list` - 통합 미디어 목록 조회
 
 #### Utilities (`/app/lib/utils/media.utils.ts`)
+
 Core utility functions for media handling:
+
 - `generateMediaId()`: Creates hierarchical custom IDs
 - `getOptimizedImageUrl()`: Returns CDN-optimized image URLs with variants
 - `validateImageFile()` / `validateVideoFile()`: Client-side validation
 - `formatFileSize()` / `formatVideoDuration()`: Display formatting
 - Type definitions: `MediaType`, `EntityType`, `ImageVariant`
 
-#### API Routes (`/app/api/media/`)
-- **Images**: `/images/upload`, `/images/[id]`
-- **Videos**: `/videos/upload`, `/videos/[id]`
-- **List**: `/list` - Unified endpoint for fetching media
-
 #### Reusable Components (`/app/components/media/`)
+
 1. **ProfileImageUpload**: Drag-and-drop image upload with preview
 2. **ProfileImagePreview**: Optimized image display with fallback
 3. **VideoUploader**: Video upload with progress tracking and TUS support
@@ -590,23 +693,29 @@ Core utility functions for media handling:
 ### Implementation Patterns
 
 #### 1. Custom ID Generation
+
 ```typescript
 // 계층적 ID 구조: userId/entityType/entityId/timestamp/mediaType
 const customId = generateMediaId({
   userId: session.id,
-  entityType: 'pt-record', // profile, pt-record, exercise, chat, review
+  entityType: "pt-record", // profile, pt-record, exercise, chat, review, equipment
   entityId: recordId,
-  mediaType: 'image',
+  mediaType: "image",
   timestamp: true, // 중복 방지
 });
 ```
 
 #### 2. Direct Creator Upload Flow
+
 ```typescript
 // 1. 클라이언트가 업로드 URL 요청
 const response = await fetch('/api/media/images/upload', {
   method: 'POST',
-  body: JSON.stringify({ entityType: 'profile' })
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ 
+    entityType: 'EQUIPMENT',  // 엔티티 타입 지정
+    entityId: equipmentId     // 연관 ID (옵션)
+  })
 });
 
 // 2. 서버가 Cloudflare에서 URL 생성
@@ -621,10 +730,23 @@ await fetch(uploadURL, {
   method: 'POST',
   body: formData,
 });
+
+// 4. 업로드 확인 및 DB 저장
+await fetch('/api/media/images/confirm', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    cloudflareId: customId,
+    entityType: 'EQUIPMENT',
+    entityId: equipmentId
+  })
+});
 ```
 
 #### 3. Metadata Management
+
 모든 미디어는 구조화된 메타데이터를 포함:
+
 ```typescript
 {
   userId: string,        // 업로더 ID
@@ -637,17 +759,20 @@ await fetch(uploadURL, {
 ```
 
 #### 4. Role-Based Limits
+
 ```typescript
 // 비디오 업로드 시간 제한 (역할별)
 const maxDurationByRole = {
-  TRAINER: 600,  // 10분
-  MEMBER: 300,   // 5분
-  MANAGER: 600,  // 10분
+  TRAINER: 600, // 10분
+  MEMBER: 300, // 5분
+  MANAGER: 600, // 10분
 };
 ```
 
 #### 5. Image Variants
+
 Cloudflare Images는 자동으로 여러 변형을 생성:
+
 - `public`: 일반 표시용
 - `thumbnail`: 썸네일 (작은 크기)
 - `avatar`: 프로필 이미지용
@@ -657,8 +782,9 @@ Cloudflare Images는 자동으로 여러 변형을 생성:
 ### Usage Guidelines
 
 #### 1. 이미지 업로드 구현
+
 ```typescript
-import ProfileImageUpload from '@/app/components/media/ProfileImageUpload';
+import ProfileImageUpload from "@/app/components/media/ProfileImageUpload";
 
 // 사용 예시
 <ProfileImageUpload
@@ -667,12 +793,13 @@ import ProfileImageUpload from '@/app/components/media/ProfileImageUpload';
     // DB에 imageId 저장
     updateUserProfile({ profileImageId: imageId });
   }}
-/>
+/>;
 ```
 
 #### 2. 이미지 표시
+
 ```typescript
-import ProfileImagePreview from '@/app/components/media/ProfileImagePreview';
+import ProfileImagePreview from "@/app/components/media/ProfileImagePreview";
 
 // 사용 예시
 <ProfileImagePreview
@@ -680,12 +807,13 @@ import ProfileImagePreview from '@/app/components/media/ProfileImagePreview';
   variant="avatar"
   size="lg"
   fallback={<DefaultAvatar />}
-/>
+/>;
 ```
 
 #### 3. 비디오 업로드
+
 ```typescript
-import VideoUploader from '@/app/components/media/VideoUploader';
+import VideoUploader from "@/app/components/media/VideoUploader";
 
 // PT 기록 비디오 업로드
 <VideoUploader
@@ -696,12 +824,13 @@ import VideoUploader from '@/app/components/media/VideoUploader';
   }}
   maxDurationSeconds={600}
   useTus={true} // 대용량 파일용
-/>
+/>;
 ```
 
 #### 4. 미디어 갤러리
+
 ```typescript
-import MediaGallery from '@/app/components/media/MediaGallery';
+import MediaGallery from "@/app/components/media/MediaGallery";
 
 // PT 기록의 모든 미디어 표시
 <MediaGallery
@@ -711,7 +840,7 @@ import MediaGallery from '@/app/components/media/MediaGallery';
   onSelect={(item) => {
     // 선택된 미디어 처리
   }}
-/>
+/>;
 ```
 
 ### Security Considerations
@@ -726,18 +855,21 @@ import MediaGallery from '@/app/components/media/MediaGallery';
 미디어 업로드와 삭제는 항상 **Cloudflare를 먼저 처리**하고, 성공한 경우에만 DB를 업데이트합니다:
 
 #### Upload Flow
+
 1. Cloudflare에 Direct Upload URL 생성
 2. 클라이언트가 Cloudflare로 직접 업로드
 3. 업로드 성공 확인 후 DB에 레코드 생성
 4. 실패 시 Cloudflare의 이미지/비디오는 자동 정리됨
 
 #### Delete Flow
+
 1. DB에서 미디어 정보 조회 및 권한 확인
 2. **Cloudflare에서 먼저 삭제 시도**
 3. Cloudflare 삭제 성공 시 DB에서 삭제 (소프트 삭제)
 4. 404 에러는 이미 삭제된 것으로 간주하고 정상 처리
 
 #### 일관성 원칙
+
 - **Cloudflare = Single Source of Truth**
 - DB는 Cloudflare의 상태를 반영
 - 불일치 발생 시 Cloudflare 상태를 우선시
@@ -746,6 +878,7 @@ import MediaGallery from '@/app/components/media/MediaGallery';
 ### Environment Variables
 
 필수 환경 변수:
+
 ```env
 CLOUDFLARE_ACCOUNT_ID=your_account_id
 CLOUDFLARE_API_TOKEN=your_api_token
@@ -756,6 +889,7 @@ NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH=your_account_hash
 ### Error Handling
 
 모든 컴포넌트는 일관된 에러 처리:
+
 - 파일 검증 실패 시 toast 메시지
 - 업로드 실패 시 재시도 옵션
 - 네트워크 에러 시 사용자 친화적 메시지
@@ -785,7 +919,7 @@ Sentry is integrated for comprehensive error tracking, performance monitoring, a
 ### Configuration Files
 
 - **sentry.server.config.ts**: Server-side configuration
-- **sentry.edge.config.ts**: Edge runtime configuration  
+- **sentry.edge.config.ts**: Edge runtime configuration
 - **sentry.client.config.ts**: Client-side configuration
 - **instrumentation.ts**: Application instrumentation hooks
 
@@ -815,7 +949,7 @@ try {
     metadata: {
       description: ErrorContexts.PT_SCHEDULE_CREATE, // Korean context
       // additional metadata
-    }
+    },
   });
 }
 ```
@@ -823,7 +957,11 @@ try {
 #### Performance Tracing
 
 ```typescript
-import { trackUIAction, trackAPICall, trackDBQuery } from "@/app/lib/utils/error-reporter";
+import {
+  trackUIAction,
+  trackAPICall,
+  trackDBQuery,
+} from "@/app/lib/utils/error-reporter";
 import * as Sentry from "@sentry/nextjs";
 
 // UI click tracking with our helper
@@ -862,7 +1000,9 @@ const getMemberProfile = async (userId: string) => {
     async () => {
       return prisma.member.findUnique({
         where: { userId },
-        select: { /* fields */ }
+        select: {
+          /* fields */
+        },
       });
     },
     { userId }
@@ -916,7 +1056,7 @@ ErrorReporter.report(error, {
   metadata: {
     description: ErrorContexts.PT_SCHEDULE_CREATE,
     // "회원이 새로운 PT 신청 중 스케줄 등록에서 오류 발생"
-  }
+  },
 });
 ```
 
@@ -937,6 +1077,7 @@ ErrorReporter.setUser({
 #### 3. Sensitive Data Filtering
 
 Sensitive data is automatically filtered:
+
 - Cookies are redacted
 - Authorization headers are removed
 - Form data with sensitive field names is masked
@@ -962,7 +1103,7 @@ export async function GET(request: Request) {
     if (!session.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    
+
     const data = await service.getData(session.id);
     return NextResponse.json(data);
   } catch (error) {
@@ -972,10 +1113,10 @@ export async function GET(request: Request) {
       metadata: {
         description: ErrorContexts.DATA_FETCH,
         endpoint: request.url,
-      }
+      },
     });
     return NextResponse.json(
-      { error: "Internal Server Error" }, 
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
@@ -990,7 +1131,7 @@ import { ErrorContexts } from "@/app/lib/utils/error-contexts";
 
 function MyComponent() {
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const handleSubmit = async (data: FormData) => {
     setIsLoading(true);
     try {
@@ -998,11 +1139,11 @@ function MyComponent() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      
+
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`);
       }
-      
+
       // Success handling
     } catch (error) {
       await ErrorReporter.report(error, {
@@ -1010,7 +1151,7 @@ function MyComponent() {
         metadata: {
           description: ErrorContexts.FORM_SUBMIT,
           formType: "myForm",
-        }
+        },
       });
       // Show user-friendly error message
     } finally {
@@ -1043,6 +1184,7 @@ SENTRY_LOG_LEVEL=debug|info|warning|error
 ### Common Error Contexts
 
 The system includes 70+ predefined Korean error contexts covering:
+
 - Authentication & Login
 - PT Scheduling & Records
 - Member Management
@@ -1056,12 +1198,14 @@ Refer to `app/lib/utils/error-contexts.ts` for the complete list.
 ### Performance Monitoring Best Practices
 
 1. **Use Sentry.startSpan** for tracking operations:
+
    - UI interactions (clicks, form submissions)
    - API calls
    - Database queries
    - External service calls
 
 2. **Set meaningful operation names**:
+
    - `ui.action.click` for user interactions
    - `http.client` for API calls
    - `db.query` for database operations
@@ -1075,6 +1219,7 @@ Refer to `app/lib/utils/error-contexts.ts` for the complete list.
 ### Migration Notes
 
 When updating error handling in existing code:
+
 1. Replace `console.error` with `ErrorReporter.report`
 2. Add appropriate Korean context from `ErrorContexts`
 3. Include relevant metadata (userId, action, etc.)
@@ -1127,10 +1272,12 @@ Dashboard 페이지는 로그인 직후 보여지는 가장 메인 페이지로�
 #### LessonRecord 데이터 관리 원칙
 
 - **entry 값 관리**:
+
   - LessonRecord를 새로 생성하는 경우 entry 값은 기존의 lessonRecord(삭제상태의 lessonRecord 포함)들의 entry 값을 확인하고 가장 큰 값에 +1을 하여 정한다
   - 중간에 LessonRecord를 끼워넣어서 순서를 바꾸는 기능은 현재로서는 구현하지 않는다
 
 - **삭제 처리**:
+
   - LessonRecord는 삭제해도 실제 db에서 그 데이터가 삭제되지 않고 deletedAt에 삭제한 날짜정보가 기록되며, deletedAt 값이 있으면 삭제된 값으로 간주한다
   - deletedUserId를 다른 모델과 relation 하지 않았는데, relation이 좋을지 어떨지는 검토가 필요하다
 

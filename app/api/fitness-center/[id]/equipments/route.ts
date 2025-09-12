@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
-import { getCenterEquipments } from "@/app/services/fitness-center/equipment.service";
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import { 
+  getCenterEquipments,
+  createEquipments,
+  type CreateEquipmentInput 
+} from "@/app/services/fitness-center/equipment.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -9,18 +13,66 @@ export async function GET(
   segmentData: { params: Params }
 ) {
   try {
-    const session = await getSession();
-    if (!session.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const sessionOrResponse = await getSessionOrReturn401();
+
+    // 401 응답인 경우 바로 반환
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
     }
 
     const params = await segmentData.params;
     const { id: centerId } = params;
 
     const equipments = await getCenterEquipments(centerId);
-    return NextResponse.json({ ok: true, data: equipments });
+    return NextResponse.json(equipments);
   } catch (error) {
     console.error("센터 장비 목록 조회 실패:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  segmentData: { params: Params }
+) {
+  try {
+    const sessionOrResponse = await getSessionOrReturn401();
+
+    // 401 응답인 경우 바로 반환
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
+    }
+
+    const params = await segmentData.params;
+    const { id: centerId } = params;
+
+    // 권한 확인 - MANAGER만 Equipment 생성 가능
+    if (sessionOrResponse.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    const body: CreateEquipmentInput = await request.json();
+
+    // 입력 검증
+    if (!body.groupId || !body.primaryValues || body.primaryValues.length === 0) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Equipment 생성
+    const createdEquipments = await createEquipments(centerId, body);
+    
+    return NextResponse.json(createdEquipments, { status: 201 });
+  } catch (error) {
+    console.error("Equipment 생성 실패:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

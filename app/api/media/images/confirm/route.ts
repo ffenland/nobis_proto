@@ -2,23 +2,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import { getImageInfo } from "@/app/lib/services/media/image.service";
 import {
-  createImageRecord,
-  getImageByCloudflareId,
-} from "@/app/lib/services/media/image-db.service";
-import { ImageType } from "@prisma/client";
-
-// 업로드 확인 요청 타입
-interface ConfirmUploadRequest {
-  cloudflareId: string;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  type: ImageType;
-  entityId?: string;
-  metadata?: Record<string, unknown>;
-}
+  confirmImageUpload,
+  type UserSession,
+  type ImageConfirmRequest,
+} from "@/app/services/media/media.service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,108 +17,43 @@ export async function POST(request: NextRequest) {
     }
 
     // 요청 파싱
-    const body: ConfirmUploadRequest = await request.json();
-    const {
+    const body: ImageConfirmRequest = await request.json();
+    const { cloudflareId, entityType, entityId } = body;
+    
+    // 세션 정보 구성
+    const userSession: UserSession = {
+      id: session.id,
+      role: session.role as "TRAINER" | "MEMBER" | "MANAGER",
+      roleId: session.roleId,
+    };
+
+    // 서비스 로직 호출
+    const result = await confirmImageUpload(
       cloudflareId,
-      originalName,
-      mimeType,
-      size,
-      type,
-      entityId,
-      metadata,
-    } = body;
-
-    // 필수 필드 검증
-    if (!cloudflareId || !originalName || !mimeType || !size || !type) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
-    // 이미 DB에 존재하는지 확인
-    const existingImage = await getImageByCloudflareId(cloudflareId);
-    if (existingImage) {
-      return NextResponse.json({
-        id: existingImage.id,
-        cloudflareId: existingImage.cloudflareId,
-        message: "Image already exists in database",
-      });
-    }
-
-    // Cloudflare에서 실제로 업로드되었는지 확인
-    const cloudflareImage = await getImageInfo(cloudflareId);
-    if (!cloudflareImage) {
-      return NextResponse.json(
-        { error: "Image not found in Cloudflare" },
-        { status: 404 }
-      );
-    }
-
-    // 메타데이터에서 사용자 ID 확인 (보안)
-    if (
-      !session ||
-      (cloudflareImage.meta?.userId &&
-        cloudflareImage.meta.userId !== session.id)
-    ) {
-      return NextResponse.json(
-        { error: "Unauthorized - image uploaded by different user" },
-        { status: 403 }
-      );
-    }
-
-    // 엔티티별 연결 데이터 준비
-    const entityConnections: Record<string, string | undefined> = {};
-
-    // type에 따라 적절한 엔티티 연결
-    switch (type) {
-      case ImageType.PROFILE:
-        // 프로필 이미지는 User의 avatarImageId로 직접 연결
-        break;
-      case ImageType.MACHINE:
-        if (entityId) entityConnections.machineId = entityId;
-        break;
-      case ImageType.CENTER:
-        if (entityId) entityConnections.fitnessCenterId = entityId;
-        break;
-      case ImageType.EXERCISE:
-        if (entityId) entityConnections.freeExerciseId = entityId;
-        break;
-      case ImageType.STRETCHING:
-        if (entityId) entityConnections.stretchingExerciseId = entityId;
-        break;
-      case ImageType.PT_RECORD:
-        if (entityId) entityConnections.lessonRecordId = entityId;
-        break;
-      case ImageType.CONDITION:
-        if (entityId) entityConnections.lessonId = entityId;
-        break;
-    }
-
-    // DB에 이미지 레코드 생성
-    const image = await createImageRecord({
-      cloudflareId,
-      uploadedById: session.id,
-      originalName,
-      mimeType,
-      size,
-      type,
-      metadata: {
-        ...metadata,
-        cloudflareMetadata: cloudflareImage.meta,
-      },
-      ...entityConnections,
-    });
-
-    return NextResponse.json({
-      id: image.id,
-      cloudflareId: image.cloudflareId,
-      originalName: image.originalName,
-      type: image.type,
-      createdAt: image.createdAt,
-    });
+      entityType,
+      entityId || null,
+      userSession
+    );
+    
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Image confirmation failed:", error);
+    
+    // 에러 메시지에 따른 HTTP 상태 코드 결정
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    if (errorMessage.includes("Image not found in Cloudflare")) {
+      return NextResponse.json({ error: errorMessage }, { status: 404 });
+    }
+    
+    if (errorMessage.includes("Unauthorized") || errorMessage.includes("different user")) {
+      return NextResponse.json({ error: errorMessage }, { status: 403 });
+    }
+    
+    if (errorMessage.includes("Only") && errorMessage.includes("can upload")) {
+      return NextResponse.json({ error: errorMessage }, { status: 403 });
+    }
+    
     return NextResponse.json(
       { error: "Failed to confirm image upload" },
       { status: 500 }

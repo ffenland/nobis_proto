@@ -21,54 +21,13 @@ export type ImageVariant =
   | "original"
   | "avatarSM";
 
-// ID 생성 옵션
-export interface MediaIdOptions {
-  userId: string;
-  entityType: ImageType;
-  entityId?: string;
-  mediaType: MediaType;
-  timestamp?: boolean;
-}
-
-// 계층적 미디어 ID 생성 (커스텀 ID)
-export function generateMediaId(options: MediaIdOptions): string {
-  const parts: string[] = [options.userId, options.entityType];
-
-  if (options.entityId) {
-    parts.push(options.entityId);
-  }
-
-  // 타임스탬프 추가 (중복 방지)
-  if (options.timestamp) {
-    parts.push(Date.now().toString());
-  }
-
-  // 미디어 타입 접미사
-  const suffix = options.mediaType === "image" ? "img" : "vid";
-  parts.push(suffix);
-
-  // 슬래시로 구분된 계층 구조
-  return parts.join("/");
-}
-
-// TUS 업로드를 위한 메타데이터 인코딩
-export function encodeMetadata(data: Record<string, unknown>): string {
-  const encoded: string[] = [];
-
-  for (const [key, value] of Object.entries(data)) {
-    if (value === undefined || value === null) continue;
-
-    // boolean 값은 키만 추가
-    if (typeof value === "boolean" && value) {
-      encoded.push(key);
-    } else {
-      // 모든 값을 Base64 인코딩
-      const base64Value = Buffer.from(String(value)).toString("base64");
-      encoded.push(`${key} ${base64Value}`);
-    }
-  }
-
-  return encoded.join(",");
+/**
+ * Cloudflare Images URL 생성
+ */
+export function getImageUrl(imageId: string, variant: string = "public") {
+  const deliveryUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_IMAGES_DELIVERY_URL;
+  const accountHash = process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH;
+  return `${deliveryUrl}/${accountHash}/${imageId}/${variant}`;
 }
 
 // Cloudflare Images 최적화 URL 생성

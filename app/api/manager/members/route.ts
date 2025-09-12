@@ -1,54 +1,26 @@
-// app/api/manager/members/route.ts
-
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import {
-  MemberManagementService,
-  type IMemberListFilters,
-} from "@/app/lib/services/member-management.service";
+import { getAllMembers } from "@/app/services/mananger/manager-member.service";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // 세션 및 권한 확인
     const session = await getSession();
-    if (!session || !session.id) {
+    
+    if (!session?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (session.role !== "MANAGER") {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // 쿼리 파라미터 추출
-    const { searchParams } = new URL(request.url);
-    const filters: IMemberListFilters = {
-      centerId: searchParams.get("centerId") || undefined,
-      search: searchParams.get("search") || undefined,
-      hasPt:
-        searchParams.get("hasPt") === "true"
-          ? true
-          : searchParams.get("hasPt") === "false"
-          ? false
-          : undefined,
-    };
-
-    // 서비스 호출
-    const memberManagementService = MemberManagementService.getInstance();
-    const membersWithStats = await memberManagementService.getMembersWithStats(
-      filters
-    );
-
-    return NextResponse.json({
-      members: membersWithStats,
-      timestamp: new Date().toISOString(),
-    });
+    const members = await getAllMembers();
+    
+    return NextResponse.json(members);
   } catch (error) {
-    console.error("[Manager Members API] Error:", error);
+    console.error("Failed to get members:", error);
     return NextResponse.json(
-      {
-        error: "Internal server error",
-        message: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Internal Server Error" }, 
       { status: 500 }
     );
   }

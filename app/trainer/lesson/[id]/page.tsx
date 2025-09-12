@@ -8,6 +8,7 @@ import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import { formatTime } from "@/app/lib/utils/time.utils";
+import { getEquipmentTitle } from "@/app/lib/utils/equipment.utils";
 import {
   Clock,
   Calendar,
@@ -15,7 +16,6 @@ import {
   Plus,
   Edit,
   Camera,
-  Video,
   FileText,
   ArrowLeft,
 } from "lucide-react";
@@ -158,7 +158,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
         return (
           sum +
           item.freeSetRecords.reduce((s, set) => {
-            const weight = set.equipments[0]?.primaryValue || 0;
+            const weight = parseFloat(set.equipments[0]?.primaryValue || '0') || 0;
             return s + weight * set.reps;
           }, 0)
         );
@@ -171,8 +171,8 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
       stretching: lessonRecords.filter((i) => i.type === "STRETCHING").length,
     },
     mediaCount: {
-      images: lessonRecords.reduce((sum, item) => sum + item.images.length, 0),
-      videos: lessonRecords.reduce((sum, item) => sum + item.videos.length, 0),
+      images: lesson?.images?.length || 0,
+      videos: lesson?.videos?.length || 0,
     },
   };
 
@@ -364,7 +364,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                                         {set.equipments
                                           .map(
                                             (eq) =>
-                                              `${eq.title} ${eq.primaryValue}${eq.primaryUnit}`
+                                              getEquipmentTitle(eq)
                                           )
                                           .join(", ")}
                                       </span>
@@ -396,7 +396,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                                           <p className="text-gray-600 text-xs mt-1">
                                             기구:{" "}
                                             {stretch.equipments
-                                              .map((eq) => eq.title)
+                                              .map((eq) => getEquipmentTitle(eq))
                                               .join(", ")}
                                           </p>
                                         )}
@@ -406,24 +406,6 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                                 </div>
                               )}
 
-                            {/* 미디어 정보 */}
-                            {(record.images.length > 0 ||
-                              record.videos.length > 0) && (
-                              <div className="mt-2 flex gap-2">
-                                {record.images.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    <Camera className="w-3 h-3 mr-1" />
-                                    {record.images.length}
-                                  </Badge>
-                                )}
-                                {record.videos.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    <Video className="w-3 h-3 mr-1" />
-                                    {record.videos.length}
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -583,9 +565,6 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                   <p className="font-medium text-green-900">
                     {lesson.centerName}
                   </p>
-                  <p className="text-sm text-green-700">
-                    {lesson.centerAddress}
-                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -601,6 +580,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
           setEditingRecord(null);
         }}
         record={editingRecord}
+        lessonId={id}
         onSuccess={handleEditSuccess}
       />
     </>

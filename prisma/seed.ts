@@ -1,9 +1,5 @@
 // prisma/seed.ts
-import {
-  PrismaClient,
-  UserRole,
-  WeekDay,
-} from "@prisma/client";
+import { PrismaClient, UserRole, WeekDay } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -143,7 +139,11 @@ async function createUsers() {
       mobile: "01012340015",
       email: "jungminho@test.com",
     },
-    { username: "황서영", mobile: "01012340016", email: "hwangseoyoung@test.com" },
+    {
+      username: "황서영",
+      mobile: "01012340016",
+      email: "hwangseoyoung@test.com",
+    },
     { username: "임태현", mobile: "01012340017", email: "limtaehyun@test.com" },
     { username: "조아름", mobile: "01012340018", email: "choahreum@test.com" },
     {
@@ -345,14 +345,6 @@ async function createFitnessCenters() {
       skip: fitnessCenters.indexOf(centerData) * 5, // 각 센터당 트레이너 5명
     });
 
-    // 매니저 할당
-    if (managers.length > 0) {
-      await prisma.manager.update({
-        where: { id: managers[0].id },
-        data: { fitnessCenterId: center.id },
-      });
-    }
-
     // 트레이너들 할당 및 근무시간 설정
     for (const trainer of trainers) {
       await prisma.trainer.update({
@@ -550,9 +542,9 @@ const createEquipmentData = async (fitnessCenterId: string) => {
   // 그룹과 브랜드 데이터 가져오기
   const groups = await prisma.equipmentGroup.findMany();
   const brands = await prisma.equipmentBrand.findMany();
-  
-  const groupMap = new Map(groups.map(g => [g.name, g.id]));
-  const brandMap = new Map(brands.map(b => [b.name, b.id]));
+
+  const groupMap = new Map(groups.map((g) => [g.name, g.id]));
+  const brandMap = new Map(brands.map((b) => [b.name, b.id]));
 
   // 덤벨 생성 (2kg~50kg, 2kg 단위)
   const dumbbellGroup = groupMap.get("덤벨");
@@ -645,11 +637,36 @@ const createEquipmentData = async (fitnessCenterId: string) => {
   const resistanceBandGroup = groupMap.get("고무밴드");
   if (resistanceBandGroup) {
     const bandData = [
-      { color: "옐로우", resistance: "15", unit: "lbs", description: "15파운드 저항력 고무밴드" },
-      { color: "레드", resistance: "20", unit: "lbs", description: "20파운드 저항력 고무밴드" },
-      { color: "블루", resistance: "25", unit: "lbs", description: "25파운드 저항력 고무밴드" },
-      { color: "그린", resistance: "30", unit: "lbs", description: "30파운드 저항력 고무밴드" },
-      { color: "블랙", resistance: "35", unit: "lbs", description: "35파운드 저항력 고무밴드" },
+      {
+        color: "옐로우",
+        resistance: "15",
+        unit: "lbs",
+        description: "15파운드 저항력 고무밴드",
+      },
+      {
+        color: "레드",
+        resistance: "20",
+        unit: "lbs",
+        description: "20파운드 저항력 고무밴드",
+      },
+      {
+        color: "블루",
+        resistance: "25",
+        unit: "lbs",
+        description: "25파운드 저항력 고무밴드",
+      },
+      {
+        color: "그린",
+        resistance: "30",
+        unit: "lbs",
+        description: "30파운드 저항력 고무밴드",
+      },
+      {
+        color: "블랙",
+        resistance: "35",
+        unit: "lbs",
+        description: "35파운드 저항력 고무밴드",
+      },
     ];
 
     for (const band of bandData) {
@@ -673,9 +690,21 @@ const createEquipmentData = async (fitnessCenterId: string) => {
   const loopBandGroup = groupMap.get("루프밴드");
   if (loopBandGroup) {
     const loopBandData = [
-      { level: "라이트", value: "약", description: "하체용 루프밴드 - 약한 강도" },
-      { level: "미디움", value: "중", description: "하체용 루프밴드 - 보통 강도" },
-      { level: "헤비", value: "강", description: "하체용 루프밴드 - 강한 강도" },
+      {
+        level: "라이트",
+        value: "약",
+        description: "하체용 루프밴드 - 약한 강도",
+      },
+      {
+        level: "미디움",
+        value: "중",
+        description: "하체용 루프밴드 - 보통 강도",
+      },
+      {
+        level: "헤비",
+        value: "강",
+        description: "하체용 루프밴드 - 강한 강도",
+      },
     ];
 
     for (const band of loopBandData) {

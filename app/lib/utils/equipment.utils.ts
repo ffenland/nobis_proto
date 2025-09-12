@@ -113,12 +113,11 @@ export const normalizeUnit = (
 };
 
 // Equipment 카테고리별 정렬 함수 (웨이트는 무게순, 기타는 이름순)
-export const sortEquipmentByCategory = (equipments: Array<{
+export const sortEquipmentByCategory = <T extends {
   group: { name: string };
   primaryValue?: string | null;
   primaryUnit?: string | null;
-  [key: string]: any;
-}>): Array<any> => {
+}>(equipments: T[]): T[] => {
   return equipments.sort((a, b) => {
     // 그룹이 다르면 그룹명으로 정렬
     if (a.group.name !== b.group.name) {

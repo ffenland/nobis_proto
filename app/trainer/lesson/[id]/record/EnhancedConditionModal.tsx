@@ -1,13 +1,20 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import NextImage from "next/image";
 import SignatureCanvas from "react-signature-canvas";
 import { Button } from "@/app/components/ui/Button";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
-import { X, Trash2, ZoomIn, RotateCcw } from "lucide-react";
-import { ImageType } from "@prisma/client";
+import { X, Trash2 } from "lucide-react";
+import { ImageType, type ImageUploadRequest, type RequestImageUploadResult, type ConfirmImageUploadResult } from "@/app/services/media/media.service";
+import { LoadingSpinner } from "@/app/components/ui/Loading";
 
 interface EnhancedConditionModalProps {
   isOpen: boolean;
@@ -18,8 +25,8 @@ interface EnhancedConditionModalProps {
 
 interface TemplateState {
   templateName: string;
-  status: 'memory' | 'server' | 'empty';
-  canvasData?: string; // 메모리 저장된 그림 데이터
+  status: "memory" | "server" | "empty";
+  canvasData?: string; // "그리기 완료" 후 메모리 저장된 그림 데이터
   serverImageId?: string; // 서버 저장된 이미지 ID
   serverImageUrl?: string; // 서버 이미지 URL
   isCompleted: boolean;
@@ -63,7 +70,7 @@ const TEMPLATES = [
     path: "/images/condition_canvas/pain_canvas.png",
   },
   {
-    name: "position_canvas.png", 
+    name: "position_canvas.png",
     label: "자세 기록지",
     path: "/images/condition_canvas/position_canvas.png",
   },
@@ -73,31 +80,36 @@ const PEN_COLORS = [
   { name: "검은색", color: "#000000" },
   { name: "빨간색", color: "#ff0000" },
   { name: "파란색", color: "#0000ff" },
-  { name: "녹색", color: "#00ff00" },
+  { name: "녹색", color: "#0a9c3f" },
 ];
 
 const PEN_SIZES = [
-  { name: "얇음", size: 2 },
-  { name: "보통", size: 4 },
-  { name: "굵음", size: 6 },
-  { name: "매우 굵음", size: 8 },
+  { name: "얇음", size: 1 },
+  { name: "보통", size: 3 },
+  { name: "굵음", size: 5 },
 ];
 
 // Cloudflare Images URL 생성 함수
-function getCloudflareImageUrl(cloudflareId: string, variant = "public"): string {
+function getCloudflareImageUrl(
+  cloudflareId: string,
+  variant = "public"
+): string {
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_IMAGES_DELIVERY_URL;
   const accountHash = process.env.NEXT_PUBLIC_CLOUDFLARE_ACCOUNT_HASH;
   return `${baseUrl}/${accountHash}/${cloudflareId}/${variant}`;
 }
 
 // 템플릿과 캔버스를 합성하여 하나의 이미지로 만드는 함수
-async function mergeTemplateWithCanvas(templatePath: string, canvasDataUrl: string): Promise<string> {
+async function mergeTemplateWithCanvas(
+  templatePath: string,
+  canvasDataUrl: string
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
     if (!ctx) {
-      reject(new Error('Canvas context not available'));
+      reject(new Error("Canvas context not available"));
       return;
     }
 
@@ -107,44 +119,54 @@ async function mergeTemplateWithCanvas(templatePath: string, canvasDataUrl: stri
       // 캔버스 크기를 템플릿 이미지 크기로 설정
       canvas.width = templateImg.width;
       canvas.height = templateImg.height;
-      
+
       // 템플릿 배경 그리기
       ctx.drawImage(templateImg, 0, 0);
-      
+
       // 그려진 캔버스 이미지 로드
       const drawingImg = new Image();
       drawingImg.onload = () => {
         // 그려진 내용을 템플릿 위에 합성
         ctx.drawImage(drawingImg, 0, 0, canvas.width, canvas.height);
-        
+
         // 합성된 이미지를 데이터 URL로 반환
-        resolve(canvas.toDataURL('image/png'));
+        resolve(canvas.toDataURL("image/png"));
       };
-      drawingImg.onerror = () => reject(new Error('Failed to load canvas drawing'));
+      drawingImg.onerror = () =>
+        reject(new Error("Failed to load canvas drawing"));
       drawingImg.src = canvasDataUrl;
     };
-    templateImg.onerror = () => reject(new Error('Failed to load template image'));
+    templateImg.onerror = () =>
+      reject(new Error("Failed to load template image"));
     templateImg.src = templatePath;
   });
 }
 
 // 이미지 업로드 함수
-async function uploadConditionImage(blob: Blob, templateName: string, lessonId?: string): Promise<string> {
+async function uploadConditionImage(
+  blob: Blob,
+  templateName: string,
+  lessonId?: string
+): Promise<string> {
   // 1. 업로드 URL 요청
+  const requestBody: ImageUploadRequest = {
+    entityType: "CONDITION" as ImageType,
+    entityId: lessonId,
+    metadata: { templateName },
+  };
+
   const uploadResponse = await fetch("/api/media/images/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ 
-      entityType: "CONDITION",
-      metadata: { templateName }
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!uploadResponse.ok) {
-    throw new Error("업로드 URL 생성 실패");
+    const errorData: { error: string } = await uploadResponse.json();
+    throw new Error(errorData.error || "업로드 URL 생성 실패");
   }
 
-  const { uploadURL, customId } = await uploadResponse.json();
+  const { uploadURL, id }: RequestImageUploadResult = await uploadResponse.json();
 
   // 2. Cloudflare로 직접 업로드
   const formData = new FormData();
@@ -164,26 +186,26 @@ async function uploadConditionImage(blob: Blob, templateName: string, lessonId?:
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      cloudflareId: customId,
-      originalName: `condition-${templateName}-${Date.now()}.png`,
-      mimeType: "image/png",
-      size: blob.size,
-      type: ImageType.CONDITION,
+      cloudflareId: id,
+      entityType: "CONDITION",
       entityId: lessonId,
-      metadata: { templateName }
     }),
   });
 
   if (!saveResponse.ok) {
-    throw new Error("이미지 정보 저장 실패");
+    const errorData: { error: string } = await saveResponse.json();
+    throw new Error(errorData.error || "이미지 정보 저장 실패");
   }
 
-  const { id } = await saveResponse.json();
-  return id;
+  const { id: dbId }: ConfirmImageUploadResult = await saveResponse.json();
+  return dbId;
 }
 
 // 컨디션 저장 함수
-async function saveConditionRecord(url: string, { arg }: { arg: { conditionMemo?: string, imageIds: string[] } }) {
+async function saveConditionRecord(
+  url: string,
+  { arg }: { arg: { conditionMemo?: string; imageIds: string[] } }
+) {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -199,7 +221,10 @@ async function saveConditionRecord(url: string, { arg }: { arg: { conditionMemo?
 }
 
 // 템플릿별 삭제 함수
-async function deleteTemplateCondition(url: string, { arg }: { arg: { templateName: string } }) {
+async function deleteTemplateCondition(
+  url: string,
+  { arg }: { arg: { templateName: string } }
+) {
   const response = await fetch(url, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
@@ -213,34 +238,41 @@ async function deleteTemplateCondition(url: string, { arg }: { arg: { templateNa
   return response.json();
 }
 
-export default function EnhancedConditionModal({ 
-  isOpen, 
-  onClose, 
-  lessonId, 
-  onSuccess 
+export default function EnhancedConditionModal({
+  isOpen,
+  onClose,
+  lessonId,
+  onSuccess,
 }: EnhancedConditionModalProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [templateStates, setTemplateStates] = useState<TemplateState[]>([]);
   const [conditionMemo, setConditionMemo] = useState<string>("");
+  const [initialConditionMemo, setInitialConditionMemo] = useState<string>("");
   const [penColor, setPenColor] = useState<string>("#000000");
-  const [penSize, setPenSize] = useState<number>(4);
-  const [deleteConfirmModal, setDeleteConfirmModal] = useState<DeleteConfirmModal>({
-    isOpen: false,
-    templateName: '',
-    message: ''
-  });
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
-  const [serverImages, setServerImages] = useState<ConditionImage[]>([]);
+
+  // 로딩 상태 관리
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [uploadedCount, setUploadedCount] = useState<number>(0);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [penSize, setPenSize] = useState<number>(3);
+  const [deleteConfirmModal, setDeleteConfirmModal] =
+    useState<DeleteConfirmModal>({
+      isOpen: false,
+      templateName: "",
+      message: "",
+    });
 
   const canvasRefs = useRef<Record<string, SignatureCanvas | null>>({});
 
   // 기존 컨디션 데이터 조회
-  const { data: existingCondition, mutate: mutateCondition } = useSWR<ConditionData>(
-    isOpen ? `/api/trainer/lesson/${lessonId}/condition` : null,
-    {
-      revalidateOnFocus: false,
-    }
-  );
+  const { data: existingCondition, mutate: mutateCondition } =
+    useSWR<ConditionData>(
+      isOpen ? `/api/trainer/lesson/${lessonId}/condition` : null,
+      {
+        revalidateOnFocus: false,
+      }
+    );
 
   // 컨디션 저장 mutation
   const { trigger: saveCondition, isMutating: isSaving } = useSWRMutation(
@@ -248,7 +280,7 @@ export default function EnhancedConditionModal({
     saveConditionRecord
   );
 
-  // 삭제 mutation  
+  // 삭제 mutation
   const { trigger: deleteCondition, isMutating: isDeleting } = useSWRMutation(
     `/api/trainer/lesson/${lessonId}/condition/template`,
     deleteTemplateCondition
@@ -257,49 +289,74 @@ export default function EnhancedConditionModal({
   // 초기화 - 서버 데이터를 templateStates에 반영
   useEffect(() => {
     if (existingCondition?.conditionImages) {
-      setServerImages(existingCondition.conditionImages);
-      setConditionMemo(existingCondition.conditionMemo || "");
-      
+      const memo = existingCondition.conditionMemo || "";
+      setConditionMemo(memo);
+      setInitialConditionMemo(memo); // 초기 메모 값 저장
+
       // 템플릿 상태 초기화
-      const initialStates: TemplateState[] = TEMPLATES.map(template => {
-        const serverImage = existingCondition.conditionImages.find(img => 
-          img.metadata && (img.metadata as any).templateName === template.name
+      const initialStates: TemplateState[] = TEMPLATES.map((template) => {
+        const serverImage = existingCondition.conditionImages.find(
+          (img) =>
+            img.metadata && (img.metadata as any).templateName === template.name
         );
-        
+
         if (serverImage) {
           return {
             templateName: template.name,
-            status: 'server',
+            status: "server",
             serverImageId: serverImage.id,
             serverImageUrl: getCloudflareImageUrl(serverImage.cloudflareId),
-            isCompleted: true
+            isCompleted: true,
           };
         }
-        
+
         return {
           templateName: template.name,
-          status: 'empty',
-          isCompleted: false
+          status: "empty",
+          isCompleted: false,
         };
       });
-      
+
       setTemplateStates(initialStates);
     } else if (isOpen) {
       // 기존 데이터가 없으면 빈 상태로 초기화
-      const emptyStates: TemplateState[] = TEMPLATES.map(template => ({
+      const emptyStates: TemplateState[] = TEMPLATES.map((template) => ({
         templateName: template.name,
-        status: 'empty',
-        isCompleted: false
+        status: "empty",
+        isCompleted: false,
       }));
       setTemplateStates(emptyStates);
       setConditionMemo("");
+      setInitialConditionMemo(""); // 초기 메모 값 초기화
     }
   }, [existingCondition, isOpen]);
 
+  // 모달이 열릴 때 템플릿 선택 초기화
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedTemplate(""); // 템플릿 선택 초기화
+    }
+  }, [isOpen]);
+
   // 현재 선택된 템플릿 상태
   const currentTemplateState = useMemo(() => {
-    return templateStates.find(state => state.templateName === selectedTemplate);
+    return templateStates.find(
+      (state) => state.templateName === selectedTemplate
+    );
   }, [templateStates, selectedTemplate]);
+
+  // 변경사항 감지
+  const hasChanges = useMemo(() => {
+    // 메모 변경 확인
+    const memoChanged = conditionMemo !== initialConditionMemo;
+
+    // 새로 그린 이미지 확인
+    const hasNewImages = templateStates.some(
+      (state) => state.status === "memory"
+    );
+
+    return memoChanged || hasNewImages;
+  }, [conditionMemo, initialConditionMemo, templateStates]);
 
   // 현재 선택된 템플릿의 캔버스 가져오기
   const getCurrentCanvas = useCallback(() => {
@@ -307,53 +364,21 @@ export default function EnhancedConditionModal({
   }, [selectedTemplate]);
 
   // 템플릿 선택 핸들러
-  const handleTemplateSelect = useCallback((templateName: string) => {
-    // 현재 그리기 중인 내용이 있으면 저장
-    if (selectedTemplate) {
-      const currentCanvas = canvasRefs.current[selectedTemplate];
-      if (currentCanvas && !currentCanvas.isEmpty()) {
-        const canvasData = currentCanvas.toDataURL();
-        setTemplateStates(prev => prev.map(state => 
-          state.templateName === selectedTemplate 
-            ? { ...state, canvasData, status: 'memory', isCompleted: true }
-            : state
-        ));
+  const handleTemplateSelect = useCallback(
+    (templateName: string) => {
+      // 현재 캔버스 초기화 (임시저장 없이 리셋)
+      if (selectedTemplate) {
+        const currentCanvas = canvasRefs.current[selectedTemplate];
+        if (currentCanvas) {
+          currentCanvas.clear();
+        }
       }
-    }
 
-    // 새 템플릿 선택
-    setSelectedTemplate(templateName);
-  }, [selectedTemplate]);
-
-  // 선택된 템플릿 변경 시 캔버스 데이터 복원
-  useEffect(() => {
-    if (selectedTemplate) {
-      const templateState = templateStates.find(s => s.templateName === selectedTemplate);
-      
-      if (templateState?.canvasData) {
-        // Canvas ref가 준비될 때까지 대기
-        const restoreCanvas = () => {
-          const canvas = canvasRefs.current[selectedTemplate];
-          if (canvas) {
-            try {
-              canvas.clear();
-              canvas.fromDataURL(templateState.canvasData!);
-            } catch (error) {
-              console.error('Canvas restore error:', error);
-            }
-          } else {
-            // Canvas가 아직 준비되지 않았으면 다시 시도
-            setTimeout(restoreCanvas, 10);
-          }
-        };
-        
-        // React 렌더링 사이클 후 실행
-        requestAnimationFrame(() => {
-          setTimeout(restoreCanvas, 0);
-        });
-      }
-    }
-  }, [selectedTemplate, templateStates]);
+      // 새 템플릿 선택
+      setSelectedTemplate(templateName);
+    },
+    [selectedTemplate]
+  );
 
   // 그리기 완료 처리
   const handleSaveDrawing = useCallback(async () => {
@@ -365,15 +390,35 @@ export default function EnhancedConditionModal({
 
     try {
       const canvasData = canvas.toDataURL();
-      
-      // 메모리에 임시 저장
-      setTemplateStates(prev => prev.map(state => 
-        state.templateName === selectedTemplate 
-          ? { ...state, canvasData, status: 'memory', isCompleted: true }
-          : state
-      ));
-      
-      alert("그리기가 완료되었습니다.");
+      const templatePath = TEMPLATES.find(
+        (t) => t.name === selectedTemplate
+      )?.path;
+
+      if (templatePath) {
+        // 즉시 템플릿과 합성
+        const mergedImageData = await mergeTemplateWithCanvas(
+          templatePath,
+          canvasData
+        );
+
+        // 합성된 이미지를 메모리에 저장
+        setTemplateStates((prev) =>
+          prev.map((state) =>
+            state.templateName === selectedTemplate
+              ? {
+                  ...state,
+                  canvasData: mergedImageData,
+                  status: "memory",
+                  isCompleted: true,
+                }
+              : state
+          )
+        );
+
+        alert("그리기가 완료되었습니다.");
+      } else {
+        alert("템플릿을 찾을 수 없습니다.");
+      }
     } catch (error) {
       console.error("Save drawing error:", error);
       alert("저장 중 오류가 발생했습니다.");
@@ -382,16 +427,23 @@ export default function EnhancedConditionModal({
 
   // 삭제 핸들러
   const handleDelete = async (templateName: string) => {
-    const state = templateStates.find(s => s.templateName === templateName);
-    
-    if (state?.status === 'memory') {
+    const state = templateStates.find((s) => s.templateName === templateName);
+
+    if (state?.status === "memory") {
       // 메모리에서 바로 제거
-      setTemplateStates(prev => prev.map(s => 
-        s.templateName === templateName 
-          ? { ...s, status: 'empty', canvasData: undefined, isCompleted: false }
-          : s
-      ));
-      
+      setTemplateStates((prev) =>
+        prev.map((s) =>
+          s.templateName === templateName
+            ? {
+                ...s,
+                status: "empty",
+                canvasData: undefined,
+                isCompleted: false,
+              }
+            : s
+        )
+      );
+
       // 현재 선택된 템플릿이면 캔버스도 초기화
       if (selectedTemplate === templateName) {
         const canvas = getCurrentCanvas();
@@ -399,13 +451,13 @@ export default function EnhancedConditionModal({
           canvas.clear();
         }
       }
-    } else if (state?.status === 'server') {
+    } else if (state?.status === "server") {
       // 확인 모달 표시
-      const template = TEMPLATES.find(t => t.name === templateName);
+      const template = TEMPLATES.find((t) => t.name === templateName);
       setDeleteConfirmModal({
         isOpen: true,
         templateName,
-        message: `${template?.label} 기록을 서버에서 완전히 삭제됩니다. 계속할까요?`
+        message: `${template?.label} 기록을 서버에서 완전히 삭제됩니다. 계속할까요?`,
       });
     }
   };
@@ -416,13 +468,21 @@ export default function EnhancedConditionModal({
 
     try {
       await deleteCondition({ templateName: deleteConfirmModal.templateName });
-      
+
       // 상태 업데이트
-      setTemplateStates(prev => prev.map(s => 
-        s.templateName === deleteConfirmModal.templateName 
-          ? { ...s, status: 'empty', serverImageId: undefined, serverImageUrl: undefined, isCompleted: false }
-          : s
-      ));
+      setTemplateStates((prev) =>
+        prev.map((s) =>
+          s.templateName === deleteConfirmModal.templateName
+            ? {
+                ...s,
+                status: "empty",
+                serverImageId: undefined,
+                serverImageUrl: undefined,
+                isCompleted: false,
+              }
+            : s
+        )
+      );
 
       // 현재 선택된 템플릿이면 캔버스 표시
       if (selectedTemplate === deleteConfirmModal.templateName) {
@@ -431,11 +491,11 @@ export default function EnhancedConditionModal({
           canvas.clear();
         }
       }
-      
+
       // 서버 데이터 갱신
       await mutateCondition();
-      
-      setDeleteConfirmModal({ isOpen: false, templateName: '', message: '' });
+
+      setDeleteConfirmModal({ isOpen: false, templateName: "", message: "" });
     } catch (error) {
       console.error("Delete error:", error);
       alert("삭제 중 오류가 발생했습니다.");
@@ -445,40 +505,59 @@ export default function EnhancedConditionModal({
   // 최종 저장 (서버에 업로드)
   const handleFinalSave = async () => {
     try {
-      const memoryTemplates = templateStates.filter(state => state.status === 'memory');
-      
-      if (memoryTemplates.length === 0) {
-        alert("저장할 이미지가 없습니다.");
+      const memoryTemplates = templateStates.filter(
+        (state) => state.status === "memory"
+      );
+      const memoChanged = conditionMemo !== initialConditionMemo;
+
+      // 변경사항이 없으면 리턴
+      if (memoryTemplates.length === 0 && !memoChanged) {
+        alert("변경사항이 없습니다.");
         return;
       }
+
+      // 로딩 상태 초기화
+      setIsUploading(true);
+      setTotalCount(memoryTemplates.length);
+      setUploadedCount(0);
+      setUploadProgress(
+        memoryTemplates.length > 0 ? "이미지 처리 중..." : "메모 저장 중..."
+      );
 
       const imageIds: string[] = [];
       const failedTemplates: string[] = [];
 
       // 메모리에 있는 이미지들을 서버에 업로드
-      for (const template of memoryTemplates) {
+      for (let i = 0; i < memoryTemplates.length; i++) {
+        const template = memoryTemplates[i];
         if (template.canvasData) {
           try {
+            const templateLabel =
+              TEMPLATES.find((t) => t.name === template.templateName)?.label ||
+              template.templateName;
+            setUploadProgress(
+              `${templateLabel} 업로드 중... (${i + 1}/${
+                memoryTemplates.length
+              })`
+            );
             console.log(`업로드 시작: ${template.templateName}`);
-            
-            // 템플릿과 합성
-            const templatePath = TEMPLATES.find(t => t.name === template.templateName)?.path;
-            if (templatePath) {
-              const mergedImageData = await mergeTemplateWithCanvas(templatePath, template.canvasData);
-              
-              // base64를 blob으로 변환
-              const base64Response = await fetch(mergedImageData);
-              const blob = await base64Response.blob();
-              
-              // 업로드
-              const imageId = await uploadConditionImage(blob, template.templateName, lessonId);
-              imageIds.push(imageId);
-              
-              console.log(`업로드 성공: ${template.templateName}, ID: ${imageId}`);
-            } else {
-              console.warn(`템플릿 경로를 찾을 수 없음: ${template.templateName}`);
-              failedTemplates.push(template.templateName);
-            }
+
+            // 이미 합성된 이미지이므로 바로 blob으로 변환
+            const base64Response = await fetch(template.canvasData);
+            const blob = await base64Response.blob();
+
+            // 업로드
+            const imageId = await uploadConditionImage(
+              blob,
+              template.templateName,
+              lessonId
+            );
+            imageIds.push(imageId);
+
+            setUploadedCount((prev) => prev + 1);
+            console.log(
+              `업로드 성공: ${template.templateName}, ID: ${imageId}`
+            );
           } catch (error) {
             console.error(`${template.templateName} 업로드 실패:`, error);
             failedTemplates.push(template.templateName);
@@ -486,49 +565,59 @@ export default function EnhancedConditionModal({
         }
       }
 
-      if (imageIds.length > 0) {
-        // 컨디션 기록 저장
+      // 메모가 변경되었거나, 새 이미지가 있는 경우 저장
+      if (memoChanged || imageIds.length > 0) {
+        setUploadProgress("컨디션 기록 저장 중...");
+
         await saveCondition({
           conditionMemo: conditionMemo.trim() || undefined,
-          imageIds,
+          imageIds: imageIds,
         });
 
+        // 초기 메모 값 업데이트 (저장 성공 시)
+        setInitialConditionMemo(conditionMemo);
+
+        setUploadProgress("저장 완료!");
+
         // 결과 메시지 생성
-        let message = `${imageIds.length}개의 컨디션 기록이 저장되었습니다.`;
-        if (failedTemplates.length > 0) {
-          message += `\n\n실패한 템플릿 (${failedTemplates.length}개): ${failedTemplates.join(', ')}`;
+        let message = "";
+        if (imageIds.length > 0) {
+          message = `${imageIds.length}개의 컨디션 기록이 저장되었습니다.`;
         }
-        
-        alert(message);
-        onSuccess?.();
-        onClose();
+        if (memoChanged) {
+          message = message
+            ? message + "\n메모가 업데이트되었습니다."
+            : "메모가 업데이트되었습니다.";
+        }
+        if (failedTemplates.length > 0) {
+          message += `\n\n실패한 템플릿 (${
+            failedTemplates.length
+          }개): ${failedTemplates.join(", ")}`;
+        }
+
+        setTimeout(() => {
+          alert(message);
+          onSuccess?.();
+          onClose();
+        }, 500);
       } else if (failedTemplates.length > 0) {
-        alert(`모든 이미지 업로드가 실패했습니다.\n실패한 템플릿: ${failedTemplates.join(', ')}`);
-      } else {
-        alert("저장할 이미지가 없습니다.");
+        alert(
+          `모든 이미지 업로드가 실패했습니다.\n실패한 템플릿: ${failedTemplates.join(
+            ", "
+          )}`
+        );
       }
     } catch (error) {
       console.error("Final save error:", error);
-      alert(error instanceof Error ? error.message : "저장 중 오류가 발생했습니다.");
-    }
-  };
-
-  // 이미지 모달 핸들러
-  const closeImageModal = () => setSelectedImageIndex(null);
-
-  const goToPrevImage = () => {
-    if (selectedImageIndex !== null && serverImages.length > 0) {
-      setSelectedImageIndex(
-        selectedImageIndex > 0 ? selectedImageIndex - 1 : serverImages.length - 1
+      alert(
+        error instanceof Error ? error.message : "저장 중 오류가 발생했습니다."
       );
-    }
-  };
-
-  const goToNextImage = () => {
-    if (selectedImageIndex !== null && serverImages.length > 0) {
-      setSelectedImageIndex(
-        selectedImageIndex < serverImages.length - 1 ? selectedImageIndex + 1 : 0
-      );
+    } finally {
+      // 로딩 상태 초기화
+      setIsUploading(false);
+      setUploadProgress("");
+      setUploadedCount(0);
+      setTotalCount(0);
     }
   };
 
@@ -544,7 +633,7 @@ export default function EnhancedConditionModal({
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-full"
-              disabled={isSaving || isDeleting}
+              disabled={isSaving || isDeleting || isUploading}
             >
               <X className="w-6 h-6" />
             </button>
@@ -556,9 +645,11 @@ export default function EnhancedConditionModal({
               <h3 className="text-lg font-semibold mb-3">기록지 선택</h3>
               <div className="grid grid-cols-2 gap-3">
                 {TEMPLATES.map((template) => {
-                  const state = templateStates.find(s => s.templateName === template.name);
-                  const status = state?.status || 'empty';
-                  
+                  const state = templateStates.find(
+                    (s) => s.templateName === template.name
+                  );
+                  const status = state?.status || "empty";
+
                   return (
                     <div key={template.name} className="relative">
                       <button
@@ -571,20 +662,20 @@ export default function EnhancedConditionModal({
                       >
                         {template.label}
                       </button>
-                      
+
                       {/* 상태 배지 */}
                       <div className="flex gap-1 mt-1">
-                        {status === 'memory' && (
+                        {status === "memory" && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                             임시저장
                           </span>
                         )}
-                        {status === 'server' && (
+                        {status === "server" && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                             서버저장
                           </span>
                         )}
-                        {state?.isCompleted && status !== 'empty' && (
+                        {state?.isCompleted && status !== "empty" && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -603,49 +694,76 @@ export default function EnhancedConditionModal({
               </div>
             </div>
 
+            {/* 템플릿 미선택 시 안내 메시지 */}
+            {!selectedTemplate && (
+              <div className="text-center py-16 bg-gray-50 rounded-lg">
+                <div className="text-gray-500">
+                  <p className="text-lg font-medium">기록지를 선택해주세요</p>
+                </div>
+              </div>
+            )}
+
             {/* 선택된 템플릿의 내용 */}
             {selectedTemplate && (
               <div>
                 <h3 className="text-lg font-semibold mb-3">
-                  {TEMPLATES.find(t => t.name === selectedTemplate)?.label}
+                  {TEMPLATES.find((t) => t.name === selectedTemplate)?.label}
                 </h3>
-                
-                {/* 서버에 저장된 이미지 보기 */}
-                {currentTemplateState?.status === 'server' && currentTemplateState.serverImageUrl ? (
+
+                {/* 저장된 이미지 보기 (서버 저장 또는 메모리 저장) */}
+                {(currentTemplateState?.status === "server" &&
+                  currentTemplateState.serverImageUrl) ||
+                (currentTemplateState?.status === "memory" &&
+                  currentTemplateState.canvasData) ? (
                   <div className="space-y-4">
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <img
-                        src={currentTemplateState.serverImageUrl}
-                        alt="저장된 컨디션 기록"
-                        className="max-w-full h-auto cursor-pointer"
-                        onClick={() => setSelectedImageIndex(0)}
-                      />
+                      <div className="relative w-full h-96">
+                        {currentTemplateState.status === "server" ? (
+                          <NextImage
+                            src={currentTemplateState.serverImageUrl!}
+                            alt="저장된 컨디션 기록"
+                            fill
+                            className="object-contain"
+                          />
+                        ) : (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={currentTemplateState.canvasData!}
+                            alt="그리기 완료된 컨디션 기록"
+                            className="w-full h-full object-contain"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
                   /* 캔버스 그리기 인터페이스 */
                   <div className="space-y-4">
                     {/* 템플릿 배경과 캔버스 */}
-                    <div className="relative bg-gray-50 rounded-lg p-4">
+                    <div className="relative bg-gray-50 rounded-lg p-4 px-5">
                       {/* 템플릿 배경 */}
                       <div className="absolute inset-4 opacity-30">
                         <NextImage
-                          src={TEMPLATES.find(t => t.name === selectedTemplate)?.path || ""}
+                          src={
+                            TEMPLATES.find((t) => t.name === selectedTemplate)
+                              ?.path || ""
+                          }
                           alt="템플릿"
                           fill
                           className="object-contain"
                         />
                       </div>
-                      
+
                       {/* 그리기 캔버스 */}
                       <SignatureCanvas
                         key={selectedTemplate}
-                        ref={(ref) => { 
-                          canvasRefs.current[selectedTemplate] = ref; 
+                        ref={(ref) => {
+                          canvasRefs.current[selectedTemplate] = ref;
                         }}
                         canvasProps={{
-                          className: "border border-gray-300 rounded relative z-10 bg-transparent cursor-crosshair",
-                          style: { width: "100%", height: "400px" }
+                          className:
+                            "border border-gray-300 rounded relative z-10 bg-transparent cursor-crosshair",
+                          style: { width: "100%", height: "400px" },
                         }}
                         backgroundColor="transparent"
                         penColor={penColor}
@@ -658,14 +776,18 @@ export default function EnhancedConditionModal({
                     <div className="flex flex-wrap gap-4">
                       {/* 펜 색상 */}
                       <div>
-                        <label className="block text-sm font-medium mb-2">펜 색상</label>
+                        <label className="block text-sm font-medium mb-2">
+                          펜 색상
+                        </label>
                         <div className="flex gap-2">
                           {PEN_COLORS.map((color) => (
                             <button
                               key={color.color}
                               onClick={() => setPenColor(color.color)}
                               className={`w-8 h-8 rounded border-2 ${
-                                penColor === color.color ? "border-gray-800" : "border-gray-300"
+                                penColor === color.color
+                                  ? "border-gray-800"
+                                  : "border-gray-300"
                               }`}
                               style={{ backgroundColor: color.color }}
                               title={color.name}
@@ -676,7 +798,9 @@ export default function EnhancedConditionModal({
 
                       {/* 펜 굵기 */}
                       <div>
-                        <label className="block text-sm font-medium mb-2">펜 굵기</label>
+                        <label className="block text-sm font-medium mb-2">
+                          펜 굵기
+                        </label>
                         <div className="flex gap-2">
                           {PEN_SIZES.map((size) => (
                             <button
@@ -708,10 +832,7 @@ export default function EnhancedConditionModal({
                       >
                         지우기
                       </Button>
-                      <Button
-                        onClick={handleSaveDrawing}
-                        variant="outline"
-                      >
+                      <Button onClick={handleSaveDrawing} variant="outline">
                         그리기 완료
                       </Button>
                     </div>
@@ -722,7 +843,9 @@ export default function EnhancedConditionModal({
 
             {/* 메모 입력 */}
             <div>
-              <label className="block text-sm font-medium mb-2">컨디션 메모 (선택사항)</label>
+              <label className="block text-sm font-medium mb-2">
+                컨디션 메모 (선택사항)
+              </label>
               <textarea
                 value={conditionMemo}
                 onChange={(e) => setConditionMemo(e.target.value)}
@@ -737,14 +860,14 @@ export default function EnhancedConditionModal({
               <Button onClick={onClose} variant="outline">
                 취소
               </Button>
-              
-              {templateStates.some(state => state.status === 'memory') && (
+
+              {hasChanges && (
                 <Button
                   onClick={handleFinalSave}
-                  disabled={isSaving}
+                  disabled={isSaving || isUploading}
                   className="bg-blue-600 text-white hover:bg-blue-700"
                 >
-                  {isSaving ? "저장 중..." : "저장하기"}
+                  {isSaving || isUploading ? "저장 중..." : "저장하기"}
                 </Button>
               )}
             </div>
@@ -758,10 +881,16 @@ export default function EnhancedConditionModal({
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold mb-4">삭제 확인</h3>
             <p className="text-gray-600 mb-6">{deleteConfirmModal.message}</p>
-            
+
             <div className="flex justify-end gap-3">
               <Button
-                onClick={() => setDeleteConfirmModal({ isOpen: false, templateName: '', message: '' })}
+                onClick={() =>
+                  setDeleteConfirmModal({
+                    isOpen: false,
+                    templateName: "",
+                    message: "",
+                  })
+                }
                 variant="outline"
                 disabled={isDeleting}
               >
@@ -786,62 +915,26 @@ export default function EnhancedConditionModal({
         </div>
       )}
 
-      {/* 이미지 확대 모달 */}
-      {selectedImageIndex !== null && serverImages[selectedImageIndex] && (
-        <div
-          className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center"
-          onClick={closeImageModal}
-        >
-          <div className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center p-4">
-            {/* 닫기 버튼 */}
-            <button
-              onClick={closeImageModal}
-              className="absolute top-4 right-4 z-10 p-2 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-70 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* 이전 버튼 */}
-            {serverImages.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToPrevImage();
-                }}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-70 transition-colors"
-              >
-                <RotateCcw className="w-6 h-6 rotate-90" />
-              </button>
-            )}
-
-            {/* 다음 버튼 */}
-            {serverImages.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToNextImage();
-                }}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-70 transition-colors"
-              >
-                <RotateCcw className="w-6 h-6 -rotate-90" />
-              </button>
-            )}
-
-            {/* 이미지 */}
-            <img
-              src={getCloudflareImageUrl(serverImages[selectedImageIndex].cloudflareId, "public")}
-              alt={`컨디션 기록 ${selectedImageIndex + 1}`}
-              className="max-w-full max-h-full object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-
-            {/* 이미지 정보 */}
-            <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-2 rounded">
-              <p className="text-sm">
-                {selectedImageIndex + 1} / {serverImages.length}
-              </p>
-              <p className="text-xs opacity-75">
-                {serverImages[selectedImageIndex].originalName}
+      {/* 로딩 오버레이 */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-[60] flex items-center justify-center">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <div className="text-center">
+              <LoadingSpinner size="lg" className="mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">
+                컨디션 기록 저장 중
+              </h3>
+              <p className="text-gray-600 mb-4">{uploadProgress}</p>
+              {totalCount > 0 && (
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(uploadedCount / totalCount) * 100}%` }}
+                  ></div>
+                </div>
+              )}
+              <p className="text-sm text-gray-500">
+                {uploadedCount} / {totalCount} 완료
               </p>
             </div>
           </div>

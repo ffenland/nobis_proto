@@ -3,10 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 import { 
   getTrainerPendingPts,
-  approvePt,
-  rejectPt 
+  rejectPt,
+  createLessonWithPtApproval 
 } from "@/app/services/trainer/pt.service";
-import { createLessonWithPtApproval } from "@/app/services/trainer/lesson.service";
 
 export async function GET() {
   try {
@@ -55,9 +54,9 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (!['approve', 'reject', 'approveWithLesson'].includes(action)) {
+    if (!['reject', 'approveWithLesson'].includes(action)) {
       return NextResponse.json(
-        { error: "action은 'approve', 'reject', 또는 'approveWithLesson'이어야 합니다." },
+        { error: "action은 'reject' 또는 'approveWithLesson'이어야 합니다." },
         { status: 400 }
       );
     }
@@ -90,10 +89,7 @@ export async function PATCH(request: NextRequest) {
 
     let result;
 
-    if (action === 'approve') {
-      // PT 승인 처리
-      result = await approvePt(ptId, session.roleId);
-    } else if (action === 'approveWithLesson') {
+    if (action === 'approveWithLesson') {
       // PT 승인과 동시에 첫 레슨 생성
       result = await createLessonWithPtApproval(session.roleId, ptId, lessonData);
     } else {

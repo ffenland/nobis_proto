@@ -4,11 +4,23 @@
 import { useState } from "react";
 import type { StretchingExercise } from "@/app/services/exercise/exercise.service";
 import type { Equipment } from "@/app/services/fitness-center/equipment.service";
-import { RecordedExerciseState } from "./page";
 import { getEquipmentDisplayTitle, sortEquipmentByCategory } from "@/app/lib/utils/equipment.utils";
 
+// Form 데이터 타입 - page.tsx의 StretchingFormData와 일치
+interface StretchingFormData {
+  type: "STRETCHING";
+  title: string;
+  description?: string;
+  isCustomExercise: boolean;
+  stretchingExerciseId?: string;
+  customExerciseName?: string;
+  customExerciseDescription?: string;
+  stretchingDescription?: string;
+  equipmentIds: string[];
+}
+
 interface StretchingRecordFormProps {
-  onComplete: (data: RecordedExerciseState) => void;
+  onComplete: (data: StretchingFormData) => void;
   onCancel: () => void;
   nextEntry: number;
   preloadedExercises?: StretchingExercise[]; // 프리로딩된 운동 데이터
@@ -69,8 +81,6 @@ export default function StretchingRecordForm({
 
   // 저장
   const handleSave = () => {
-    let stretchingTitle = "";
-
     if (useCustomStretching) {
       if (!customStretchingName.trim()) {
         alert("스트레칭 이름을 입력해주세요");
@@ -80,39 +90,30 @@ export default function StretchingRecordForm({
         alert("스트레칭 설명을 입력해주세요");
         return;
       }
-      stretchingTitle = customStretchingName;
     } else {
       if (!selectedStretching) {
         alert("스트레칭을 선택해주세요");
         return;
       }
-      const stretching = preloadedExercises.find(
-        (s) => s.id === selectedStretching
-      );
-      stretchingTitle = stretching?.title || "";
     }
 
-    // 사용된 장비 ID 배열 생성
-    const equipmentIds = selectedEquipments.map((eq) => eq.id);
-    const equipmentNames = selectedEquipments.map((eq) => getEquipmentDisplayTitle(eq));
+    const stretching = preloadedExercises.find((s) => s.id === selectedStretching);
+    const stretchingTitle = useCustomStretching ? customStretchingName : (stretching?.title || "");
 
-    onComplete({
-      id: `stretching-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-      type: "STRETCHING" as const,
+    // StretchingFormData 구조로 생성
+    const formData: StretchingFormData = {
+      type: "STRETCHING",
       title: stretchingTitle,
-      entry: nextEntry,
-      details: {
-        exerciseId: useCustomStretching ? undefined : selectedStretching,
-        isCustomExercise: useCustomStretching,
-        customExerciseName: useCustomStretching ? customStretchingName : undefined,
-        customExerciseDescription: useCustomStretching ? customStretchingDescription : undefined,
-        equipmentIds,
-        equipmentNames,
-        stretchingDescription: notes,
-        duration,
-        description,
-      },
-    });
+      description: description || undefined,
+      isCustomExercise: useCustomStretching,
+      stretchingExerciseId: useCustomStretching ? undefined : selectedStretching,
+      customExerciseName: useCustomStretching ? customStretchingName : undefined,
+      customExerciseDescription: useCustomStretching ? customStretchingDescription : undefined,
+      stretchingDescription: notes || undefined,
+      equipmentIds: selectedEquipments.map((eq) => eq.id),
+    };
+
+    onComplete(formData);
   };
 
   return (

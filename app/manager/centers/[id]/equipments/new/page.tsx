@@ -1,331 +1,580 @@
-// app/manager/centers/[id]/equipments/new/page.tsx
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getCenterInfo, createEquipment } from "./actions";
-import { categoryLabels } from "../constants";
+"use client";
 
-interface PageProps {
-  params: Promise<{
-    id: string;
-  }>;
-}
+import { useState, useEffect, KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
+import useSWR from "swr";
+import useSWRMutation from "swr/mutation";
+import { X, Plus } from "lucide-react";
+import Image from "next/image";
+import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
+import AddGroupModal from "./AddGroupModal";
+import AddBrandModal from "./AddBrandModal";
 
-const EquipmentNewPage = async ({ params }: PageProps) => {
-  const { id: centerId } = await params;
+type Params = Promise<{ id: string }>;
 
-  try {
-    const center = await getCenterInfo(centerId);
+// Fetcher functions
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-    // 생성 액션
-    const handleCreate = async (formData: FormData) => {
-      "use server";
+const createEquipmentFetcher = async (url: string, { arg }: { arg: any }) => {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(arg),
+  });
 
-      try {
-        const result = await createEquipment(centerId, formData);
-        if (result.success) {
-          redirect(`/manager/centers/${centerId}/equipments`);
-        }
-      } catch (error) {
-        console.error("생성 오류:", error);
-        throw error;
-      }
-    };
-
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 헤더 */}
-        <div className="flex flex-col items-start gap-3 mb-2">
-          <div className="flex w-full justify-between items-center space-x-3">
-            <div className="flex justify-center items-center">
-              <h1 className="text-3xl font-bold text-gray-900">새 장비 등록</h1>
-            </div>
-            <Link
-              href={`/manager/centers/${centerId}/equipments`}
-              className="bg-gray-100 text-gray-900 px-6 py-3 rounded-md hover:bg-gray-200 transition-colors font-medium"
-            >
-              목록으로
-            </Link>
-          </div>
-          <div>
-            <p className="text-gray-600 ">
-              {center.title} - 새로운 운동기구를 등록합니다
-            </p>
-          </div>
-        </div>
-
-        {/* 장비 생성 폼 */}
-        <form action={handleCreate} className="space-y-8">
-          {/* 기본 정보 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">
-              기본 정보
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 장비 이름 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  장비 이름 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="예: 덤벨 20kg, 고무밴드 옐로우"
-                />
-              </div>
-
-              {/* 카테고리 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  카테고리 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="category"
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  defaultValue=""
-                >
-                  <option value="" disabled>
-                    카테고리를 선택하세요
-                  </option>
-                  {Object.entries(categoryLabels).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 수량 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  수량
-                </label>
-                <input
-                  type="number"
-                  name="quantity"
-                  defaultValue="1"
-                  min="1"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              {/* 위치 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  보관 위치
-                </label>
-                <input
-                  type="text"
-                  name="location"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="예: 덤벨 렉, 스트레칭 존, 밴드 보관함"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 수치 정보 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">
-              수치 정보
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 주요 값 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  주요 값 (무게, 저항력 등)
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="number"
-                    name="primaryValue"
-                    step="0.1"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="값"
-                  />
-                  <input
-                    type="text"
-                    name="primaryUnit"
-                    className="w-16 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="단위"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  예: 20kg, 15lbs, 2level
-                </p>
-              </div>
-
-              {/* 부차 값 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  부차 값 (길이, 지름 등)
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="number"
-                    name="secondaryValue"
-                    step="0.1"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="값"
-                  />
-                  <input
-                    type="text"
-                    name="secondaryUnit"
-                    className="w-16 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="단위"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  예: 220cm, 28mm (선택사항)
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 부가 정보 */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">
-              부가 정보
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 브랜드 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  브랜드
-                </label>
-                <input
-                  type="text"
-                  name="brand"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="예: Nike, Adidas, TRX"
-                />
-              </div>
-
-              {/* 모델 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  모델
-                </label>
-                <input
-                  type="text"
-                  name="model"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="모델명 또는 제품번호"
-                />
-              </div>
-            </div>
-
-            {/* 설명 */}
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                설명
-              </label>
-              <textarea
-                name="description"
-                rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="장비에 대한 상세 설명을 입력하세요&#10;예: 초보자용 고무밴드, 15파운드 저항력&#10;예: 고품질 고무 원판, 직경 45cm"
-              />
-            </div>
-          </div>
-
-          {/* 도움말 */}
-          <div className="bg-blue-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">
-              💡 등록 팁
-            </h3>
-            <div className="space-y-2 text-sm text-blue-800">
-              <p>
-                <strong>카테고리별 예시:</strong>
-              </p>
-              <ul className="list-disc list-inside space-y-1 ml-4">
-                <li>
-                  <strong>웨이트:</strong> 덤벨, 바벨, 원판, 케틀벨
-                </li>
-                <li>
-                  <strong>유산소:</strong> 러닝머신, 실내자전거, 스텝박스
-                </li>
-                <li>
-                  <strong>저항:</strong> 고무밴드, 저항밴드, 루프밴드
-                </li>
-                <li>
-                  <strong>기능성:</strong> 폼롤러, 밸런스볼, 보수볼
-                </li>
-                <li>
-                  <strong>가동성:</strong> 요가매트, 스트레칭 도구
-                </li>
-                <li>
-                  <strong>코어:</strong> 메디신볼, 슬라이딩 디스크
-                </li>
-                <li>
-                  <strong>특수:</strong> 샌드백, 배틀로프, TRX
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* 버튼 영역 */}
-          <div className="flex justify-end space-x-3">
-            <Link
-              href={`/manager/centers/${centerId}/equipments`}
-              className="bg-gray-100 text-gray-900 px-6 py-3 rounded-md hover:bg-gray-200 transition-colors font-medium"
-            >
-              취소
-            </Link>
-            <button
-              type="submit"
-              className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium"
-            >
-              장비 등록
-            </button>
-          </div>
-        </form>
-      </div>
-    );
-  } catch (error) {
-    console.error("장비 생성 페이지 오류:", error);
-
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-20">
-          <div className="text-red-600 mb-4">
-            <svg
-              className="w-16 h-16 mx-auto"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            페이지를 불러올 수 없습니다
-          </h3>
-          <p className="text-gray-600 mb-4">
-            {error instanceof Error
-              ? error.message
-              : "알 수 없는 오류가 발생했습니다."}
-          </p>
-          <Link
-            href={`/manager/centers/${centerId}/equipments`}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            목록으로 돌아가기
-          </Link>
-        </div>
-      </div>
-    );
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to create equipment");
   }
+
+  return response.json();
 };
 
-export default EquipmentNewPage;
+export default function NewEquipmentPage({ params }: { params: Params }) {
+  const router = useRouter();
+  const [centerId, setCenterId] = useState<string>("");
+
+  // Form state
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [selectedBrandId, setSelectedBrandId] = useState("");
+  const [primaryUnit, setPrimaryUnit] = useState("kg");
+  const [secondaryValue, setSecondaryValue] = useState("");
+  const [secondaryUnit, setSecondaryUnit] = useState("");
+  const [description, setDescription] = useState("");
+  const [model, setModel] = useState("");
+
+  // Tag input state for primaryValues
+  const [primaryValueInput, setPrimaryValueInput] = useState("");
+  const [primaryValues, setPrimaryValues] = useState<string[]>([]);
+
+  // Image state - pending images system
+  const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [uploadedImageIds, setUploadedImageIds] = useState<string[]>([]);
+
+  // Modal state
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+
+  // Get centerId from params
+  useEffect(() => {
+    params.then((p) => setCenterId(p.id));
+  }, [params]);
+
+  // Fetch groups and brands
+  const { data: groups, mutate: mutateGroups } = useSWR("/api/equipments/group", fetcher);
+
+  const { data: brands, mutate: mutateBrands } = useSWR("/api/equipments/brand", fetcher);
+
+  // Create equipment mutation
+  const { trigger: createEquipments, isMutating } = useSWRMutation(
+    centerId ? `/api/fitness-center/${centerId}/equipments` : null,
+    createEquipmentFetcher
+  );
+
+  // Handle tag input
+  const handleAddPrimaryValue = () => {
+    const value = primaryValueInput.trim();
+    if (value && !primaryValues.includes(value)) {
+      setPrimaryValues([...primaryValues, value]);
+      setPrimaryValueInput("");
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleAddPrimaryValue();
+    }
+  };
+
+  const handleRemovePrimaryValue = (valueToRemove: string) => {
+    setPrimaryValues(primaryValues.filter((v) => v !== valueToRemove));
+  };
+
+  // Handle adding image to pending list (preview only)
+  const handleAddImage = (file: File) => {
+    const currentCount = pendingImages.length;
+
+    if (currentCount >= 3) {
+      alert("최대 3개까지만 이미지를 추가할 수 있습니다.");
+      return;
+    }
+
+    // Add to pending images
+    setPendingImages((prev) => [...prev, file]);
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setPendingImagePreviews((prev) => [...prev, previewUrl]);
+  };
+
+  // Remove pending image
+  const handleRemovePendingImage = (index: number) => {
+    // Revoke preview URL to free memory
+    URL.revokeObjectURL(pendingImagePreviews[index]);
+
+    setPendingImages((prev) => prev.filter((_, i) => i !== index));
+    setPendingImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Save all pending images with integrated media system
+  const handleSaveImages = async () => {
+    if (pendingImages.length === 0) {
+      alert("저장할 이미지가 없습니다.");
+      return;
+    }
+
+    setIsUploadingImages(true);
+    let successCount = 0;
+    const failedFiles: string[] = [];
+    const uploadedImageIds: string[] = [];
+
+    try {
+      for (let i = 0; i < pendingImages.length; i++) {
+        const file = pendingImages[i];
+
+        try {
+          // Step 1: Request upload URL from integrated media system
+          const uploadUrlResponse = await fetch("/api/media/images/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entityType: "EQUIPMENT",
+              entityId: "temp", // 임시 ID (생성시에는 실제 ID를 모름)
+            }),
+          });
+
+          if (!uploadUrlResponse.ok) {
+            const error = await uploadUrlResponse.json();
+            throw new Error(error.error || "Failed to get upload URL");
+          }
+
+          const { uploadURL, id } = await uploadUrlResponse.json();
+
+          // Step 2: Upload directly to Cloudflare
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const cloudflareResponse = await fetch(uploadURL, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!cloudflareResponse.ok) {
+            throw new Error("Failed to upload to Cloudflare");
+          }
+
+          uploadedImageIds.push(id);
+          successCount++;
+        } catch (error: any) {
+          console.error(`${file.name} upload failed:`, error);
+          failedFiles.push(file.name);
+        }
+      }
+
+      // Show result message
+      let message = "";
+      if (successCount > 0) {
+        message = `${successCount}개의 이미지가 성공적으로 준비되었습니다.`;
+      }
+      if (failedFiles.length > 0) {
+        message += `\n\n실패한 파일 (${
+          failedFiles.length
+        }개): ${failedFiles.join(", ")}`;
+      }
+
+      if (successCount > 0) {
+        alert(message);
+        // Clear pending images
+        setPendingImages([]);
+        pendingImagePreviews.forEach((url) => URL.revokeObjectURL(url));
+        setPendingImagePreviews([]);
+        
+        // Store uploaded image IDs for form submission
+        setUploadedImageIds(uploadedImageIds);
+      } else {
+        alert("모든 이미지 업로드에 실패했습니다.");
+      }
+    } catch (error: any) {
+      console.error("Image upload failed:", error);
+      alert("이미지 업로드 중 오류가 발생했습니다.");
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  // Cancel pending images
+  const handleCancelPendingImages = () => {
+    // Revoke all preview URLs to free memory
+    pendingImagePreviews.forEach((url) => URL.revokeObjectURL(url));
+    setPendingImages([]);
+    setPendingImagePreviews([]);
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedGroupId || primaryValues.length === 0) {
+      alert("그룹과 최소 하나의 값을 입력해주세요.");
+      return;
+    }
+
+    try {
+      // Get current user session for image upload
+      const sessionResponse = await fetch("/api/auth/session");
+      const session = await sessionResponse.json();
+
+      const equipmentData = {
+        groupId: selectedGroupId,
+        brandId: selectedBrandId || undefined,
+        primaryValues,
+        primaryUnit,
+        secondaryValue: secondaryValue || undefined,
+        secondaryUnit: secondaryUnit || undefined,
+        description: description || undefined,
+        model: model || undefined,
+        images: uploadedImageIds.map((cloudflareId) => ({
+          cloudflareId,
+          uploadedById: session.id,
+        })),
+      };
+
+      await createEquipments(equipmentData);
+
+      alert("장비가 성공적으로 생성되었습니다!");
+      router.push(`/manager/centers/${centerId}/equipments`);
+    } catch (error) {
+      console.error("Failed to create equipment:", error);
+      alert("장비 생성에 실패했습니다.");
+    }
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <h1 className="text-2xl font-bold mb-6">새 장비 등록</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Equipment Group */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">장비 그룹 *</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              onClick={() => setIsGroupModalOpen(true)}
+            >
+              그룹 추가
+            </button>
+          </label>
+          <select
+            className="select select-bordered w-full"
+            value={selectedGroupId}
+            onChange={(e) => setSelectedGroupId(e.target.value)}
+            required
+          >
+            <option value="">그룹을 선택하세요</option>
+            {groups?.map((group: any) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+                {group.description && ` - ${group.description}`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Equipment Brand */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">브랜드</span>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              onClick={() => setIsBrandModalOpen(true)}
+            >
+              브랜드 추가
+            </button>
+          </label>
+          <select
+            className="select select-bordered w-full"
+            value={selectedBrandId}
+            onChange={(e) => setSelectedBrandId(e.target.value)}
+          >
+            <option value="">브랜드 선택 (선택사항)</option>
+            {brands?.map((brand: any) => (
+              <option key={brand.id} value={brand.id}>
+                {brand.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Primary Values - Tag Input */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">
+              값 입력 (입력후 Enter 또는 Space를 누르면 추가됩니다.)
+            </span>
+          </label>
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              className="input input-bordered flex-1"
+              value={primaryValueInput}
+              onChange={(e) => setPrimaryValueInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="값을 입력하고 Enter 또는 Space를 누르세요"
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleAddPrimaryValue}
+            >
+              <Plus className="w-4 h-4" />
+              추가
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {primaryValues.map((value) => (
+              <div key={value} className="badge badge-lg gap-2">
+                <span>{value}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemovePrimaryValue(value)}
+                  className="text-error"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Primary Unit */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">단위 *</span>
+          </label>
+          <input
+            type="text"
+            className="input input-bordered w-full"
+            value={primaryUnit}
+            onChange={(e) => setPrimaryUnit(e.target.value)}
+            placeholder="예: kg, lbs, 개"
+            required
+          />
+        </div>
+
+        {/* Secondary Value & Unit */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">부가 값</span>
+            </label>
+            <input
+              type="text"
+              className="input input-bordered w-full"
+              value={secondaryValue}
+              onChange={(e) => setSecondaryValue(e.target.value)}
+              placeholder="예: 30"
+            />
+          </div>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">부가 단위</span>
+            </label>
+            <input
+              type="text"
+              className="input input-bordered w-full"
+              value={secondaryUnit}
+              onChange={(e) => setSecondaryUnit(e.target.value)}
+              placeholder="예: cm, inch"
+            />
+          </div>
+        </div>
+
+        {/* Model */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">모델명</span>
+          </label>
+          <input
+            type="text"
+            className="input input-bordered w-full"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="모델명 (선택사항)"
+          />
+        </div>
+
+        {/* Description */}
+        <div className="form-control">
+          <label className="label">
+            <span className="label-text">설명</span>
+          </label>
+          <textarea
+            className="textarea textarea-bordered w-full"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="장비에 대한 설명 (선택사항)"
+            rows={3}
+          />
+        </div>
+
+        {/* Image Upload */}
+        <div className="form-control">
+          <div className="flex items-center justify-between mb-2">
+            <label className="label">
+              <span className="label-text">
+                이미지 ({uploadedImageIds.length + pendingImages.length}/3)
+              </span>
+            </label>
+            {pendingImages.length > 0 && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancelPendingImages}
+                  disabled={isUploadingImages}
+                  className="btn btn-sm btn-ghost"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveImages}
+                  disabled={isUploadingImages}
+                  className="btn btn-sm btn-primary"
+                >
+                  {isUploadingImages ? (
+                    <>
+                      <span className="loading loading-spinner loading-xs"></span>
+                      업로드 중...
+                    </>
+                  ) : (
+                    `업로드 (${pendingImages.length}개)`
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            {/* Uploaded images */}
+            {uploadedImageIds.map((imageId) => (
+              <div key={imageId} className="relative">
+                <Image
+                  src={getOptimizedImageUrl(imageId, "thumbnail")}
+                  alt="Equipment"
+                  width={128}
+                  height={128}
+                  className="w-full h-32 object-cover rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadedImageIds(uploadedImageIds.filter((id) => id !== imageId));
+                  }}
+                  className="absolute top-2 right-2 btn btn-circle btn-xs btn-error"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+
+            {/* Pending images (preview only) */}
+            {pendingImages.map((_, index) => (
+              <div key={`pending-${index}`} className="relative">
+                <Image
+                  src={pendingImagePreviews[index]}
+                  alt="Pending upload"
+                  width={128}
+                  height={128}
+                  className="w-full h-32 object-cover rounded-lg border-2 border-dashed border-blue-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemovePendingImage(index)}
+                  disabled={isUploadingImages}
+                  className="absolute top-2 right-2 btn btn-circle btn-xs btn-warning"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+                <div className="absolute bottom-1 left-1 right-1">
+                  <div className="bg-blue-500 bg-opacity-90 text-white text-xs px-2 py-1 rounded text-center">
+                    미저장
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Add new image button */}
+            {uploadedImageIds.length + pendingImages.length < 3 && (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg h-32">
+                <label className="cursor-pointer w-full h-full flex items-center justify-center">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      files.forEach((file) => handleAddImage(file));
+                      // Reset input
+                      e.target.value = "";
+                    }}
+                    disabled={isUploadingImages}
+                  />
+                  <div className="text-center">
+                    <Plus className="w-8 h-8 mx-auto text-gray-400" />
+                    <span className="text-sm text-gray-500">이미지 추가</span>
+                  </div>
+                </label>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Submit Buttons */}
+        <div className="flex gap-4">
+          <button
+            type="submit"
+            className="btn btn-primary flex-1"
+            disabled={isMutating}
+          >
+            {isMutating ? (
+              <span className="loading loading-spinner"></span>
+            ) : (
+              "장비 생성"
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => router.back()}
+          >
+            취소
+          </button>
+        </div>
+      </form>
+
+      {/* Modals */}
+      <AddGroupModal
+        isOpen={isGroupModalOpen}
+        onClose={() => setIsGroupModalOpen(false)}
+        onSuccess={() => {
+          mutateGroups(); // 그룹 목록 새로고침
+        }}
+      />
+      
+      <AddBrandModal
+        isOpen={isBrandModalOpen}
+        onClose={() => setIsBrandModalOpen(false)}
+        onSuccess={() => {
+          mutateBrands(); // 브랜드 목록 새로고침
+        }}
+      />
+    </div>
+  );
+}

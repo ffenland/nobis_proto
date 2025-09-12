@@ -79,6 +79,22 @@ const PtProductDetailPage = async (props: { params: Params }) => {
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">
+                    유효 기간
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {product.expiration_period}일
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
+                    인센티브
+                  </dt>
+                  <dd className="text-lg font-semibold text-gray-900">
+                    {product.incentivePercent}%
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">
                     판매 상태
                   </dt>
                   <dd>
@@ -141,20 +157,33 @@ const PtProductDetailPage = async (props: { params: Params }) => {
                   {product.trainers.map((trainer) => (
                     <div
                       key={trainer.id}
-                      className="p-3 border border-gray-200 rounded-lg"
+                      className="p-4 border border-gray-200 rounded-lg"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-sm font-medium">
                             {trainer.username[0]}
                           </span>
                         </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">
-                            {trainer.username}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-gray-900">
+                              {trainer.username}
+                            </div>
+                            <Badge variant="default" className="text-xs">
+                              {trainer.level}
+                            </Badge>
+                            {!trainer.working && (
+                              <Badge variant="default" className="text-xs bg-red-100 text-red-700">
+                                휴무
+                              </Badge>
+                            )}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-600 mt-1">
                             {trainer.introduce}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {trainer.centerName} · {trainer.email}
                           </div>
                         </div>
                       </div>
@@ -196,10 +225,27 @@ const PtProductDetailPage = async (props: { params: Params }) => {
                 </dd>
               </div>
               <div>
+                <dt className="text-sm font-medium text-gray-500">거절됨</dt>
+                <dd className="text-2xl font-bold text-red-600">
+                  {product.stats.rejectedPt}개
+                </dd>
+              </div>
+              <div>
                 <dt className="text-sm font-medium text-gray-500">완료</dt>
                 <dd className="text-2xl font-bold text-blue-600">
-                  {product.stats.completedPt}개
+                  {product.stats.finishedPt}개
                 </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">
+                  실제 진행중
+                </dt>
+                <dd className="text-lg font-semibold text-gray-600">
+                  {product.stats.activePt}개
+                </dd>
+                <p className="text-xs text-gray-500 mt-1">
+                  (수업 기록이 있는 PT)
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -210,11 +256,17 @@ const PtProductDetailPage = async (props: { params: Params }) => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <dt className="text-sm font-medium text-gray-500">총 매출</dt>
+                <dt className="text-sm font-medium text-gray-500">확정 매출</dt>
                 <dd className="text-2xl font-bold text-gray-900">
-                  {(product.stats.confirmedPt * product.price).toLocaleString()}
+                  {(
+                    (product.stats.confirmedPt + product.stats.finishedPt) *
+                    product.price
+                  ).toLocaleString()}
                   원
                 </dd>
+                <p className="text-xs text-gray-500 mt-1">
+                  (진행중 + 완료 PT)
+                </p>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">예상 매출</dt>
@@ -222,6 +274,23 @@ const PtProductDetailPage = async (props: { params: Params }) => {
                   {(product.stats.pendingPt * product.price).toLocaleString()}원
                 </dd>
                 <p className="text-xs text-gray-500 mt-1">(승인 대기중 기준)</p>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-gray-500">
+                  트레이너 인센티브
+                </dt>
+                <dd className="text-lg font-semibold text-gray-600">
+                  {(
+                    ((product.stats.confirmedPt + product.stats.finishedPt) *
+                      product.price *
+                      product.incentivePercent) /
+                    100
+                  ).toLocaleString()}
+                  원
+                </dd>
+                <p className="text-xs text-gray-500 mt-1">
+                  ({product.incentivePercent}% 기준)
+                </p>
               </div>
             </CardContent>
           </Card>

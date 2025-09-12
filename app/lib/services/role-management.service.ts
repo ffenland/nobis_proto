@@ -61,7 +61,6 @@ export async function searchUserByUsername(username: string) {
       managerProfile: {
         select: {
           id: true,
-          fitnessCenterId: true,
         },
       },
     },
@@ -135,7 +134,6 @@ export async function changeUserRole(
         await tx.manager.create({
           data: {
             userId,
-            fitnessCenterId,
           },
         });
       } else if (newRole === UserRole.MEMBER) {

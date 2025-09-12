@@ -7,7 +7,20 @@ import { Badge } from "@/app/components/ui/Loading";
 import type { FreeExercise } from "@/app/services/exercise/exercise.service";
 import type { Equipment } from "@/app/services/fitness-center/equipment.service";
 import { getEquipmentDisplayTitle, sortEquipmentByCategory } from "@/app/lib/utils/equipment.utils";
-import { RecordedExerciseState } from "./page";
+// Form 데이터 타입
+interface FreeFormData {
+  type: "FREE";
+  title: string;
+  description?: string;
+  isCustomExercise: boolean;
+  freeExerciseId?: string;
+  customExerciseName?: string;
+  customExerciseDescription?: string;
+  sets: Array<{
+    reps: number;
+    equipmentIds: string[];
+  }>;
+}
 
 // FreeSetRecord 구조 - schema.prisma와 일치
 interface SetRecord {
@@ -17,7 +30,7 @@ interface SetRecord {
 }
 
 interface FreeRecordFormProps {
-  onComplete: (data: RecordedExerciseState) => void;
+  onComplete: (data: FreeFormData) => void;
   onCancel: () => void;
   nextEntry: number;
   preloadedExercises?: FreeExercise[]; // 프리로딩된 운동 데이터
@@ -141,9 +154,6 @@ export default function FreeRecordForm({
 
   // 저장
   const handleSave = () => {
-    let exerciseTitle = "";
-    let exerciseId = "";
-
     if (useCustomExercise) {
       if (!customExerciseName.trim()) {
         alert("운동 이름을 입력해주세요");
@@ -153,15 +163,11 @@ export default function FreeRecordForm({
         alert("운동 설명을 입력해주세요");
         return;
       }
-      exerciseTitle = customExerciseName;
-      exerciseId = `custom-${Date.now()}`;
     } else {
       if (!selectedExercise) {
         alert("프리 운동을 선택해주세요");
         return;
       }
-      exerciseTitle = selectedExercise.title;
-      exerciseId = selectedExercise.id;
     }
 
     // 마지막 세트 검증
@@ -171,41 +177,22 @@ export default function FreeRecordForm({
       return;
     }
 
-    // FreeSetRecord 배열 생성 - schema.prisma 구조와 일치
-    const freeSetRecords = sets.map((set, index) => ({
-      set: index + 1,
-      reps: parseInt(set.reps),
-      equipmentIds: set.equipmentIds, // 세트별 개별 장비 사용
-    }));
-
-    // 전체 운동에서 사용된 모든 장비 수집 (중복 제거)
-    const allEquipmentIds = Array.from(
-      new Set(sets.flatMap((set) => set.equipmentIds))
-    );
-    const allEquipmentNames = allEquipmentIds
-      .map((id) => preloadedEquipments.find((eq) => eq.id === id)?.title)
-      .filter((name): name is string => name !== undefined);
-
-    const exerciseData = {
-      id: `free-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-      type: "FREE" as const,
-      title: exerciseTitle,
-      entry: nextEntry,
-      details: {
-        freeExerciseId: useCustomExercise ? undefined : exerciseId,
-        isCustomExercise: useCustomExercise,
-        customExerciseName: useCustomExercise ? customExerciseName : undefined,
-        customExerciseDescription: useCustomExercise
-          ? customExerciseDescription
-          : undefined,
-        sets: freeSetRecords,
-        equipmentIds: allEquipmentIds, // 전체 운동에서 사용된 모든 장비
-        equipmentNames: allEquipmentNames, // 장비 이름들
-        description,
-      },
+    // FreeFormData 구조로 생성
+    const formData: FreeFormData = {
+      type: "FREE",
+      title: useCustomExercise ? customExerciseName : selectedExercise!.title,
+      description: description || undefined,
+      isCustomExercise: useCustomExercise,
+      freeExerciseId: useCustomExercise ? undefined : selectedExercise!.id,
+      customExerciseName: useCustomExercise ? customExerciseName : undefined,
+      customExerciseDescription: useCustomExercise ? customExerciseDescription : undefined,
+      sets: sets.map((set) => ({
+        reps: parseInt(set.reps),
+        equipmentIds: set.equipmentIds,
+      })),
     };
 
-    onComplete(exerciseData);
+    onComplete(formData);
   };
 
   return (

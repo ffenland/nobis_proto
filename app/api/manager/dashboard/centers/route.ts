@@ -1,25 +1,32 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
-import { getManagerDashboardCenters } from "@/app/services/manager/dashboard.service";
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import { getManagerCenters } from "@/app/services/mananger/dashboard.service";
 
 export async function GET() {
   try {
-    const session = await getSession();
-    
-    if (!session || !session.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 세션 확인
+    const sessionOrResponse = await getSessionOrReturn401();
+
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
     }
-    
-    if (session.role !== "MANAGER") {
-      return NextResponse.json({ error: "Manager role required" }, { status: 403 });
+
+    // 매니저 권한 확인
+    if (sessionOrResponse.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "매니저 권한이 필요합니다." },
+        { status: 403 }
+      );
     }
-    
-    const centersData = await getManagerDashboardCenters(session.roleId);
-    return NextResponse.json(centersData);
+
+    // 매니저가 관리하는 센터 목록 조회
+    const managerCenters = await getManagerCenters(sessionOrResponse.roleId);
+
+    return NextResponse.json(managerCenters);
   } catch (error) {
-    console.error("Manager dashboard centers API error:", error);
+    console.error("Get manager centers API error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "센터 목록을 불러오는 중 오류가 발생했습니다." },
       { status: 500 }
     );
   }

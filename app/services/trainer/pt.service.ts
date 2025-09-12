@@ -36,6 +36,9 @@ export async function getTrainerPtList(trainerId: string) {
         },
       },
       lessons: {
+        where: {
+          isCanceled: false, // 취소되지 않은 레슨만 조회
+        },
         select: {
           id: true,
           scheduledAt: true,
@@ -82,6 +85,9 @@ export async function getTrainerPtList(trainerId: string) {
         },
       },
       lessons: {
+        where: {
+          isCanceled: false, // 취소되지 않은 레슨만 조회
+        },
         select: {
           scheduledAt: true,
         },
@@ -246,6 +252,9 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
         },
       },
       lessons: {
+        where: {
+          isCanceled: false, // 취소되지 않은 레슨만 조회
+        },
         select: {
           id: true,
           memo: true,
@@ -480,48 +489,23 @@ export async function getTrainerPendingPts(trainerId: string) {
   return pendingPts;
 }
 
-// PT 승인 처리
-export async function approvePt(ptId: string, trainerId: string) {
-  // 권한 확인을 위해 trainerId도 조건에 포함
-  const updatedPt = await prisma.pt.update({
-    where: {
-      id: ptId,
-      trainerId, // 해당 트레이너의 PT만 승인 가능
-    },
-    data: {
-      state: PtState.CONFIRMED,
-    },
-    select: {
-      id: true,
-      state: true,
-      member: {
-        select: {
-          user: {
-            select: {
-              username: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return updatedPt;
-}
-
 // PT 거절 처리
-export async function rejectPt(ptId: string, trainerId: string, reason: string) {
+export async function rejectPt(
+  ptId: string,
+  trainerId: string,
+  reason: string
+) {
   // KST 시간 생성 (한국 시간 기준)
   const now = new Date();
-  const kstTime = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-  
+  const kstTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+
   // "2025년 01월 15일 14시 30분" 형식으로 변환
   const year = kstTime.getFullYear();
-  const month = String(kstTime.getMonth() + 1).padStart(2, '0');
-  const day = String(kstTime.getDate()).padStart(2, '0');
-  const hours = String(kstTime.getHours()).padStart(2, '0');
-  const minutes = String(kstTime.getMinutes()).padStart(2, '0');
-  
+  const month = String(kstTime.getMonth() + 1).padStart(2, "0");
+  const day = String(kstTime.getDate()).padStart(2, "0");
+  const hours = String(kstTime.getHours()).padStart(2, "0");
+  const minutes = String(kstTime.getMinutes()).padStart(2, "0");
+
   const schedule = `${year}년 ${month}월 ${day}일 ${hours}시 ${minutes}분`;
 
   // 트랜잭션으로 PT 상태 변경과 거절 정보 생성을 동시에 처리
@@ -534,6 +518,7 @@ export async function rejectPt(ptId: string, trainerId: string, reason: string) 
       },
       data: {
         state: PtState.REJECTED,
+        stateUpdatedAt: new Date(),
       },
       select: {
         id: true,
@@ -565,7 +550,254 @@ export async function rejectPt(ptId: string, trainerId: string, reason: string) 
   return result;
 }
 
+// ===== PT 승인과 레슨 생성 관련 =====
+
+// 레슨 생성 입력 타입 (lesson.service.ts에서 가져옴)
+export type CreateLessonInput = {
+  scheduledAt: string; // ISO 8601 DateTime 문자열
+  endAt: string; // ISO 8601 DateTime 문자열
+  memo?: string;
+};
+
+// 트레이너 수업 충돌 검사 함수 (lesson.service.ts에서 가져옴)
+async function checkTrainerLessonConflict(
+  trainerId: string,
+  scheduledAt: Date,
+  endAt: Date
+) {
+  const startOfDay = new Date(scheduledAt);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(endAt);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const conflicts = await prisma.lesson.findMany({
+    where: {
+      pt: {
+        trainerId,
+        state: PtState.CONFIRMED, // CONFIRMED PT의 레슨들만 충돌 체크
+      },
+      scheduledAt: {
+        gte: startOfDay,
+        lte: endOfDay,
+      },
+      isCanceled: false, // 취소되지 않은 레슨만 충돌 체크
+    },
+    select: {
+      id: true,
+      scheduledAt: true,
+      endAt: true,
+      pt: {
+        select: {
+          member: {
+            select: {
+              user: {
+                select: {
+                  username: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // 시간 겹침 체크
+  return conflicts
+    .filter((lesson) => {
+      const lessonStart = lesson.scheduledAt;
+      const lessonEnd = lesson.endAt;
+
+      // 새 수업이 기존 수업과 겹치는지 확인
+      return (
+        (scheduledAt >= lessonStart && scheduledAt < lessonEnd) || // 시작시간이 기존 수업 중간에
+        (endAt > lessonStart && endAt <= lessonEnd) || // 끝시간이 기존 수업 중간에
+        (scheduledAt <= lessonStart && endAt >= lessonEnd) // 기존 수업을 완전히 포함
+      );
+    })
+    .map((lesson) => ({
+      id: lesson.id,
+      startTime: lesson.scheduledAt.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      endTime: lesson.endAt.toLocaleTimeString("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      memberName: lesson.pt?.member?.user.username || "알 수 없음",
+    }));
+}
+
+// PT 승인과 첫 레슨 생성을 동시에 처리하는 함수
+export async function createLessonWithPtApproval(
+  trainerId: string,
+  ptId: string,
+  lessonData: CreateLessonInput
+) {
+  try {
+    // 사전 PT 확인 (트레이너 센터 정보 필요)
+    const ptInfo = await prisma.pt.findUnique({
+      where: {
+        id: ptId,
+        trainerId: trainerId,
+        state: PtState.PENDING,
+      },
+      select: {
+        id: true,
+        trainer: {
+          select: {
+            fitnessCenterId: true,
+          },
+        },
+      },
+    });
+
+    if (!ptInfo || !ptInfo.trainer?.fitnessCenterId) {
+      return {
+        success: false,
+        message: "해당 PT를 찾을 수 없거나 트레이너의 센터 정보가 없습니다.",
+      };
+    }
+
+    // 시간 파싱
+    const scheduledAt = new Date(lessonData.scheduledAt);
+    const endAt = new Date(lessonData.endAt);
+
+    // 안전장치: 간단한 스케줄 체크 (레이스 컨디션 방지)
+    const conflictingLessons = await checkTrainerLessonConflict(
+      trainerId,
+      scheduledAt,
+      endAt
+    );
+
+    if (conflictingLessons.length > 0) {
+      const firstConflict = conflictingLessons[0];
+      const message = `선택하신 날짜에 ${firstConflict.startTime}부터 ${firstConflict.endTime}까지 ${firstConflict.memberName}님과의 수업이 있습니다.`;
+
+      return {
+        success: false,
+        message: message,
+      };
+    }
+
+    // 트랜잭션으로 PT 승인과 레슨 생성을 원자적으로 처리
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. PT 확인 및 승인
+      const pt = await tx.pt.findUnique({
+        where: {
+          id: ptId,
+          trainerId: trainerId,
+          state: PtState.PENDING, // PENDING 상태의 PT만 승인 가능
+        },
+        select: {
+          id: true,
+          startDate: true,
+          trainer: {
+            select: {
+              fitnessCenterId: true,
+            },
+          },
+          ptProduct: {
+            select: {
+              expiration_period: true,
+            },
+          },
+        },
+      });
+
+      if (!pt) {
+        throw new Error("해당 PT를 찾을 수 없거나 이미 처리되었습니다.");
+      }
+
+      if (!pt.trainer?.fitnessCenterId) {
+        throw new Error("트레이너의 센터 정보가 없습니다.");
+      }
+
+      // 2. PT 승인 (PENDING → CONFIRMED)
+      const expirationDate = new Date();
+      expirationDate.setDate(
+        expirationDate.getDate() + pt.ptProduct.expiration_period
+      );
+      const approvedPt = await tx.pt.update({
+        where: { id: ptId },
+        data: {
+          state: PtState.CONFIRMED,
+          stateUpdatedAt: new Date(),
+          expirationDate,
+        },
+        select: {
+          id: true,
+          state: true,
+          member: {
+            select: {
+              user: {
+                select: {
+                  username: true,
+                },
+              },
+            },
+          },
+          ptProduct: {
+            select: {
+              title: true,
+            },
+          },
+        },
+      });
+
+      // 3. 첫 레슨 생성 (중복 체크는 이미 트랜잭션 밖에서 완료됨)
+      const lesson = await tx.lesson.create({
+        data: {
+          ptId: ptId,
+          scheduledAt: scheduledAt,
+          endAt: endAt,
+          fitnessCenterId: ptInfo.trainer!.fitnessCenterId!,
+          memo: lessonData.memo || "",
+        },
+        select: {
+          id: true,
+          scheduledAt: true,
+          endAt: true,
+          memo: true,
+        },
+      });
+
+      return {
+        pt: approvedPt,
+        lesson: lesson,
+      };
+    });
+
+    return {
+      success: true,
+      ptId: result.pt.id,
+      lessonId: result.lesson.id,
+      message: `${result.pt.member?.user.username}님의 ${result.pt.ptProduct.title} PT가 승인되고 첫 수업이 등록되었습니다.`,
+      data: {
+        pt: result.pt,
+        lesson: result.lesson,
+      },
+    };
+  } catch (error) {
+    console.error("Create lesson with PT approval error:", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "PT 승인 및 레슨 생성 중 오류가 발생했습니다.";
+    return {
+      success: false,
+      message: errorMessage,
+    };
+  }
+}
+
 // Pending PT 관련 타입 추론
-export type GetTrainerPendingPtsResult = Awaited<ReturnType<typeof getTrainerPendingPts>>;
-export type ApprovePtResult = Awaited<ReturnType<typeof approvePt>>;
+export type GetTrainerPendingPtsResult = Awaited<
+  ReturnType<typeof getTrainerPendingPts>
+>;
 export type RejectPtResult = Awaited<ReturnType<typeof rejectPt>>;
+export type CreateLessonWithPtApprovalResult = Awaited<
+  ReturnType<typeof createLessonWithPtApproval>
+>;
