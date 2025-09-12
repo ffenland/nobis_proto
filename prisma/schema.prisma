@@ -36,6 +36,7 @@ model User {
   updatedAt                DateTime                @updatedAt
   username                 String
   email                    String                  @unique
+  password                 String?
   naverId                  String?                 @unique
   kakaoId                  String?                 @unique
   mobile                   String                  @unique

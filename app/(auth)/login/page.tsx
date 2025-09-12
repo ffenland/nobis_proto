@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import LoginClient from "../legacy/LoginClient";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -78,6 +79,9 @@ const Login = async ({ searchParams }: { searchParams: SearchParams }) => {
               </div>
             </Link> */}
           </div>
+
+          {/* 비밀번호 로그인과 회원가입 */}
+          <LoginClient />
 
           {/* 에러 메시지 */}
           {error && errorMessages[error as string] && (

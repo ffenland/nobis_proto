@@ -102,7 +102,8 @@ function getCloudflareImageUrl(
 // 템플릿과 캔버스를 합성하여 하나의 이미지로 만드는 함수
 async function mergeTemplateWithCanvas(
   templatePath: string,
-  canvasDataUrl: string
+  canvasDataUrl: string,
+  containerDimensions?: { width: number; height: number }
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement("canvas");
@@ -116,18 +117,26 @@ async function mergeTemplateWithCanvas(
     // 템플릿 이미지 로드
     const templateImg = new Image();
     templateImg.onload = () => {
-      // 캔버스 크기를 템플릿 이미지 크기로 설정
-      canvas.width = templateImg.width;
-      canvas.height = templateImg.height;
-
-      // 템플릿 배경 그리기
-      ctx.drawImage(templateImg, 0, 0);
-
       // 그려진 캔버스 이미지 로드
       const drawingImg = new Image();
       drawingImg.onload = () => {
-        // 그려진 내용을 템플릿 위에 합성
-        ctx.drawImage(drawingImg, 0, 0, canvas.width, canvas.height);
+        // 컨테이너 크기 사용 (템플릿과 캔버스가 동일한 크기)
+        const targetWidth = containerDimensions?.width || 400;
+        const targetHeight = containerDimensions?.height || 368;
+        
+        // 캔버스 크기 설정
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        // 흰색 배경
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 템플릿 배경 그리기 (object-fill 방식 - 컨테이너를 완전히 채움)
+        ctx.drawImage(templateImg, 0, 0, targetWidth, targetHeight);
+
+        // 그려진 내용을 동일한 크기로 합성 
+        ctx.drawImage(drawingImg, 0, 0, targetWidth, targetHeight);
 
         // 합성된 이미지를 데이터 URL로 반환
         resolve(canvas.toDataURL("image/png"));
@@ -263,7 +272,11 @@ export default function EnhancedConditionModal({
       message: "",
     });
 
+  // 템플릿 컨테이너 크기 저장
+  const [containerDimensions, setContainerDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
   const canvasRefs = useRef<Record<string, SignatureCanvas | null>>({});
+  const templateContainerRef = useRef<HTMLDivElement | null>(null);
 
   // 기존 컨디션 데이터 조회
   const { data: existingCondition, mutate: mutateCondition } =
@@ -331,12 +344,56 @@ export default function EnhancedConditionModal({
     }
   }, [existingCondition, isOpen]);
 
-  // 모달이 열릴 때 템플릿 선택 초기화
+  // 모달이 열릴 때 템플릿 선택 초기화 및 컨테이너 크기 측정
   useEffect(() => {
     if (isOpen) {
       setSelectedTemplate(""); // 템플릿 선택 초기화
+      
+      // 컨테이너 크기 측정을 위한 타이머
+      const timer = setTimeout(() => {
+        if (templateContainerRef.current) {
+          const rect = templateContainerRef.current.getBoundingClientRect();
+          setContainerDimensions({
+            width: rect.width - 32, // padding 제외 (p-4 = 16px * 2) 
+            height: 400 - 32 // 고정 높이에서 패딩 제외 (상하 16px * 2)
+          });
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
+
+  // 반응형 크기 처리 - 윈도우 리사이즈 시 컨테이너 크기 재측정
+  useEffect(() => {
+    if (!isOpen || !templateContainerRef.current) return;
+
+    const updateContainerSize = () => {
+      if (templateContainerRef.current) {
+        const rect = templateContainerRef.current.getBoundingClientRect();
+        setContainerDimensions({
+          width: rect.width - 32,
+          height: 400 - 32 // 고정 높이에서 패딩 제외
+        });
+      }
+    };
+
+    // ResizeObserver를 사용하여 컨테이너 크기 변경 감지
+    const resizeObserver = new ResizeObserver(() => {
+      updateContainerSize();
+    });
+
+    resizeObserver.observe(templateContainerRef.current);
+
+    // 윈도우 리사이즈 이벤트도 함께 처리
+    window.addEventListener('resize', updateContainerSize);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateContainerSize);
+    };
+  }, [isOpen]);
+
 
   // 현재 선택된 템플릿 상태
   const currentTemplateState = useMemo(() => {
@@ -395,10 +452,11 @@ export default function EnhancedConditionModal({
       )?.path;
 
       if (templatePath) {
-        // 즉시 템플릿과 합성
+        // 컨테이너 크기 전달 (템플릿과 캔버스가 동일한 크기)
         const mergedImageData = await mergeTemplateWithCanvas(
           templatePath,
-          canvasData
+          canvasData,
+          containerDimensions
         );
 
         // 합성된 이미지를 메모리에 저장
@@ -423,7 +481,7 @@ export default function EnhancedConditionModal({
       console.error("Save drawing error:", error);
       alert("저장 중 오류가 발생했습니다.");
     }
-  }, [selectedTemplate, getCurrentCanvas]);
+  }, [selectedTemplate, getCurrentCanvas, containerDimensions]);
 
   // 삭제 핸들러
   const handleDelete = async (templateName: string) => {
@@ -740,7 +798,11 @@ export default function EnhancedConditionModal({
                   /* 캔버스 그리기 인터페이스 */
                   <div className="space-y-4">
                     {/* 템플릿 배경과 캔버스 */}
-                    <div className="relative bg-gray-50 rounded-lg p-4 px-5">
+                    <div 
+                      ref={templateContainerRef}
+                      className="relative bg-gray-50 rounded-lg p-4 px-5"
+                      style={{ height: "400px" }}
+                    >
                       {/* 템플릿 배경 */}
                       <div className="absolute inset-4 opacity-30">
                         <NextImage
@@ -750,26 +812,31 @@ export default function EnhancedConditionModal({
                           }
                           alt="템플릿"
                           fill
-                          className="object-contain"
+                          className="object-fill"
                         />
                       </div>
 
-                      {/* 그리기 캔버스 */}
-                      <SignatureCanvas
-                        key={selectedTemplate}
-                        ref={(ref) => {
-                          canvasRefs.current[selectedTemplate] = ref;
-                        }}
-                        canvasProps={{
-                          className:
-                            "border border-gray-300 rounded relative z-10 bg-transparent cursor-crosshair",
-                          style: { width: "100%", height: "400px" },
-                        }}
-                        backgroundColor="transparent"
-                        penColor={penColor}
-                        minWidth={penSize}
-                        maxWidth={penSize}
-                      />
+                      {/* 그리기 캔버스 - 템플릿과 정확히 일치하도록 위치 조정 */}
+                      <div className="absolute inset-4">
+                        <SignatureCanvas
+                          key={selectedTemplate}
+                          ref={(ref) => {
+                            canvasRefs.current[selectedTemplate] = ref;
+                          }}
+                          canvasProps={{
+                            className:
+                              "border border-gray-300 rounded relative z-10 bg-transparent cursor-crosshair w-full h-full",
+                            style: {
+                              width: "100%",
+                              height: "100%"
+                            },
+                          }}
+                          backgroundColor="transparent"
+                          penColor={penColor}
+                          minWidth={penSize}
+                          maxWidth={penSize}
+                        />
+                      </div>
                     </div>
 
                     {/* 펜 도구 */}
