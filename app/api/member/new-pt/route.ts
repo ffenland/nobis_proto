@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
-import { applyForPt, type PtApplicationData } from "@/app/services/member/pt/pt.service";
+import {
+  applyForPt,
+  type PtApplicationData,
+} from "@/app/services/member/pt/pt.service";
+import { getSessionOrReturn401 } from "@/app/lib/session";
 
 export async function POST(request: NextRequest) {
   try {
     // 세션 확인
-    const session = await getSession();
-    if (!session || session.role !== "MEMBER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
-    }
+    const sessionOrResponse = await getSessionOrReturn401();
 
+    // 401 응답인 경우 바로 반환
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
+    }
     // 요청 데이터 파싱
     const body = await request.json();
     const { centerId, ptProductId, trainerId, startDate, description } = body;
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     };
 
     // PT 신청 처리
-    const result = await applyForPt(session.roleId, applicationData);
+    const result = await applyForPt(sessionOrResponse.roleId, applicationData);
 
     return NextResponse.json({
       success: true,
@@ -45,10 +46,13 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("PT 신청 처리 실패:", error);
-    
+
     return NextResponse.json(
-      { 
-        error: error instanceof Error ? error.message : "PT 신청 처리 중 오류가 발생했습니다." 
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "PT 신청 처리 중 오류가 발생했습니다.",
       },
       { status: 500 }
     );

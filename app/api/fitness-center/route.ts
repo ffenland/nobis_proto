@@ -1,25 +1,20 @@
 import { NextResponse } from "next/server";
-import { getAllCentersWithStats } from "@/app/lib/services/fitness-center.service";
-import { getSession } from "@/app/lib/session";
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import { getFitnessCenters } from "@/app/lib/services/fitness-center.service";
 
-// GET: 모든 센터 목록 조회 (통계 포함)
+// GET: 운영 중인 피트니스 센터 목록 조회 (모든 role 접근 가능)
 export async function GET() {
   try {
-    const session = await getSession();
+    const sessionOrResponse = await getSessionOrReturn401();
 
-    if (!session || session.role !== "MANAGER") {
-      return NextResponse.json(
-        { error: "매니저 권한이 필요합니다." },
-        { status: 403 }
-      );
+    // 401 응답인 경우 바로 반환
+    if (sessionOrResponse instanceof NextResponse) {
+      return sessionOrResponse;
     }
 
-    const centers = await getAllCentersWithStats();
-
-    return NextResponse.json({
-      success: true,
-      data: centers,
-    });
+    // 모든 role이 접근 가능하므로 추가 권한 확인 없음
+    const centers = await getFitnessCenters();
+    return NextResponse.json(centers);
   } catch (error) {
     console.error("센터 목록 조회 오류:", error);
 

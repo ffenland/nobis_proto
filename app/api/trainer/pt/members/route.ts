@@ -1,0 +1,35 @@
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import { NextResponse } from "next/server";
+import { getMembersForPtCreation } from "@/app/services/trainer/pt.service";
+
+// PT 생성용 Member 목록 조회 및 검색
+export const GET = async (request: Request) => {
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  try {
+    const session = sessionOrResponse;
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search") || undefined;
+
+    const members = await getMembersForPtCreation(session.roleId, search);
+    return NextResponse.json(members);
+  } catch (error) {
+    console.error("Error fetching members for PT creation:", error);
+    
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "회원 목록을 불러오는 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+};

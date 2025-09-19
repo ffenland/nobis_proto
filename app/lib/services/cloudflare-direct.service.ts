@@ -1,5 +1,4 @@
 // app/lib/services/cloudflare-direct.service.ts
-import { ImageType, VideoType } from "@prisma/client";
 
 // 환경설정
 const CLOUDFLARE_CONFIG = {
@@ -380,30 +379,4 @@ export const validateFileSize = (file: File, type: "image" | "video") => {
   } else {
     return file.size <= maxVideoSize;
   }
-};
-
-// PhotoType과 VideoType 매핑
-export const getPhotoTypeFromCategory = (category: string): ImageType => {
-  const mapping: Record<string, ImageType> = {
-    profile: "PROFILE",
-    machine: "MACHINE",
-    center: "CENTER",
-    exercise: "FREE_EXERCISE",
-    stretching: "STRETCHING",
-    pt_record: "LESSON",
-    before_after: "BEFORE_AFTER",
-    achievement: "ACHIEVEMENT",
-  };
-  return mapping[category] || "EXERCISE";
-};
-
-export const getVideoTypeFromCategory = (category: string): VideoType => {
-  const mapping: Record<string, VideoType> = {
-    exercise_demo: "EXERCISE_DEMO",
-    pt_record: "LESSON",
-    form_check: "FORM_CHECK",
-    progress: "PROGRESS",
-    instruction: "INSTRUCTION",
-  };
-  return mapping[category] || "LESSON";
 };

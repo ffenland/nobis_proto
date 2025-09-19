@@ -4,12 +4,14 @@
 import { useState, useRef } from 'react';
 import Image from 'next/image';
 import useSWRMutation from 'swr/mutation';
-import { getOptimizedImageUrl, validateImageFile, createImagePreviewUrl, revokeImagePreviewUrl } from '@/app/lib/utils/media.utils';
+import { getOptimizedImageUrl, validateImageFile, createImagePreviewUrl, revokeImagePreviewUrl, EntityType } from '@/app/lib/utils/media.utils';
 
 interface ProfileImageUploadProps {
   currentImageId?: string;
   onUploadComplete?: (imageId: string) => void;
   className?: string;
+  entityType?: EntityType;
+  successMessage?: string;
 }
 
 interface UploadResponse {
@@ -19,14 +21,14 @@ interface UploadResponse {
 }
 
 // 업로드 URL 생성 함수
-async function createUploadUrl(): Promise<UploadResponse> {
+async function createUploadUrl(entityType: EntityType = EntityType.PROFILE): Promise<UploadResponse> {
   const response = await fetch('/api/media/images/upload', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      entityType: 'profile',
+      entityType,
     }),
   });
 
@@ -57,6 +59,8 @@ export default function ProfileImageUpload({
   currentImageId,
   onUploadComplete,
   className = '',
+  entityType = EntityType.PROFILE,
+  successMessage = '프로필 이미지가 업로드되었습니다',
 }: ProfileImageUploadProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -74,16 +78,16 @@ export default function ProfileImageUpload({
     'profile-image-upload',
     async (_key, { arg: file }: { arg: File }) => {
       // 1. 업로드 URL 생성
-      const { uploadURL, customId } = await createUploadUrl();
-      
+      const { uploadURL, customId } = await createUploadUrl(entityType);
+
       // 2. 이미지 업로드
       await uploadImage(file, uploadURL);
-      
+
       return customId;
     },
     {
       onSuccess: (imageId) => {
-        showToast('success', '프로필 이미지가 업로드되었습니다');
+        showToast('success', successMessage);
         onUploadComplete?.(imageId);
         setPreview(null);
       },

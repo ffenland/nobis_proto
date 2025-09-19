@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import useSWR from "swr";
-import { formatTime } from "@/app/lib/utils/time.utils";
+import { formatDateTimeKR, formatTime } from "@/app/lib/utils/time.utils";
 import type {
   GetTodayLessonsResult,
   GetWeeklyLessonsCountResult,
   GetPtStatsResult,
   GetManagerCentersResult,
-} from "@/app/services/mananger/dashboard.service";
+} from "@/app/services/manager/dashboard.service";
+import { ChevronsLeftRightEllipsis } from "lucide-react";
 
 // 데이터 페처
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -32,47 +33,18 @@ export default function ManagerDashboardPage() {
   const { data: managerCenters, error: centersError } =
     useSWR<GetManagerCentersResult>("/api/manager/dashboard/centers", fetcher);
 
-  // 센터별 통계 계산
-  const [centerStats, setCenterStats] = useState<{
-    [key: string]: {
-      title: string;
-      todayLessons: number;
-      weeklyLessons: number;
-    };
-  }>({});
+  // 오늘 레슨 필터링을 위한 선택된 센터 상태
+  const [selectedCenterId, setSelectedCenterId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (todayLessons && weeklyLessons && managerCenters) {
-      const stats: typeof centerStats = {};
-
-      // 모든 센터를 0으로 초기화
-      managerCenters.centers.forEach((center) => {
-        stats[center.id] = {
-          title: center.title,
-          todayLessons: 0,
-          weeklyLessons: 0,
-        };
-      });
-
-      // 오늘 레슨 집계
-      todayLessons.lessons.forEach((lesson) => {
-        if (stats[lesson.fitnessCenterId]) {
-          stats[lesson.fitnessCenterId].todayLessons++;
-        }
-      });
-
-      // 주간 레슨 집계
-      weeklyLessons.weeklyStats.forEach((day) => {
-        day.lessons.forEach((lesson) => {
-          if (stats[lesson.fitnessCenterId]) {
-            stats[lesson.fitnessCenterId].weeklyLessons++;
-          }
-        });
-      });
-
-      setCenterStats(stats);
+  // 필터링된 오늘 레슨 목록
+  const filteredTodayLessons = useMemo(() => {
+    if (!todayLessons || selectedCenterId === null) {
+      return todayLessons?.lessons || [];
     }
-  }, [todayLessons, weeklyLessons, managerCenters]);
+    return todayLessons.lessons.filter(
+      (lesson) => lesson.fitnessCenterId === selectedCenterId
+    );
+  }, [todayLessons, selectedCenterId]);
 
   // 로딩 상태
   if (!todayLessons || !weeklyLessons || !ptStats || !managerCenters) {
@@ -104,7 +76,7 @@ export default function ManagerDashboardPage() {
   }
 
   return (
-    <div className="container mx-auto ">
+    <div className="w-full">
       {/* 헤더 */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-2">매니저 대시보드</h1>
@@ -126,11 +98,13 @@ export default function ManagerDashboardPage() {
             </p>
             {/* 모바일 이상에서 센터별 분류 표시 */}
             <div className="hidden md:block mt-2 space-y-1">
-              {Object.entries(ptStats.newPts.centerStats).map(([centerId, stats]) => (
-                <div key={centerId} className="text-xs text-blue-500">
-                  {stats.title}: {stats.count}
-                </div>
-              ))}
+              {Object.entries(ptStats.newPts.centerStats).map(
+                ([centerId, stats]) => (
+                  <div key={centerId} className="text-xs text-blue-500">
+                    {stats.title}: {stats.count}
+                  </div>
+                )
+              )}
             </div>
           </div>
         </div>
@@ -148,11 +122,13 @@ export default function ManagerDashboardPage() {
             </p>
             {/* 모바일 이상에서 센터별 분류 표시 */}
             <div className="hidden md:block mt-2 space-y-1">
-              {Object.entries(ptStats.reRegisteredPts.centerStats).map(([centerId, stats]) => (
-                <div key={centerId} className="text-xs text-green-500">
-                  {stats.title}: {stats.count}
-                </div>
-              ))}
+              {Object.entries(ptStats.reRegisteredPts.centerStats).map(
+                ([centerId, stats]) => (
+                  <div key={centerId} className="text-xs text-green-500">
+                    {stats.title}: {stats.count}
+                  </div>
+                )
+              )}
             </div>
           </div>
         </div>
@@ -170,54 +146,14 @@ export default function ManagerDashboardPage() {
             </p>
             {/* 모바일 이상에서 센터별 분류 표시 */}
             <div className="hidden md:block mt-2 space-y-1">
-              {Object.entries(ptStats.endingSoonPts.centerStats).map(([centerId, stats]) => (
-                <div key={centerId} className="text-xs text-amber-500">
-                  {stats.title}: {stats.count}
-                </div>
-              ))}
+              {Object.entries(ptStats.endingSoonPts.centerStats).map(
+                ([centerId, stats]) => (
+                  <div key={centerId} className="text-xs text-amber-500">
+                    {stats.title}: {stats.count}
+                  </div>
+                )
+              )}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 센터별 통계 */}
-      <div className="card bg-base-100 shadow-xl mb-8">
-        <div className="card-body">
-          <h2 className="card-title mb-4">센터별 운영 현황</h2>
-          <div className="overflow-x-auto">
-            <table className="table table-zebra">
-              <thead>
-                <tr>
-                  <th>센터명</th>
-                  <th className="text-center">오늘 레슨</th>
-                  <th className="text-center">주간 레슨</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(centerStats).map(([centerId, stats]) => (
-                  <tr key={centerId}>
-                    <td className="font-medium">{stats.title}</td>
-                    <td className="text-center">
-                      <span className="badge badge-primary">
-                        {stats.todayLessons}
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      <span className="badge badge-secondary">
-                        {stats.weeklyLessons}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {Object.keys(centerStats).length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="text-center text-gray-500">
-                      센터 데이터가 없습니다
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
@@ -227,14 +163,43 @@ export default function ManagerDashboardPage() {
         {/* 오늘 레슨 목록 */}
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body">
-            <h2 className="card-title mb-4">
-              오늘의 레슨
-              <span className="badge badge-info">
-                {todayLessons.lessons.length}
-              </span>
-            </h2>
+            <div className="flex flex-col  mb-4">
+              <h2 className="card-title">
+                오늘의 레슨
+                <span className="badge badge-info">
+                  {filteredTodayLessons.length}
+                </span>
+              </h2>
+              {/* 센터별 필터 버튼 */}
+              <div className="flex flex-wrap gap-1 mt-2 md:mt-0 overflow-y-auto">
+                <button
+                  onClick={() => setSelectedCenterId(null)}
+                  className={`btn btn-xs ${
+                    selectedCenterId === null
+                      ? "btn-primary"
+                      : "btn-outline btn-primary"
+                  }`}
+                >
+                  전체
+                </button>
+                {managerCenters?.centers.map((center) => (
+                  <button
+                    key={center.id}
+                    onClick={() => setSelectedCenterId(center.id)}
+                    className={`btn btn-xs ${
+                      selectedCenterId === center.id
+                        ? "btn-primary"
+                        : "btn-outline btn-primary"
+                    } box-content max-w-28 truncate`}
+                    title={center.title}
+                  >
+                    {center.title}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {todayLessons.lessons.map((lesson) => (
+              {filteredTodayLessons.map((lesson) => (
                 <div
                   key={lesson.id}
                   className="border-l-4 border-blue-500 pl-3 py-2 bg-gray-50"
@@ -271,9 +236,11 @@ export default function ManagerDashboardPage() {
                   </div>
                 </div>
               ))}
-              {todayLessons.lessons.length === 0 && (
+              {filteredTodayLessons.length === 0 && (
                 <p className="text-center text-gray-500 py-4">
-                  오늘 예정된 레슨이 없습니다
+                  {selectedCenterId === null
+                    ? "오늘 예정된 레슨이 없습니다"
+                    : "선택된 센터에 오늘 예정된 레슨이 없습니다"}
                 </p>
               )}
             </div>
@@ -285,44 +252,84 @@ export default function ManagerDashboardPage() {
           <div className="card-body">
             <h2 className="card-title mb-4">주간 일정 요약</h2>
             <div className="space-y-2">
-              {weeklyLessons.weeklyStats.map((day, index) => (
-                <div
-                  key={index}
-                  className={`flex justify-between items-center p-3 rounded-lg ${
-                    day.isToday
-                      ? "bg-blue-100 border border-blue-300"
-                      : "bg-gray-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`font-semibold ${
-                        day.isToday ? "text-blue-700" : ""
-                      }`}
-                    >
-                      {day.month}/{day.date} ({day.day})
-                    </span>
-                    {day.isToday && (
-                      <span className="badge badge-primary badge-sm">오늘</span>
+              {weeklyLessons.weeklyStats.map((day, index) => {
+                // 센터별 레슨 수 계산
+                const centerLessonCounts: {
+                  [key: string]: { title: string; count: number };
+                } = {};
+
+                day.lessons.forEach((lesson) => {
+                  if (!centerLessonCounts[lesson.fitnessCenterId]) {
+                    centerLessonCounts[lesson.fitnessCenterId] = {
+                      title: lesson.fitnessCenterTitle,
+                      count: 0,
+                    };
+                  }
+                  centerLessonCounts[lesson.fitnessCenterId].count++;
+                });
+
+                return (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-lg ${
+                      day.isToday
+                        ? "bg-blue-100 border border-blue-300"
+                        : "bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-semibold ${
+                            day.isToday ? "text-blue-700" : ""
+                          }`}
+                        >
+                          {day.month}/{day.date} ({day.day})
+                        </span>
+                        {day.isToday && (
+                          <span className="badge badge-primary badge-sm">
+                            오늘
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold">
+                          {day.lessonCount}
+                        </span>
+                        <span className="text-sm text-gray-600">레슨</span>
+                      </div>
+                    </div>
+
+                    {/* 센터별 구분 표시 */}
+                    {Object.keys(centerLessonCounts).length > 1 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {Object.entries(centerLessonCounts).map(
+                          ([centerId, centerData]) => (
+                            <span
+                              key={centerId}
+                              className="text-xs bg-white px-2 py-1 rounded border max-w-24 truncate"
+                              title={`${centerData.title}: ${centerData.count}레슨`}
+                            >
+                              {centerData.title}: {centerData.count}
+                            </span>
+                          )
+                        )}
+                      </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold">{day.lessonCount}</span>
-                    <span className="text-sm text-gray-600">레슨</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
 
       {/* PT 상세 정보 - 탭 형식 */}
-      <div className="card bg-base-100 shadow-xl">
+      <div className="card shadow-xl">
         <div className="card-body">
           <h2 className="card-title mb-4">PT 상세 현황</h2>
 
-          <div role="tablist" className="tabs tabs-boxed mb-4">
+          <div role="tablist" className="tabs tabs-boxed mb-4 bg-slate-300">
             <input
               type="radio"
               name="pt_tabs"
@@ -336,20 +343,21 @@ export default function ManagerDashboardPage() {
                 {ptStats.newPts.pts.slice(0, 5).map((pt) => (
                   <div
                     key={pt.id}
-                    className="flex justify-between items-center p-2 bg-blue-50 rounded"
+                    className="flex flex-col md:flex-row md:justify-between md:items-center p-2 bg-blue-50 rounded"
                   >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">
-                        {pt.memberName}
-                      </span>
-                      <span className="text-xs text-gray-600">
+                    <div className="flex gap-4">
+                      <span className="text-sm font-medium text-pink-800">
                         트레이너: {pt.trainerName}
+                      </span>
+                      <ChevronsLeftRightEllipsis />
+                      <span className="text-sm font-medium text-sky-900">
+                        회원: {pt.memberName}
                       </span>
                     </div>
                     {pt.nearestLessonAt && (
                       <span className="text-xs text-gray-600">
                         다음 레슨:{" "}
-                        {new Date(pt.nearestLessonAt).toLocaleDateString()}
+                        {formatDateTimeKR(new Date(pt.nearestLessonAt))}
                       </span>
                     )}
                   </div>
@@ -374,20 +382,21 @@ export default function ManagerDashboardPage() {
                 {ptStats.reRegisteredPts.pts.slice(0, 5).map((pt) => (
                   <div
                     key={pt.id}
-                    className="flex justify-between items-center p-2 bg-green-50 rounded"
+                    className="flex flex-col md:flex-row md:justify-between md:items-center p-2 bg-blue-50 rounded"
                   >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">
-                        {pt.memberName}
-                      </span>
-                      <span className="text-xs text-gray-600">
+                    <div className="flex gap-4">
+                      <span className="text-sm font-medium text-pink-800">
                         트레이너: {pt.trainerName}
+                      </span>
+                      <ChevronsLeftRightEllipsis />
+                      <span className="text-sm font-medium text-sky-900">
+                        회원: {pt.memberName}
                       </span>
                     </div>
                     {pt.nearestLessonAt && (
                       <span className="text-xs text-gray-600">
                         다음 레슨:{" "}
-                        {new Date(pt.nearestLessonAt).toLocaleDateString()}
+                        {formatDateTimeKR(new Date(pt.nearestLessonAt))}
                       </span>
                     )}
                   </div>
@@ -412,20 +421,21 @@ export default function ManagerDashboardPage() {
                 {ptStats.endingSoonPts.pts.slice(0, 5).map((pt) => (
                   <div
                     key={pt.id}
-                    className="flex justify-between items-center p-2 bg-amber-50 rounded"
+                    className="flex flex-col md:flex-row md:justify-between md:items-center p-2 bg-blue-50 rounded"
                   >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">
-                        {pt.memberName}
-                      </span>
-                      <span className="text-xs text-gray-600">
+                    <div className="flex gap-4">
+                      <span className="text-sm font-medium text-pink-800">
                         트레이너: {pt.trainerName}
+                      </span>
+                      <ChevronsLeftRightEllipsis />
+                      <span className="text-sm font-medium text-sky-900">
+                        회원: {pt.memberName}
                       </span>
                     </div>
                     {pt.nearestLessonAt && (
                       <span className="text-xs text-gray-600">
                         다음 레슨:{" "}
-                        {new Date(pt.nearestLessonAt).toLocaleDateString()}
+                        {formatDateTimeKR(new Date(pt.nearestLessonAt))}
                       </span>
                     )}
                   </div>

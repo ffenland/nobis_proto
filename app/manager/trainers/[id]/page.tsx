@@ -18,7 +18,7 @@ import {
   Save,
   X,
 } from "lucide-react";
-import { GetTrainerByIdResult } from "@/app/services/mananger/manager-trainer.service";
+import { GetTrainerByIdResult } from "@/app/services/manager/manager-trainer.service";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -90,6 +90,27 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
   const handleSave = async () => {
     if (!trainer) return;
 
+    // 레벨 변경 여부 확인
+    const isLevelChanging = trainer.level !== editLevel;
+
+    // 레벨 변경 시 경고 메시지
+    if (isLevelChanging) {
+      const confirmed = confirm(
+        `트레이너 레벨을 ${trainerLevelLabels[trainer.level]}에서 ${
+          trainerLevelLabels[editLevel]
+        }(으)로 변경하시겠습니까?\n\n` +
+          `⚠️ 주의: 레벨 변경 시 관련 PT 상품 연결이 자동으로 조정됩니다.\n` +
+          `- 기존 레벨(${
+            trainerLevelLabels[trainer.level]
+          }) 상품에서 제거됩니다.\n` +
+          `- 새 레벨(${trainerLevelLabels[editLevel]}) 상품에 자동 추가됩니다.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     try {
       await updateTrainer({
         level: editLevel,
@@ -98,10 +119,19 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
 
       setIsEditing(false);
       mutate(); // Refresh data
-      alert("트레이너 정보가 성공적으로 업데이트되었습니다.");
+
+      if (isLevelChanging) {
+        alert("트레이너 레벨이 변경되고 PT 상품 연결이 자동 조정되었습니다.");
+      } else {
+        alert("트레이너 정보가 성공적으로 업데이트되었습니다.");
+      }
     } catch (error) {
       console.error("Failed to update trainer:", error);
-      alert("업데이트에 실패했습니다.");
+      if (error instanceof Error) {
+        alert(`업데이트 실패: ${error.message}`);
+      } else {
+        alert("업데이트에 실패했습니다.");
+      }
     }
   };
 
@@ -264,16 +294,45 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
                     </span>
                   </label>
                   {isEditing ? (
-                    <select
-                      className="select select-bordered w-full"
-                      value={editLevel}
-                      onChange={(e) => setEditLevel(e.target.value)}
-                    >
-                      <option value="JUNIOR">주니어</option>
-                      <option value="ASSOCIATE">어소시에이트</option>
-                      <option value="SENIOR">시니어</option>
-                      <option value="MASTER">마스터</option>
-                    </select>
+                    <>
+                      <select
+                        className="select select-bordered w-full"
+                        value={editLevel}
+                        onChange={(e) => setEditLevel(e.target.value)}
+                      >
+                        <option value="JUNIOR">주니어</option>
+                        <option value="ASSOCIATE">어소시에이트</option>
+                        <option value="SENIOR">시니어</option>
+                        <option value="MASTER">마스터</option>
+                      </select>
+                      {trainer.level !== editLevel && (
+                        <div className="alert alert-warning mt-2">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="stroke-current shrink-0 h-6 w-6"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-semibold">
+                              레벨 변경 시 PT 상품 연결이 자동 조정됩니다
+                            </p>
+                            <p className="text-xs mt-1">
+                              {trainerLevelLabels[trainer.level]} →{" "}
+                              {trainerLevelLabels[editLevel]} 변경 시 관련
+                              상품이 자동으로 업데이트됩니다.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="p-3 bg-gray-50 rounded-lg">
                       <span

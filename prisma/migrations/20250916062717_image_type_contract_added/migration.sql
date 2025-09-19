@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "ImageType" ADD VALUE 'CONTRACT';
+
+-- AlterTable
+ALTER TABLE "PtProduct" ALTER COLUMN "closedAt" SET DEFAULT TIMESTAMP '2199-12-31 23:59:59';

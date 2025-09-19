@@ -76,7 +76,7 @@ interface PageLayoutProps {
 const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
   return (
     <div className="flex-1 bg-gray-50">
-      <div className="w-full md:max-w-md mx-auto py-2">{children}</div>
+      <div className="w-full  mx-auto py-2">{children}</div>
     </div>
   );
 };

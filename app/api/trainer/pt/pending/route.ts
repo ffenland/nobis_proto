@@ -1,10 +1,12 @@
 // app/api/trainer/pt/pending/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import { 
-  getTrainerPendingPts,
+import {
   rejectPt,
-  createLessonWithPtApproval 
+  createLessonWithPtApproval,
+  createPendingPt,
+  CreatePendingPtInput,
+  getTrainerAcceptingPendingPts,
 } from "@/app/services/trainer/pt.service";
 
 export async function GET() {
@@ -18,14 +20,71 @@ export async function GET() {
       );
     }
 
-    // Pending PT 목록 조회
-    const pendingPts = await getTrainerPendingPts(session.roleId);
+    // ACCEPTING, PENDING 상태 PT 목록 조회 (새로운 정렬 방식)
+    const pendingPts = await getTrainerAcceptingPendingPts(session.roleId);
 
     return NextResponse.json(pendingPts);
   } catch (error) {
     console.error("Pending PT 목록 조회 실패:", error);
     return NextResponse.json(
       { error: "Pending PT 목록을 불러올 수 없습니다." },
+      { status: 500 }
+    );
+  }
+}
+
+// POST: PENDING PT 생성 (Description 단계에서)
+export async function POST(request: NextRequest) {
+  try {
+    // 세션 확인
+    const session = await getSession();
+    if (!session || session.role !== "TRAINER") {
+      return NextResponse.json(
+        { error: "권한이 없습니다." },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { memberId, ptProductId, description, goals } = body;
+
+    // 필수 필드 검증
+    if (!memberId || !ptProductId || !description || !goals) {
+      return NextResponse.json(
+        { error: "필수 데이터가 누락되었습니다." },
+        { status: 400 }
+      );
+    }
+
+    const ptData: CreatePendingPtInput = {
+      memberId,
+      ptProductId,
+      description,
+      goals,
+    };
+
+    const result = await createPendingPt(session.roleId, ptData);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Error creating pending PT:", error);
+    
+    if (error instanceof Error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "PT 생성 중 오류가 발생했습니다." },
       { status: 500 }
     );
   }
@@ -78,7 +137,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === 'approveWithLesson') {
-      const { scheduledAt, endAt, memo } = lessonData;
+      const { scheduledAt, endAt } = lessonData;
       if (!scheduledAt || !endAt) {
         return NextResponse.json(
           { error: "레슨 일정과 종료 시간은 필수입니다." },

@@ -237,9 +237,11 @@ function validateCenterForm(formData: FormData): {
     closeTime: number;
     isClosed: boolean;
   }[] = [];
+  const processedDays = new Set<WeekDay>();
 
   for (const day of weekDays) {
     const isClosed = formData.get(`${day}_closed`) === "on";
+    let hasError = false;
 
     if (isClosed) {
       // 휴무일인 경우
@@ -249,6 +251,7 @@ function validateCenterForm(formData: FormData): {
         closeTime: 0,
         isClosed: true,
       });
+      processedDays.add(day);
     } else {
       // 영업일인 경우
       const openTime = parseInt(formData.get(`${day}_open`) as string);
@@ -256,21 +259,43 @@ function validateCenterForm(formData: FormData): {
 
       if (isNaN(openTime) || isNaN(closeTime)) {
         errors[`${day}_time`] = `${day} 영업시간을 올바르게 입력해주세요.`;
-        continue;
+        hasError = true;
+      } else {
+        // 시간 범위 검증 (0-2400)
+        if (openTime < 0 || openTime > 2400) {
+          errors[`${day}_time`] = `${day} 시작 시간은 0-2400 사이여야 합니다.`;
+          hasError = true;
+        } else if (closeTime < 0 || closeTime > 2400) {
+          errors[`${day}_time`] = `${day} 종료 시간은 0-2400 사이여야 합니다.`;
+          hasError = true;
+        } else if (openTime >= closeTime) {
+          errors[`${day}_time`] = `${day} 마감시간이 시작시간보다 늦어야 합니다.`;
+          hasError = true;
+        }
       }
 
-      if (openTime >= closeTime) {
-        errors[`${day}_time`] = `${day} 마감시간이 시작시간보다 늦어야 합니다.`;
-        continue;
+      // 에러가 없을 때만 추가
+      if (!hasError) {
+        openingHours.push({
+          dayOfWeek: day,
+          openTime,
+          closeTime,
+          isClosed: false,
+        });
+        processedDays.add(day);
       }
-
-      openingHours.push({
-        dayOfWeek: day,
-        openTime,
-        closeTime,
-        isClosed: false,
-      });
     }
+  }
+
+  // 모든 요일이 처리되었는지 확인
+  if (processedDays.size !== 7) {
+    const missingDays = weekDays.filter(day => !processedDays.has(day));
+    errors.openingHours = `다음 요일의 영업시간 정보가 누락되었습니다: ${missingDays.join(", ")}`;
+  }
+
+  // openingHours 배열이 정확히 7개인지 추가 검증
+  if (openingHours.length !== 7) {
+    errors.openingHours = `모든 요일(7개)의 영업시간 정보가 필요합니다. 현재 ${openingHours.length}개만 입력되었습니다.`;
   }
 
   if (Object.keys(errors).length > 0) {
@@ -289,6 +314,68 @@ function validateCenterForm(formData: FormData): {
   };
 }
 
+// OpeningHour를 찾거나 생성하는 헬퍼 함수
+async function findOrCreateOpeningHours(openingHours: {
+  dayOfWeek: WeekDay;
+  openTime: number;
+  closeTime: number;
+  isClosed: boolean;
+}[]): Promise<string[]> {
+  // 각 요일별로 중복 체크
+  const dayOfWeekSet = new Set(openingHours.map(h => h.dayOfWeek));
+  if (dayOfWeekSet.size !== 7 || openingHours.length !== 7) {
+    throw new Error("모든 요일(7개)에 대한 영업시간이 필요합니다.");
+  }
+
+  const openingHourIds: string[] = [];
+
+  // 각 openingHour를 순회하면서 처리
+  for (const hour of openingHours) {
+    let existingHour;
+
+    if (hour.isClosed) {
+      // 휴무일인 경우: dayOfWeek와 isClosed만으로 조회
+      existingHour = await prisma.openingHour.findFirst({
+        where: {
+          dayOfWeek: hour.dayOfWeek,
+          isClosed: true,
+        },
+        select: { id: true },
+      });
+    } else {
+      // 영업일인 경우: 4개 조건 모두로 조회
+      existingHour = await prisma.openingHour.findFirst({
+        where: {
+          dayOfWeek: hour.dayOfWeek,
+          isClosed: false,
+          openTime: hour.openTime,
+          closeTime: hour.closeTime,
+        },
+        select: { id: true },
+      });
+    }
+
+    if (existingHour) {
+      // 기존 openingHour가 존재하면 해당 ID 사용
+      openingHourIds.push(existingHour.id);
+    } else {
+      // 존재하지 않으면 새로 생성
+      const newHour = await prisma.openingHour.create({
+        data: {
+          dayOfWeek: hour.dayOfWeek,
+          openTime: hour.isClosed ? 0 : hour.openTime,
+          closeTime: hour.isClosed ? 0 : hour.closeTime,
+          isClosed: hour.isClosed,
+        },
+        select: { id: true },
+      });
+      openingHourIds.push(newHour.id);
+    }
+  }
+
+  return openingHourIds;
+}
+
 // 센터 생성 함수
 async function createCenter(data: {
   title: string;
@@ -302,54 +389,27 @@ async function createCenter(data: {
     isClosed: boolean;
   }[];
 }) {
+  // 먼저 openingHour들을 찾거나 생성
+  const openingHourIds = await findOrCreateOpeningHours(data.openingHours);
+
+  // 트랜잭션 내에서 센터 생성 및 openingHour 연결
   return await prisma.$transaction(async (tx) => {
-    // 센터 생성
+    // 센터 생성과 동시에 openingHours 연결
     const center = await tx.fitnessCenter.create({
       data: {
         title: data.title,
         address: data.address,
         phone: data.phone,
         description: data.description,
+        openingHours: {
+          connect: openingHourIds.map(id => ({ id })),
+        },
       },
       select: {
         id: true,
         title: true,
       },
     });
-
-    // 영업시간 생성
-    if (data.openingHours.length > 0) {
-      await tx.openingHour.createMany({
-        data: data.openingHours.map((hour) => ({
-          dayOfWeek: hour.dayOfWeek,
-          openTime: hour.openTime,
-          closeTime: hour.closeTime,
-          isClosed: hour.isClosed,
-        })),
-      });
-
-      // 센터와 영업시간 연결
-      const createdHours = await tx.openingHour.findMany({
-        where: {
-          OR: data.openingHours.map((h) => ({
-            dayOfWeek: h.dayOfWeek,
-            openTime: h.openTime,
-            closeTime: h.closeTime,
-            isClosed: h.isClosed,
-          })),
-        },
-        select: { id: true },
-      });
-
-      await tx.fitnessCenter.update({
-        where: { id: center.id },
-        data: {
-          openingHours: {
-            connect: createdHours.map((hour) => ({ id: hour.id })),
-          },
-        },
-      });
-    }
 
     return center;
   });
@@ -371,6 +431,12 @@ async function updateCenter(
     }[];
   }
 ) {
+  // 영업시간이 포함된 경우, 먼저 openingHour들을 찾거나 생성
+  let openingHourIds: string[] | undefined;
+  if (data.openingHours && data.openingHours.length > 0) {
+    openingHourIds = await findOrCreateOpeningHours(data.openingHours);
+  }
+
   return await prisma.$transaction(async (tx) => {
     interface IUpdateData {
       title?: string;
@@ -399,54 +465,14 @@ async function updateCenter(
     });
 
     // 영업시간 업데이트
-    if (data.openingHours && data.openingHours.length > 0) {
-      // 기존 영업시간 연결 해제
+    if (openingHourIds) {
+      // 기존 영업시간 연결 해제 후 새로운 영업시간 연결
       await tx.fitnessCenter.update({
         where: { id: centerId },
         data: {
           openingHours: {
-            set: [],
-          },
-        },
-      });
-
-      // 새로운 영업시간 생성 또는 기존 것 사용
-      const openingHourIds = await Promise.all(
-        data.openingHours.map(async (hour) => {
-          const existingHour = await tx.openingHour.findFirst({
-            where: {
-              dayOfWeek: hour.dayOfWeek,
-              openTime: hour.openTime,
-              closeTime: hour.closeTime,
-              isClosed: hour.isClosed,
-            },
-            select: { id: true },
-          });
-
-          if (existingHour) {
-            return existingHour.id;
-          }
-
-          const newHour = await tx.openingHour.create({
-            data: {
-              dayOfWeek: hour.dayOfWeek,
-              openTime: hour.openTime,
-              closeTime: hour.closeTime,
-              isClosed: hour.isClosed,
-            },
-            select: { id: true },
-          });
-
-          return newHour.id;
-        })
-      );
-
-      // 새로운 영업시간 연결
-      await tx.fitnessCenter.update({
-        where: { id: centerId },
-        data: {
-          openingHours: {
-            connect: openingHourIds.map((id) => ({ id })),
+            set: [], // 기존 연결 모두 해제
+            connect: openingHourIds.map((id) => ({ id })), // 새로운 연결
           },
         },
       });

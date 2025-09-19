@@ -15,7 +15,7 @@ import {
   XCircle,
   Award,
 } from "lucide-react";
-import { TrainerListItem } from "@/app/services/mananger/manager-trainer.service";
+import { TrainerListItem } from "@/app/services/manager/manager-trainer.service";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 

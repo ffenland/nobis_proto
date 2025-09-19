@@ -35,7 +35,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-screen`}
       >
         <SWRProvider>
-          <div className="h-full flex flex-col px-2">
+          <div className="h-full flex flex-col max-w-5xl mx-auto px-2 md:px-6">
             <GlobalHeader />
             <main className="flex-1 mx-auto w-full overflow-auto">
               {children}

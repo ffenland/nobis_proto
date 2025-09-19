@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { getManagerCenters } from "@/app/services/mananger/dashboard.service";
+import { getManagerCenters } from "@/app/services/manager/dashboard.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -29,10 +29,10 @@ export async function GET(
 
     // 매니저가 관리하는 센터 목록 조회
     const managerCenters = await getManagerCenters(sessionOrResponse.roleId);
-    
+
     // 요청된 센터가 매니저가 관리하는 센터인지 확인
-    const center = managerCenters.centers.find(c => c.id === centerId);
-    
+    const center = managerCenters.centers.find((c) => c.id === centerId);
+
     if (!center) {
       return NextResponse.json(
         { error: "해당 센터에 대한 권한이 없습니다." },

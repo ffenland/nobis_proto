@@ -17,7 +17,7 @@ import {
   UserCheck,
   UserX,
 } from "lucide-react";
-import { MemberListItem } from "@/app/services/mananger/manager-member.service";
+import { MemberListItem } from "@/app/services/manager/manager-member.service";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 

@@ -1,7 +1,10 @@
 // app/api/auth/session/route.ts
 import { NextResponse } from "next/server";
 import { getCurrentIronSession } from "@/app/lib/session";
-import { getSessionUserInfo, type SessionResponse } from "@/app/services/auth/auth.service";
+import {
+  getSessionUserInfo,
+  type SessionResponse,
+} from "@/app/services/auth/auth.service";
 
 export async function GET() {
   try {
@@ -9,26 +12,24 @@ export async function GET() {
 
     if (session.id && session.role && session.roleId) {
       // 사용자 정보 조회
-      const userInfo = await getSessionUserInfo(
-        session.id,
-        session.role,
-        session.roleId
-      );
+      const userInfo = await getSessionUserInfo(session.id);
 
       const response: SessionResponse = {
         isAuthenticated: true,
         user: userInfo,
-        roleManagementAuth: session.roleManagementAuth,
-        roleManagementAuthTime: session.roleManagementAuthTime,
+        role: session.role,
+        roleId: session.roleId,
       };
 
       return NextResponse.json(response);
     } else {
       const response: SessionResponse = {
         isAuthenticated: false,
-        user: null
+        user: null,
+        role: undefined,
+        roleId: undefined,
       };
-      
+
       return NextResponse.json(response);
     }
   } catch (error) {

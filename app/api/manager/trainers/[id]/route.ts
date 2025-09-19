@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import { getTrainerById, updateTrainer } from "@/app/services/mananger/manager-trainer.service";
+import {
+  getTrainerById,
+  updateTrainer,
+} from "@/app/services/manager/manager-trainer.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -10,7 +13,7 @@ export async function GET(
 ) {
   try {
     const session = await getSession();
-    
+
     if (!session?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -23,7 +26,7 @@ export async function GET(
     const { id } = params;
 
     const trainer = await getTrainerById(id);
-    
+
     if (!trainer) {
       return NextResponse.json({ error: "Trainer not found" }, { status: 404 });
     }
@@ -32,7 +35,7 @@ export async function GET(
   } catch (error) {
     console.error("Failed to get trainer:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" }, 
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
@@ -44,7 +47,7 @@ export async function PUT(
 ) {
   try {
     const session = await getSession();
-    
+
     if (!session?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -60,9 +63,9 @@ export async function PUT(
     const { level, fitnessCenterId } = body;
 
     // 입력 검증
-    if (level && !['JUNIOR', 'ASSOCIATE', 'SENIOR', 'MASTER'].includes(level)) {
+    if (level && !["JUNIOR", "ASSOCIATE", "SENIOR", "MASTER"].includes(level)) {
       return NextResponse.json(
-        { error: "Invalid trainer level" }, 
+        { error: "Invalid trainer level" },
         { status: 400 }
       );
     }
@@ -75,8 +78,14 @@ export async function PUT(
     return NextResponse.json(updatedTrainer);
   } catch (error) {
     console.error("Failed to update trainer:", error);
+
+    // 구체적인 에러 메시지 반환
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     return NextResponse.json(
-      { error: "Internal Server Error" }, 
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }

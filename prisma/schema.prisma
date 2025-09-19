@@ -39,7 +39,7 @@ model User {
   password                 String?
   naverId                  String?                 @unique
   kakaoId                  String?                 @unique
-  mobile                   String                  @unique
+  mobile                   String?                 @unique
   avatarImageId            String?                 @unique @db.Uuid
   avatarImage              Image?                  @relation("UserAvatar", fields: [avatarImageId], references: [id], onDelete: SetNull)
   usernameChangeCount      Int                     @default(0) // 변경 횟수
@@ -79,16 +79,17 @@ model UserData {
 }
 
 model Member {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  user            User           @relation(fields: [userId], references: [id])
-  userId          String         @unique @db.Uuid
-  pt              Pt[]
-  membership      Membership[]
-  fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId String?        @db.Uuid
-  active          Boolean        @default(true)
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id])
+  userId            String             @unique @db.Uuid
+  pt                Pt[]
+  membership        Membership[]
+  fitnessCenter     FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId   String?            @db.Uuid
+  active            Boolean            @default(true)
+  ptSurveyResponses PtSurveyResponse[]
 }
 
 model WorkingHour {
@@ -112,23 +113,24 @@ enum TrainerLevel {
 }
 
 model Trainer {
-  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  user            User             @relation(fields: [userId], references: [id])
-  userId          String           @unique @db.Uuid
-  introduce       String           @default("안녕하세요")
-  level           TrainerLevel     @default(JUNIOR)
-  group           Group?           @relation(fields: [groupId], references: [id])
-  groupId         String?          @db.Uuid
-  pt              Pt[]
-  ptProduct       PtProduct[]
-  fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
-  fitnessCenterId String?          @db.Uuid
-  trainerOff      TrainerOff[]
-  workingHours    WorkingHour[]
-  working         Boolean          @default(true)
-  auditLogs       LessonAuditLog[] // 감사 로그 관계
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id])
+  userId            String             @unique @db.Uuid
+  introduce         String             @default("안녕하세요")
+  level             TrainerLevel       @default(JUNIOR)
+  group             Group?             @relation(fields: [groupId], references: [id])
+  groupId           String?            @db.Uuid
+  pt                Pt[]
+  ptProduct         PtProduct[]
+  fitnessCenter     FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
+  fitnessCenterId   String?            @db.Uuid
+  trainerOff        TrainerOff[]
+  workingHours      WorkingHour[]
+  working           Boolean            @default(true)
+  auditLogs         LessonAuditLog[] // 감사 로그 관계
+  ptSurveyResponses PtSurveyResponse[]
 }
 
 model Manager {
@@ -162,20 +164,21 @@ model ConfigurationValue {
 }
 
 model PtProduct {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
   title             String
   price             Int
   expiration_period Int // 일(day)개념. 첫 수업일을 포함하여 수업이 가능한 날짜 수
   incentivePercent  Int
   description       String
   totalCount        Int
-  time              Int       @default(60) // minute
-  onSale            Boolean   @default(true)
+  time              Int            @default(60) // minute
+  onSale            Boolean        @default(true)
   trainer           Trainer[]
-  openedAt          DateTime  @default(now())
-  closedAt          DateTime  @default(dbgenerated("TIMESTAMP '2199-12-31 23:59:59'"))
+  trainerLevel      TrainerLevel[]
+  openedAt          DateTime       @default(now())
+  closedAt          DateTime       @default(dbgenerated("TIMESTAMP '2199-12-31 23:59:59'"))
   pt                Pt[]
 }
 
@@ -184,6 +187,7 @@ enum PtState {
   CONFIRMED
   REJECTED
   FINISHED
+  ACCEPTING
 }
 
 model PtRejectInfo {
@@ -214,6 +218,7 @@ model Pt {
   paymentAmount  Int           @default(0)
   startDate      DateTime
   rejectInfo     PtRejectInfo?
+  contractImage  Image[]
 }
 
 model Lesson {
@@ -669,6 +674,13 @@ model Image {
   lessonCondition   Lesson? @relation("LessonConditionImages", fields: [lessonConditionId], references: [id], onDelete: SetNull)
   lessonConditionId String? @db.Uuid
 
+  // PT contract
+  pt   Pt?     @relation(fields: [ptId], references: [id])
+  ptId String? @db.Uuid
+
+  // PT 설문지 서명 이미지로 사용되는 경우
+  surveySignatures PtSurveyResponse[] @relation("SurveySignature")
+
   // 메타데이터                                                           
   metadata Json?
 
@@ -691,6 +703,10 @@ enum ImageType {
   ACHIEVEMENT
   CONDITION // 컨디션 기록용 이미지
   EQUIPMENT
+  EVENT
+  SIGNATURE // PT 설문지 서명용 이미지
+  ETC
+  CONTRACT
 }
 
 enum ImageStatus {
@@ -809,4 +825,73 @@ model LessonAuditLog {
   @@index([action])
   @@index([isOutOfTime])
   @@index([createdAt])
+}
+
+// ===== PT 설문지 시스템 모델들 =====
+
+// PT 설문지
+model PtSurvey {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String // 설문지 제목
+  description String? // 설문지 설명
+  questions   PtSurveyQuestion[]
+  responses   PtSurveyResponse[]
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+// 설문 문항
+model PtSurveyQuestion {
+  id           String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  surveyId     String                     @db.Uuid
+  survey       PtSurvey                   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  questionText String // 질문 내용
+  questionType String // "text", "checkbox", "radio", "agreement"
+  options      String[] // 선택지 (JSON 배열)
+  isRequired   Boolean                    @default(true)
+  order        Int // 질문 순서
+  responses    PtSurveyQuestionResponse[]
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+
+  @@index([surveyId])
+  @@index([order])
+}
+
+// 설문 응답 (회원별)
+model PtSurveyResponse {
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  surveyId          String                     @db.Uuid
+  survey            PtSurvey                   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  memberId          String                     @db.Uuid
+  member            Member                     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainerId         String                     @db.Uuid
+  trainer           Trainer                    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  signatureImageId  String?                    @db.Uuid
+  signatureImage    Image?                     @relation("SurveySignature", fields: [signatureImageId], references: [id], onDelete: SetNull)
+  questionResponses PtSurveyQuestionResponse[]
+  completedAt       DateTime                   @default(now())
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([surveyId])
+  @@index([memberId])
+  @@index([trainerId])
+  @@index([completedAt])
+}
+
+// 문항별 응답
+model PtSurveyQuestionResponse {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  responseId String           @db.Uuid
+  response   PtSurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId String           @db.Uuid
+  question   PtSurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answer     String // 응답 내용 (JSON 형태로 저장)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([responseId])
+  @@index([questionId])
 }

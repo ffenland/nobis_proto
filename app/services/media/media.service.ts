@@ -135,6 +135,7 @@ export async function confirmImageUpload(
       ...(entityType === "EQUIPMENT" && entityId
         ? { equipmentId: entityId }
         : {}),
+      ...(entityType === "CONTRACT" && entityId ? { ptId: entityId } : {}),
     },
     select: {
       id: true,
@@ -372,6 +373,7 @@ export async function listImagesByEntity(
       ...(entityType === "LESSON" ? { lessonId: entityId } : {}),
       ...(entityType === "CONDITION" ? { lessonId: entityId } : {}),
       ...(entityType === "EQUIPMENT" ? { equipmentId: entityId } : {}),
+      ...(entityType === "CONTRACT" ? { ptId: entityId } : {}),
     },
     select: {
       id: true,

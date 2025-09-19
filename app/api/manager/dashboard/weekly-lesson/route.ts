@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { getWeeklyLessonsCount } from "@/app/services/mananger/dashboard.service";
+import { getWeeklyLessonsCount } from "@/app/services/manager/dashboard.service";
 
 export async function GET() {
   try {
@@ -20,7 +20,9 @@ export async function GET() {
     }
 
     // 주간 레슨 갯수 조회
-    const weeklyLessonsCount = await getWeeklyLessonsCount(sessionOrResponse.roleId);
+    const weeklyLessonsCount = await getWeeklyLessonsCount(
+      sessionOrResponse.roleId
+    );
 
     return NextResponse.json(weeklyLessonsCount);
   } catch (error) {

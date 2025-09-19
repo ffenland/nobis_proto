@@ -1,9 +1,8 @@
 // app/manager/centers/new/CenterForm.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useFormState } from "react-dom";
 import {
   createCenterAction,
   type IServerActionResponse,
@@ -48,15 +47,17 @@ const timeOptions = Array.from({ length: 49 }, (_, i) => {
 export default function CenterForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [state, formAction] = useFormState(createCenterAction, initialState);
+  const [state, formAction] = useActionState(createCenterAction, initialState);
   const [closedDays, setClosedDays] = useState<Set<string>>(new Set());
 
   // 폼 제출 성공 시 리다이렉트
-  if (state.success && state.data) {
-    startTransition(() => {
-      router.push("/manager/centers");
-    });
-  }
+  useEffect(() => {
+    if (state.success && state.data) {
+      startTransition(() => {
+        router.push("/manager/centers");
+      });
+    }
+  }, [state.success, state.data, router]);
 
   const handleDayClosedToggle = (dayKey: string) => {
     setClosedDays((prev) => {

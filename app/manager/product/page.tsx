@@ -8,19 +8,19 @@ const ProductsPage = async () => {
   const { ptProducts, membershipProducts } = await getProductsOverviewService();
 
   return (
-    <PageLayout>
+    <>
       <PageHeader
         title="제품 관리"
         subtitle="PT 상품과 멤버십 상품을 관리합니다"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1  gap-8">
         {/* PT 상품 섹션 */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">PT 상품</h2>
-              <Link href="/manager/product/pt/new">
+              <Link href="/manager/product/new-pt">
                 <Button variant="primary" size="sm">
                   새 PT 상품 추가
                 </Button>
@@ -86,7 +86,7 @@ const ProductsPage = async () => {
         </Card>
 
         {/* 멤버십 상품 섹션 */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">
@@ -158,9 +158,9 @@ const ProductsPage = async () => {
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
-    </PageLayout>
+    </>
   );
 };
 

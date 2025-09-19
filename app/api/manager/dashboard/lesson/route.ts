@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { getTodayLessons } from "@/app/services/mananger/dashboard.service";
+import { getTodayLessons } from "@/app/services/manager/dashboard.service";
 
 export async function GET() {
   try {

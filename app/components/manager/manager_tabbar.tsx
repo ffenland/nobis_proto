@@ -28,7 +28,7 @@ const ManagerTabbar = () => {
         href={"/manager/product"}
         className="flex flex-col items-center gap-px"
       >
-        {pathname === "/member/product" ? (
+        {pathname === "/manager/product" ? (
           <RiChatSmile3Fill />
         ) : (
           <RiChatSmile3Line />

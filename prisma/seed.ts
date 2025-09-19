@@ -72,7 +72,7 @@ async function createUsers() {
     return kakaoId;
   }
 
-  // 트레이너 10명 생성 (절반은 naver, 절반은 kakao)
+  // 트레이너 3명 생성 (naver 2명, kakao 1명)
   const dummyTrainerData = [
     { username: "김태호", mobile: "01012345678", email: "kimtaeho@test.com" },
     {
@@ -85,20 +85,9 @@ async function createUsers() {
       mobile: "01034567890",
       email: "parkchulsoo@test.com",
     },
-    { username: "최민수", mobile: "01045678901", email: "choiminsoo@test.com" },
-    {
-      username: "정현우",
-      mobile: "01056789012",
-      email: "jeonghyeonwoo@test.com",
-    },
-    { username: "유지훈", mobile: "01067890123", email: "yujihun@test.com" },
-    { username: "이지우", mobile: "01078901234", email: "leeziwoo@test.com" },
-    { username: "오서준", mobile: "01089012345", email: "ohseojun@test.com" },
-    { username: "박서윤", mobile: "01090123456", email: "parkseoyun@test.com" },
-    { username: "이서연", mobile: "01001234567", email: "leeseoyeon@test.com" },
   ];
 
-  // 멤버 20명 생성 (절반은 naver, 절반은 kakao)
+  // 멤버 5명 생성 (naver 3명, kakao 2명)
   const dummyMemberData = [
     { username: "김민준", mobile: "01012340001", email: "kimminjun@test.com" },
     { username: "이서윤", mobile: "01012340002", email: "leeseoyun@test.com" },
@@ -109,49 +98,6 @@ async function createUsers() {
       mobile: "01012340005",
       email: "jeongsiwoo@test.com",
     },
-    { username: "한지민", mobile: "01012340006", email: "hanjimin@test.com" },
-    { username: "윤준서", mobile: "01012340007", email: "yunjunseo@test.com" },
-    { username: "김하은", mobile: "01012340008", email: "kimhaeun@test.com" },
-    {
-      username: "이건우",
-      mobile: "01012340009",
-      email: "leegunwoo@test.com",
-    },
-    {
-      username: "송유진",
-      mobile: "01012340010",
-      email: "songyujin@test.com",
-    },
-    {
-      username: "홍길동",
-      mobile: "01012340011",
-      email: "honggildong@test.com",
-    },
-    { username: "김유나", mobile: "01012340012", email: "kimyuna@test.com" },
-    {
-      username: "박현수",
-      mobile: "01012340013",
-      email: "parkhyunsoo@test.com",
-    },
-    { username: "이수빈", mobile: "01012340014", email: "leesubin@test.com" },
-    {
-      username: "정민호",
-      mobile: "01012340015",
-      email: "jungminho@test.com",
-    },
-    {
-      username: "황서영",
-      mobile: "01012340016",
-      email: "hwangseoyoung@test.com",
-    },
-    { username: "임태현", mobile: "01012340017", email: "limtaehyun@test.com" },
-    { username: "조아름", mobile: "01012340018", email: "choahreum@test.com" },
-    {
-      username: "서지후",
-      mobile: "01012340019",
-      email: "seojihu@test.com",
-    },
-    { username: "강민서", mobile: "01012340020", email: "kangminseo@test.com" },
   ];
 
   // 매니저 2명 생성 (naver, kakao 각 1명)
@@ -171,7 +117,7 @@ async function createUsers() {
   // 사용자 생성 및 역할별 프로필 생성
   for (let i = 0; i < dummyTrainerData.length; i++) {
     const userData = dummyTrainerData[i];
-    const isNaverUser = i < 5;
+    const isNaverUser = i < 2; // 첫 2명은 naver, 나머지는 kakao
 
     const user = await prisma.user.create({
       data: {
@@ -197,7 +143,7 @@ async function createUsers() {
 
   for (let i = 0; i < dummyMemberData.length; i++) {
     const userData = dummyMemberData[i];
-    const isNaverUser = i < 10;
+    const isNaverUser = i < 3; // 첫 3명은 naver, 나머지는 kakao
 
     const user = await prisma.user.create({
       data: {
@@ -252,8 +198,17 @@ async function createFitnessCenters() {
   console.log("🏢 피트니스 센터 데이터 생성 중...");
 
   // 영업시간 생성 (월~금: 06:00-22:00, 토: 08:00-20:00, 일: 휴무)
-  const weekdayHours = await prisma.openingHour.create({
-    data: {
+  const weekdayHours = await prisma.openingHour.upsert({
+    where: {
+      dayOfWeek_openTime_closeTime_isClosed: {
+        dayOfWeek: WeekDay.MON,
+        openTime: 600,
+        closeTime: 2200,
+        isClosed: false,
+      },
+    },
+    update: {},
+    create: {
       dayOfWeek: WeekDay.MON,
       openTime: 600,
       closeTime: 2200,
@@ -261,8 +216,17 @@ async function createFitnessCenters() {
     },
   });
 
-  const saturdayHours = await prisma.openingHour.create({
-    data: {
+  const saturdayHours = await prisma.openingHour.upsert({
+    where: {
+      dayOfWeek_openTime_closeTime_isClosed: {
+        dayOfWeek: WeekDay.SAT,
+        openTime: 800,
+        closeTime: 2000,
+        isClosed: false,
+      },
+    },
+    update: {},
+    create: {
       dayOfWeek: WeekDay.SAT,
       openTime: 800,
       closeTime: 2000,
@@ -270,8 +234,17 @@ async function createFitnessCenters() {
     },
   });
 
-  const sundayHours = await prisma.openingHour.create({
-    data: {
+  const sundayHours = await prisma.openingHour.upsert({
+    where: {
+      dayOfWeek_openTime_closeTime_isClosed: {
+        dayOfWeek: WeekDay.SUN,
+        openTime: 0,
+        closeTime: 0,
+        isClosed: true,
+      },
+    },
+    update: {},
+    create: {
       dayOfWeek: WeekDay.SUN,
       openTime: 0,
       closeTime: 0,
@@ -280,16 +253,32 @@ async function createFitnessCenters() {
   });
 
   // 트레이너 근무시간 생성 (월~금: 09:00-21:00, 토: 10:00-18:00)
-  const trainerWeekdayHours = await prisma.workingHour.create({
-    data: {
+  const trainerWeekdayHours = await prisma.workingHour.upsert({
+    where: {
+      dayOfWeek_openTime_closeTime: {
+        dayOfWeek: WeekDay.MON,
+        openTime: 900,
+        closeTime: 2100,
+      },
+    },
+    update: {},
+    create: {
       dayOfWeek: WeekDay.MON,
       openTime: 900,
       closeTime: 2100,
     },
   });
 
-  const trainerSaturdayHours = await prisma.workingHour.create({
-    data: {
+  const trainerSaturdayHours = await prisma.workingHour.upsert({
+    where: {
+      dayOfWeek_openTime_closeTime: {
+        dayOfWeek: WeekDay.SAT,
+        openTime: 1000,
+        closeTime: 1800,
+      },
+    },
+    update: {},
+    create: {
       dayOfWeek: WeekDay.SAT,
       openTime: 1000,
       closeTime: 1800,
@@ -334,15 +323,18 @@ async function createFitnessCenters() {
 
     console.log(`✅ 피트니스 센터 생성: ${center.title}`);
 
+    const centerIndex = fitnessCenters.indexOf(centerData);
+    
     // 매니저와 트레이너를 센터에 할당
     const managers = await prisma.manager.findMany({
       take: 1,
-      skip: fitnessCenters.indexOf(centerData), // 각 센터당 매니저 1명
+      skip: centerIndex, // 각 센터당 매니저 1명
     });
 
+    // 첫 번째 센터: 트레이너 2명, 두 번째 센터: 트레이너 1명
     const trainers = await prisma.trainer.findMany({
-      take: 5,
-      skip: fitnessCenters.indexOf(centerData) * 5, // 각 센터당 트레이너 5명
+      take: centerIndex === 0 ? 2 : 1,
+      skip: centerIndex === 0 ? 0 : 2,
     });
 
     // 트레이너들 할당 및 근무시간 설정
@@ -361,10 +353,10 @@ async function createFitnessCenters() {
       });
     }
 
-    // 멤버들을 센터에 할당
+    // 첫 번째 센터: 멤버 3명, 두 번째 센터: 멤버 2명
     const members = await prisma.member.findMany({
-      take: 10,
-      skip: fitnessCenters.indexOf(centerData) * 10, // 각 센터당 멤버 10명
+      take: centerIndex === 0 ? 3 : 2,
+      skip: centerIndex === 0 ? 0 : 3,
     });
 
     for (const member of members) {

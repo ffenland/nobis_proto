@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import { getAllTrainers } from "@/app/services/mananger/manager-trainer.service";
+import { getAllTrainers } from "@/app/services/manager/manager-trainer.service";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
-    
+
     if (!session?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Failed to get trainers:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" }, 
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
