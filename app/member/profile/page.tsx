@@ -388,7 +388,8 @@ const MemberProfile = () => {
 
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <User className="w-4 h-4" />
-                      {pt.trainer?.user.username || "알 수 없음."}
+                      {pt.trainer?.user.username ||
+                        "존재하지 않는 트레이너 입니다."}
                     </div>
 
                     {pt.recentLesson && (
