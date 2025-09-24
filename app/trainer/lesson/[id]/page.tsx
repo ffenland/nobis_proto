@@ -80,14 +80,25 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
     }
   };
 
-  // 수업 상태별 배지 - records를 기반으로 판단
-  const getStatusBadge = () => {
-    if (!records) return null;
+  // 수업 상태별 배지 - records와 시간을 기반으로 판단
+  const getStatus = () => {
+    if (!records || !lesson) return "오류";
     const hasRecords = records.length > 0;
+
     if (hasRecords) {
-      return <Badge variant="success">완료</Badge>;
+      return "완료";
     } else {
-      return <Badge variant="info">예정</Badge>;
+      // 현재 시간과 수업 시작 시간 비교
+      const now = new Date();
+      const lessonStartTime = new Date(lesson.scheduleDate);
+
+      if (lessonStartTime < now) {
+        // 수업 시작 시간이 과거이고 기록이 없으면 불참
+        return "불참";
+      } else {
+        // 수업 시작 시간이 미래이면 예정
+        return "예정";
+      }
     }
   };
 
@@ -158,7 +169,8 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
         return (
           sum +
           item.freeSetRecords.reduce((s, set) => {
-            const weight = parseFloat(set.equipments[0]?.primaryValue || '0') || 0;
+            const weight =
+              parseFloat(set.equipments[0]?.primaryValue || "0") || 0;
             return s + weight * set.reps;
           }, 0)
         );
@@ -202,7 +214,34 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                       PT 수업 #{lesson.lessonNumber}
                     </h3>
                   </div>
-                  {getStatusBadge()}
+                  <div className="flex gap-2">
+                    <Badge
+                      variant={
+                        getStatus() === "완료"
+                          ? "success"
+                          : getStatus() === "예정"
+                          ? "info"
+                          : getStatus() === "불참"
+                          ? "error"
+                          : "warning"
+                      }
+                    >
+                      {getStatus()}
+                    </Badge>
+                    <Link href={`/trainer/lesson/${id}/cancel`}>
+                      <Button
+                        variant={
+                          getStatus() === "완료"
+                            ? "ghost"
+                            : getStatus() === "예정"
+                            ? "danger"
+                            : "default"
+                        }
+                      >
+                        <span>취소하기</span>
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
                 <p className="text-gray-600 text-sm">
                   {lesson.memberName}님의{" "}
@@ -233,6 +272,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                       </span>
                     </div>
                   </div>
+
                   <div className="space-y-3">
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <p className="text-xs text-gray-600 mb-1">프로그램</p>
@@ -362,10 +402,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                                       <span className="text-gray-600">•</span>
                                       <span className="text-gray-700">
                                         {set.equipments
-                                          .map(
-                                            (eq) =>
-                                              getEquipmentTitle(eq)
-                                          )
+                                          .map((eq) => getEquipmentTitle(eq))
                                           .join(", ")}
                                       </span>
                                     </div>
@@ -396,7 +433,9 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                                           <p className="text-gray-600 text-xs mt-1">
                                             기구:{" "}
                                             {stretch.equipments
-                                              .map((eq) => getEquipmentTitle(eq))
+                                              .map((eq) =>
+                                                getEquipmentTitle(eq)
+                                              )
                                               .join(", ")}
                                           </p>
                                         )}
@@ -405,7 +444,6 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                                   )}
                                 </div>
                               )}
-
                           </div>
                         );
                       })}

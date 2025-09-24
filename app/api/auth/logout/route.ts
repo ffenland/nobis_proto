@@ -1,7 +1,6 @@
 // app/api/auth/logout/route.ts
 import { NextResponse } from "next/server";
 import { getCurrentIronSession } from "@/app/lib/session";
-import { clearSentryUser } from "@/app/lib/utils/sentry-session";
 
 export async function POST() {
   try {
@@ -12,9 +11,6 @@ export async function POST() {
     if (session.id) {
       // 세션 파괴
       session.destroy();
-      
-      // Sentry 사용자 정보 클리어
-      clearSentryUser();
     }
 
     return NextResponse.json({

@@ -26,8 +26,7 @@ const SWRProvider = ({ children }: { children: React.ReactNode }) => {
             }
             
             if (!res.ok) {
-              const error = new Error(`HTTP ${res.status}: ${res.statusText}`);
-              // @ts-ignore - status 속성 추가
+              const error = new Error(`HTTP ${res.status}: ${res.statusText}`) as Error & { status: number };
               error.status = res.status;
               throw error;
             }
@@ -39,8 +38,7 @@ const SWRProvider = ({ children }: { children: React.ReactNode }) => {
           if (error.message === 'Unauthorized') return;
           
           // 404 Not Found 에러는 재시도하지 않음
-          // @ts-ignore
-          if (error.status === 404) return;
+          if ((error as any).status === 404) return;
           
           // 3번 이상 재시도하지 않음
           if (retryCount >= 3) return;

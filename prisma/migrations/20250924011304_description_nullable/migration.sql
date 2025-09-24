@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "PtProduct" ALTER COLUMN "closedAt" SET DEFAULT TIMESTAMP '2199-12-31 23:59:59';
+
+-- AlterTable
+ALTER TABLE "TrainerOff" ALTER COLUMN "description" DROP NOT NULL,
+ALTER COLUMN "description" DROP DEFAULT;

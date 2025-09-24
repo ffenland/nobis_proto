@@ -8,6 +8,8 @@ import type {
   GetWeeklyLessonsCountResult,
   GetPtStatsResult,
   GetManagerCentersResult,
+  GetPendingTrainerOffCountResult,
+  GetUncheckedCanceledLessonsCountResult,
 } from "@/app/services/manager/dashboard.service";
 import { ChevronsLeftRightEllipsis } from "lucide-react";
 
@@ -33,6 +35,14 @@ export default function ManagerDashboardPage() {
   const { data: managerCenters, error: centersError } =
     useSWR<GetManagerCentersResult>("/api/manager/dashboard/centers", fetcher);
 
+  const { data: scheduleData, error: scheduleError } = useSWR<{
+    pendingTrainerOffCount: GetPendingTrainerOffCountResult;
+  }>("/api/manager/dashboard/schedule", fetcher);
+
+  const { data: canceledLessonsData, error: canceledError } = useSWR<{
+    count: GetUncheckedCanceledLessonsCountResult;
+  }>("/api/manager/dashboard/lesson-cancel", fetcher);
+
   // 오늘 레슨 필터링을 위한 선택된 센터 상태
   const [selectedCenterId, setSelectedCenterId] = useState<string | null>(null);
 
@@ -47,7 +57,7 @@ export default function ManagerDashboardPage() {
   }, [todayLessons, selectedCenterId]);
 
   // 로딩 상태
-  if (!todayLessons || !weeklyLessons || !ptStats || !managerCenters) {
+  if (!todayLessons || !weeklyLessons || !ptStats || !managerCenters || !scheduleData) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -59,7 +69,7 @@ export default function ManagerDashboardPage() {
   }
 
   // 에러 상태
-  if (todayError || weeklyError || ptError || centersError) {
+  if (todayError || weeklyError || ptError || centersError || scheduleError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center text-red-600">
@@ -83,8 +93,8 @@ export default function ManagerDashboardPage() {
         <p className="text-gray-600">전체 센터 운영 현황을 한눈에 확인하세요</p>
       </div>
 
-      {/* PT 현황 카드 - 모바일에서도 3개 가로 배치 */}
-      <div className="grid grid-cols-3 gap-2 md:gap-4 mb-8">
+      {/* 대시보드 현황 카드 - 모바일 2열, 데스크탑 3열 */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-8">
         <div className="card bg-blue-50 border border-blue-200">
           <div className="card-body p-3 md:p-6">
             <h3 className="card-title text-xs md:text-base text-blue-800">
@@ -154,6 +164,42 @@ export default function ManagerDashboardPage() {
                 )
               )}
             </div>
+          </div>
+        </div>
+
+        {/* 트레이너 휴무 신청 현황 카드 */}
+        <div
+          className="card bg-purple-50 border border-purple-200 cursor-pointer hover:bg-purple-100 transition-colors"
+          onClick={() => window.location.href = "/manager/trainers/off"}
+        >
+          <div className="card-body p-3 md:p-6">
+            <h3 className="card-title text-xs md:text-base text-purple-800">
+              트레이너 휴무 신청 현황
+            </h3>
+            <div className="text-lg md:text-3xl font-bold text-purple-600">
+              {scheduleData.pendingTrainerOffCount}건
+            </div>
+            <p className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">
+              승인 대기중
+            </p>
+          </div>
+        </div>
+
+        {/* 취소된 레슨 확인 현황 카드 */}
+        <div
+          className="card bg-orange-50 border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors"
+          onClick={() => window.location.href = "/manager/audit/lesson-cancel"}
+        >
+          <div className="card-body p-3 md:p-6">
+            <h3 className="card-title text-xs md:text-base text-orange-800">
+              취소된 레슨 확인
+            </h3>
+            <div className="text-lg md:text-3xl font-bold text-orange-600">
+              {canceledLessonsData?.count || 0}건
+            </div>
+            <p className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">
+              확인 대기중
+            </p>
           </div>
         </div>
       </div>

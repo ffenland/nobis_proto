@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import useSWRMutation from "swr/mutation";
 import { X, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
-import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 
 type Params = Promise<{ id: string }>;
 
@@ -49,11 +48,11 @@ export default function NewMachinePage({ params }: { params: Params }) {
     },
   ]);
 
-  // 이미지 상태 - pending images system
-  const [pendingImages, setPendingImages] = useState<File[]>([]);
-  const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>([]);
-  const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const [uploadedImageIds, setUploadedImageIds] = useState<string[]>([]);
+  // 이미지 상태 - simplified system
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Get centerId from params
   useEffect(() => {
@@ -61,7 +60,7 @@ export default function NewMachinePage({ params }: { params: Params }) {
   }, [params]);
 
   // 머신 생성 mutation
-  const { trigger: createMachine, isMutating } = useSWRMutation(
+  const { trigger: createMachine } = useSWRMutation(
     centerId ? `/api/fitness-center/${centerId}/machines` : null,
     createMachineFetcher
   );
@@ -143,127 +142,34 @@ export default function NewMachinePage({ params }: { params: Params }) {
     }
   };
 
-  // Handle adding image to pending list (preview only)
+  // Handle adding image to selected files (preview only)
   const handleAddImage = (file: File) => {
-    const currentCount = pendingImages.length;
+    const currentCount = selectedFiles.length;
 
     if (currentCount >= 3) {
       alert("최대 3개까지만 이미지를 추가할 수 있습니다.");
       return;
     }
 
-    // Add to pending images
-    setPendingImages((prev) => [...prev, file]);
+    // Add to selected files
+    setSelectedFiles((prev: File[]) => [...prev, file]);
 
     // Create preview URL
     const previewUrl = URL.createObjectURL(file);
-    setPendingImagePreviews((prev) => [...prev, previewUrl]);
+    setFilePreviews((prev: string[]) => [...prev, previewUrl]);
   };
 
-  // Remove pending image
-  const handleRemovePendingImage = (index: number) => {
+  // Remove selected image
+  const handleRemoveImage = (index: number) => {
     // Revoke preview URL to free memory
-    URL.revokeObjectURL(pendingImagePreviews[index]);
+    URL.revokeObjectURL(filePreviews[index]);
 
-    setPendingImages((prev) => prev.filter((_, i) => i !== index));
-    setPendingImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev: File[]) => prev.filter((_, i) => i !== index));
+    setFilePreviews((prev: string[]) => prev.filter((_, i) => i !== index));
   };
 
-  // Save all pending images with integrated media system
-  const handleSaveImages = async () => {
-    if (pendingImages.length === 0) {
-      alert("저장할 이미지가 없습니다.");
-      return;
-    }
 
-    setIsUploadingImages(true);
-    let successCount = 0;
-    const failedFiles: string[] = [];
-    const uploadedImageIdsList: string[] = [];
-
-    try {
-      for (let i = 0; i < pendingImages.length; i++) {
-        const file = pendingImages[i];
-
-        try {
-          // Step 1: Request upload URL from integrated media system
-          const uploadUrlResponse = await fetch("/api/media/images/upload", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              entityType: "MACHINE",
-              entityId: "temp", // 임시 ID
-            }),
-          });
-
-          if (!uploadUrlResponse.ok) {
-            const error = await uploadUrlResponse.json();
-            throw new Error(error.error || "Failed to get upload URL");
-          }
-
-          const { uploadURL, id } = await uploadUrlResponse.json();
-
-          // Step 2: Upload directly to Cloudflare
-          const formData = new FormData();
-          formData.append("file", file);
-
-          const cloudflareResponse = await fetch(uploadURL, {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!cloudflareResponse.ok) {
-            throw new Error("Failed to upload to Cloudflare");
-          }
-
-          uploadedImageIdsList.push(id);
-          successCount++;
-        } catch (error: any) {
-          console.error(`${file.name} upload failed:`, error);
-          failedFiles.push(file.name);
-        }
-      }
-
-      // Show result message
-      let message = "";
-      if (successCount > 0) {
-        message = `${successCount}개의 이미지가 성공적으로 준비되었습니다.`;
-      }
-      if (failedFiles.length > 0) {
-        message += `\n\n실패한 파일 (${
-          failedFiles.length
-        }개): ${failedFiles.join(", ")}`;
-      }
-
-      if (successCount > 0) {
-        alert(message);
-        // Clear pending images
-        setPendingImages([]);
-        pendingImagePreviews.forEach((url) => URL.revokeObjectURL(url));
-        setPendingImagePreviews([]);
-        
-        // Store uploaded image IDs for form submission
-        setUploadedImageIds([...uploadedImageIds, ...uploadedImageIdsList]);
-      } else {
-        alert("모든 이미지 업로드에 실패했습니다.");
-      }
-    } catch (error: any) {
-      console.error("Image upload failed:", error);
-      alert("이미지 업로드 중 오류가 발생했습니다.");
-    } finally {
-      setIsUploadingImages(false);
-    }
-  };
-
-  // Cancel pending images
-  const handleCancelPendingImages = () => {
-    // Revoke all preview URLs to free memory
-    pendingImagePreviews.forEach((url) => URL.revokeObjectURL(url));
-    setPendingImages([]);
-    setPendingImagePreviews([]);
-  };
-
-  // 폼 제출
+  // 폼 제출 - integrated image upload + machine creation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -283,10 +189,21 @@ export default function NewMachinePage({ params }: { params: Params }) {
       return;
     }
 
+    if (selectedFiles.length === 0) {
+      alert("머신 이미지를 선택해주세요.");
+      return;
+    }
+
+    const confirmCreate = window.confirm(
+      `${selectedFiles.length}개의 이미지와 함께 머신을 생성하시겠습니까?`
+    );
+    if (!confirmCreate) return;
+
+    setIsUploading(true);
+
     try {
-      // 현재 세션 정보 가져오기
-      const sessionResponse = await fetch("/api/auth/session");
-      const session = await sessionResponse.json();
+      // 1. 머신 생성 단계 (이미지 없이)
+      setUploadProgress(20);
 
       const machineData = {
         title: title.trim(),
@@ -295,25 +212,108 @@ export default function NewMachinePage({ params }: { params: Params }) {
           unit: setting.unit.trim(),
           values: setting.values,
         })),
-        images: uploadedImageIds.map((cloudflareId) => ({
-          cloudflareId,
-          uploadedById: session.id,
-        })),
       };
 
-      await createMachine(machineData);
+      const machineResult = await createMachine(machineData);
+      const machineId = machineResult.id;
 
+      setUploadProgress(40);
+
+      // 2. 이미지 업로드 및 연결 단계
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        setUploadProgress(40 + ((i + 1) / selectedFiles.length) * 40); // 40%~80%
+
+        // Upload URL 요청
+        const uploadUrlResponse = await fetch("/api/media/images/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entityType: "MACHINE",
+            entityId: machineId, // 생성된 machineId 사용
+          }),
+        });
+        if (!uploadUrlResponse.ok) {
+          throw new Error("업로드 URL 생성에 실패했습니다.");
+        }
+        const { uploadURL, id } = await uploadUrlResponse.json();
+
+        // Cloudflare 직접 업로드
+        const formData = new FormData();
+        formData.append("file", file);
+        const uploadResponse = await fetch(uploadURL, {
+          method: "POST",
+          body: formData,
+        });
+        if (!uploadResponse.ok) {
+          throw new Error("이미지 업로드에 실패했습니다.");
+        }
+
+        // 업로드 확인 및 DB 저장 (machineId와 연결)
+        const confirmResponse = await fetch("/api/media/images/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cloudflareId: id,
+            entityType: "MACHINE",
+            entityId: machineId, // 생성된 machineId 사용
+          }),
+        });
+        if (!confirmResponse.ok) {
+          throw new Error("업로드 확인에 실패했습니다.");
+        }
+
+        // 이미지가 성공적으로 연결됨 (imageId는 사용하지 않음)
+      }
+
+      setUploadProgress(100);
       alert("머신이 성공적으로 생성되었습니다!");
       router.push(`/manager/centers/${centerId}/machines`);
     } catch (error) {
-      console.error("Failed to create machine:", error);
-      alert("머신 생성에 실패했습니다.");
+      console.error("머신 생성 실패:", error);
+      if (error instanceof Error) {
+        alert(`머신 생성에 실패했습니다: ${error.message}`);
+      } else {
+        alert("머신 생성에 실패했습니다.");
+      }
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-6">새 머신 등록</h1>
+    <>
+      {/* Upload Progress Modal */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <div className="text-center">
+              <div className="loading loading-spinner loading-lg text-primary mb-4"></div>
+              <h3 className="text-lg font-semibold mb-2">머신 생성 중</h3>
+              <p className="text-gray-600 mb-4">
+                {uploadProgress < 70
+                  ? "이미지를 업로드하고 있습니다..."
+                  : uploadProgress < 85
+                  ? "머신을 생성하고 있습니다..."
+                  : "마무리하고 있습니다..."
+                }
+              </p>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">{uploadProgress}%</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 className="text-2xl font-bold mb-6">새 머신 등록</h1>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* 머신 제목 */}
@@ -444,94 +444,45 @@ export default function NewMachinePage({ params }: { params: Params }) {
           ))}
         </div>
 
-        {/* 이미지 업로드 */}
+        {/* 이미지 선택 */}
         <div className="form-control">
           <div className="flex items-center justify-between mb-2">
             <label className="label">
               <span className="label-text">
-                이미지 ({uploadedImageIds.length + pendingImages.length}/3)
+                이미지 ({selectedFiles.length}/3)
               </span>
             </label>
-            {pendingImages.length > 0 && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleCancelPendingImages}
-                  disabled={isUploadingImages}
-                  className="btn btn-sm btn-ghost"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveImages}
-                  disabled={isUploadingImages}
-                  className="btn btn-sm btn-primary"
-                >
-                  {isUploadingImages ? (
-                    <>
-                      <span className="loading loading-spinner loading-xs"></span>
-                      업로드 중...
-                    </>
-                  ) : (
-                    `업로드 (${pendingImages.length}개)`
-                  )}
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            {/* Uploaded images */}
-            {uploadedImageIds.map((imageId) => (
-              <div key={imageId} className="relative">
+            {/* Selected images (preview only) */}
+            {selectedFiles.map((_, index) => (
+              <div key={`selected-${index}`} className="relative">
                 <Image
-                  src={getOptimizedImageUrl(imageId, "thumbnail")}
-                  alt="Machine"
+                  src={filePreviews[index]}
+                  alt="Selected image"
                   width={128}
                   height={128}
-                  className="w-full h-32 object-cover rounded-lg"
+                  className="w-full h-32 object-cover rounded-lg border-2 border-gray-300"
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    setUploadedImageIds(uploadedImageIds.filter((id) => id !== imageId));
-                  }}
+                  onClick={() => handleRemoveImage(index)}
+                  disabled={isUploading}
                   className="absolute top-2 right-2 btn btn-circle btn-xs btn-error"
                 >
                   <X className="w-3 h-3" />
                 </button>
-              </div>
-            ))}
-
-            {/* Pending images (preview only) */}
-            {pendingImages.map((_, index) => (
-              <div key={`pending-${index}`} className="relative">
-                <Image
-                  src={pendingImagePreviews[index]}
-                  alt="Pending upload"
-                  width={128}
-                  height={128}
-                  className="w-full h-32 object-cover rounded-lg border-2 border-dashed border-blue-300"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemovePendingImage(index)}
-                  disabled={isUploadingImages}
-                  className="absolute top-2 right-2 btn btn-circle btn-xs btn-warning"
-                >
-                  <X className="w-3 h-3" />
-                </button>
                 <div className="absolute bottom-1 left-1 right-1">
-                  <div className="bg-blue-500 bg-opacity-90 text-white text-xs px-2 py-1 rounded text-center">
-                    미저장
+                  <div className="bg-gray-500 bg-opacity-90 text-white text-xs px-2 py-1 rounded text-center">
+                    선택됨
                   </div>
                 </div>
               </div>
             ))}
 
             {/* Add new image button */}
-            {uploadedImageIds.length + pendingImages.length < 3 && (
+            {selectedFiles.length < 3 && (
               <div className="border-2 border-dashed border-gray-300 rounded-lg h-32">
                 <label className="cursor-pointer w-full h-full flex items-center justify-center">
                   <input
@@ -545,7 +496,7 @@ export default function NewMachinePage({ params }: { params: Params }) {
                       // Reset input
                       e.target.value = "";
                     }}
-                    disabled={isUploadingImages}
+                    disabled={isUploading}
                   />
                   <div className="text-center">
                     <Plus className="w-8 h-8 mx-auto text-gray-400" />
@@ -562,9 +513,9 @@ export default function NewMachinePage({ params }: { params: Params }) {
           <button
             type="submit"
             className="btn btn-primary flex-1"
-            disabled={isMutating}
+            disabled={isUploading}
           >
-            {isMutating ? (
+            {isUploading ? (
               <span className="loading loading-spinner"></span>
             ) : (
               "머신 생성"
@@ -574,11 +525,13 @@ export default function NewMachinePage({ params }: { params: Params }) {
             type="button"
             className="btn btn-ghost"
             onClick={() => router.back()}
+            disabled={isUploading}
           >
             취소
           </button>
         </div>
       </form>
-    </div>
+      </div>
+    </>
   );
 }

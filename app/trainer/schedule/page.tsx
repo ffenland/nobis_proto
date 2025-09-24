@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import useSWR from "swr";
+import { useState, useMemo } from "react";
+import useSWR, { mutate } from "swr";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 import { format } from "date-fns";
@@ -9,7 +9,6 @@ import { ko } from "date-fns/locale";
 import { PageHeader } from "@/app/components/ui/Dropdown";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Badge } from "@/app/components/ui/Loading";
-import { formatTime } from "@/app/lib/utils/time.utils";
 import type { GetTrainerScheduleResult } from "@/app/services/trainer/schedule.service";
 import { Button } from "@/app/components/ui/Button";
 
@@ -17,6 +16,10 @@ const TrainerSchedulePage = () => {
   const now = new Date();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(now);
   const [currentMonth, setCurrentMonth] = useState<Date>(now);
+  const [isOffModalOpen, setIsOffModalOpen] = useState(false);
+  const [selectedOffType, setSelectedOffType] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState<string>("");
 
   // 현재 표시 중인 월을 YYYYMM 형식으로 변환
   const targetMonth = format(currentMonth, "yyyyMM");
@@ -53,7 +56,7 @@ const TrainerSchedulePage = () => {
 
     // TrainerOff 데이터 매핑
     data.offDays.forEach((off) => {
-      const dateKey = format(new Date(off.date), "yyyy-MM-dd");
+      const dateKey = format(new Date(off.startAt), "yyyy-MM-dd");
       if (!map.has(dateKey)) {
         map.set(dateKey, { lessons: [], offs: [] });
       }
@@ -100,18 +103,161 @@ const TrainerSchedulePage = () => {
   };
 
   // OFF 시간 표시 포맷
-  const formatOffTime = (startTime: number, endTime: number) => {
-    if (startTime === 0 && endTime === 2359) {
+  const formatOffTime = (startAt: Date | string, endAt: Date | string) => {
+    const startDate = new Date(startAt);
+    const endDate = new Date(endAt);
+
+    const startHour = startDate.getHours();
+    const startMinute = startDate.getMinutes();
+    const endHour = endDate.getHours();
+    const endMinute = endDate.getMinutes();
+
+    // 종일 휴무 (00:00 ~ 23:59)
+    if (
+      startHour === 0 &&
+      startMinute === 0 &&
+      endHour === 23 &&
+      endMinute === 59
+    ) {
       return "휴무";
-    } else if (startTime === 0 && endTime === 1200) {
+    }
+    // 오전 휴무 (00:00 ~ 12:59)
+    else if (
+      startHour === 0 &&
+      startMinute === 0 &&
+      endHour === 12 &&
+      endMinute === 59
+    ) {
       return "오전반차";
-    } else if (startTime === 1200 && endTime === 2359) {
+    }
+    // 오후 휴무 (13:00 ~ 23:59)
+    else if (
+      startHour === 13 &&
+      startMinute === 0 &&
+      endHour === 23 &&
+      endMinute === 59
+    ) {
       return "오후반차";
-    } else {
-      return `${formatTime(startTime)} ~ ${formatTime(endTime)}`;
+    }
+    // 구체적인 시간대
+    else {
+      return `${format(startDate, "HH:mm")} ~ ${format(endDate, "HH:mm")}`;
     }
   };
 
+  // 충돌 검사 함수
+  const checkOffConflict = (offType: string) => {
+    if (!selectedDate || !selectedDateSchedule || !offType) return "";
+
+    // 휴무 시간 계산
+    const targetDate = new Date(selectedDate);
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth();
+    const day = targetDate.getDate();
+
+    let startAt: Date;
+    let endAt: Date;
+
+    switch (offType) {
+      case "FULL_DAY":
+        startAt = new Date(year, month, day, 0, 0, 0);
+        endAt = new Date(year, month, day, 23, 59, 0);
+        break;
+      case "MORNING":
+        startAt = new Date(year, month, day, 0, 0, 0);
+        endAt = new Date(year, month, day, 12, 59, 0);
+        break;
+      case "AFTERNOON":
+        startAt = new Date(year, month, day, 13, 0, 0);
+        endAt = new Date(year, month, day, 23, 59, 0);
+        break;
+      default:
+        return "";
+    }
+
+    // 기존 레슨과의 충돌 검사
+    for (const lesson of selectedDateSchedule.lessons) {
+      const lessonStart = new Date(lesson.scheduledAt);
+      const lessonEnd = new Date(lesson.endAt);
+
+      // 시간 겹침 검사: startAt < lessonEnd && endAt > lessonStart
+      if (startAt < lessonEnd && endAt > lessonStart) {
+        return `${format(lessonStart, "HH:mm")}-${format(
+          lessonEnd,
+          "HH:mm"
+        )}에 ${lesson.member.username}님과의 수업이 예정되어 있습니다.`;
+      }
+    }
+
+    return "";
+  };
+
+  // 휴무 신청 관련 함수들
+  const handleOffRequest = () => {
+    setIsOffModalOpen(true);
+    setSelectedOffType(null);
+    setConflictMessage("");
+  };
+
+  const handleOffTypeSelect = (offType: string) => {
+    setSelectedOffType(offType);
+    // 충돌 검사 수행
+    const conflict = checkOffConflict(offType);
+    setConflictMessage(conflict);
+  };
+
+  const handleOffConfirm = async () => {
+    if (!selectedDate || !selectedOffType || conflictMessage) return;
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/trainer/schedule/off", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          date: format(selectedDate, "yyyy-MM-dd"),
+          offType: selectedOffType,
+        }),
+      });
+
+      if (response.ok) {
+        // 성공 시 스케줄 데이터 재조회
+        mutate(`/api/trainer/schedule?target=${targetMonth}`);
+        setIsOffModalOpen(false);
+        setSelectedOffType(null);
+        setConflictMessage("");
+        alert("휴무 신청이 완료되었습니다.");
+      } else {
+        const errorData = await response.json();
+        alert(`휴무 신청 실패: ${errorData.error || "알 수 없는 오류"}`);
+      }
+    } catch (error) {
+      console.error("휴무 신청 오류:", error);
+      alert("휴무 신청 중 오류가 발생했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOffCancel = () => {
+    setSelectedOffType(null);
+    setConflictMessage("");
+  };
+
+  const getOffTypeText = (offType: string) => {
+    switch (offType) {
+      case "FULL_DAY":
+        return "휴무";
+      case "MORNING":
+        return "오전반차";
+      case "AFTERNOON":
+        return "오후반차";
+      default:
+        return "";
+    }
+  };
 
   if (error) {
     return (
@@ -129,16 +275,11 @@ const TrainerSchedulePage = () => {
       {/* 반응형 컨테이너 */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* 헤더 */}
-        <div className="mb-6 flex justify-between">
+        <div className="mb-2 w-full flex items-center justify-center">
           <PageHeader
             title="스케줄 관리"
             subtitle="월간 레슨 및 휴무 일정 관리"
           />
-          <div className="flex justify-center items-center">
-            <Button>
-              <span>휴무 신청</span>
-            </Button>
-          </div>
         </div>
 
         <div className="md:flex md:gap-6">
@@ -191,7 +332,9 @@ const TrainerSchedulePage = () => {
                   <div className="flex justify-center mt-4 pt-4 border-t">
                     <div className="flex items-center gap-2">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                      <span className="text-sm text-gray-600">스케줄 로딩 중...</span>
+                      <span className="text-sm text-gray-600">
+                        스케줄 로딩 중...
+                      </span>
                     </div>
                   </div>
                 )}
@@ -220,12 +363,19 @@ const TrainerSchedulePage = () => {
           {/* 스케줄 상세 영역 */}
           <div className="md:w-96">
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 flex justify-between items-center">
                 <h3 className="text-lg font-semibold">
                   {selectedDate
                     ? format(selectedDate, "M월 d일 (EEEE)", { locale: ko })
                     : "날짜를 선택하세요"}
                 </h3>
+                <Button
+                  variant="danger"
+                  disabled={isLoading}
+                  onClick={handleOffRequest}
+                >
+                  <span>휴무 신청</span>
+                </Button>
               </CardHeader>
               <CardContent className="space-y-2">
                 {selectedDate && selectedDateSchedule ? (
@@ -280,11 +430,23 @@ const TrainerSchedulePage = () => {
                             className="p-3 bg-red-50 rounded-lg border border-red-200"
                           >
                             <div className="flex items-center justify-between">
-                              <p className="font-medium text-red-900">
-                                {formatOffTime(off.startTime, off.endTime)}
+                              <p
+                                className={`font-medium ${
+                                  off.state === "CONFIRMED"
+                                    ? "text-red-900"
+                                    : off.state === "PENDING"
+                                    ? "text-purple-800"
+                                    : "text-slate-700"
+                                }`}
+                              >
+                                {formatOffTime(off.startAt, off.endAt)}
                               </p>
                               <Badge variant="error" className="text-xs">
-                                휴무
+                                {off.state === "PENDING"
+                                  ? "승인 대기중"
+                                  : off.state === "CONFIRMED"
+                                  ? "승인 완료"
+                                  : "오류"}
                               </Badge>
                             </div>
                           </div>
@@ -310,6 +472,100 @@ const TrainerSchedulePage = () => {
           </div>
         </div>
       </div>
+
+      {/* 휴무 신청 모달 */}
+      {isOffModalOpen && selectedDate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-md">
+            <h3 className="text-lg font-semibold mb-4">휴무 신청</h3>
+
+            {/* 선택한 날짜 표시 */}
+            <div className="mb-6">
+              <p className="text-gray-700">
+                {format(selectedDate, "yyyy년 M월 d일 EEEE", { locale: ko })}
+              </p>
+            </div>
+
+            {/* 휴무 유형 선택 버튼들 */}
+            {!selectedOffType && (
+              <div className="space-y-3 mb-6">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleOffTypeSelect("FULL_DAY")}
+                >
+                  종일
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleOffTypeSelect("MORNING")}
+                >
+                  오전
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleOffTypeSelect("AFTERNOON")}
+                >
+                  오후
+                </Button>
+              </div>
+            )}
+
+            {/* 선택된 휴무 유형 확인 */}
+            {selectedOffType && (
+              <div className="mb-6">
+                <p className="text-gray-700 mb-4">
+                  {format(selectedDate, "yyyy년 M월 d일 EEEE", { locale: ko })}{" "}
+                  {getOffTypeText(selectedOffType)}를 신청합니다
+                </p>
+
+                {/* 충돌 메시지 */}
+                {conflictMessage && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-red-700 text-sm">{conflictMessage}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="default"
+                    className="flex-1"
+                    onClick={handleOffConfirm}
+                    disabled={isSubmitting || !!conflictMessage}
+                  >
+                    {isSubmitting ? "신청 중..." : "예"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleOffCancel}
+                    disabled={isSubmitting}
+                  >
+                    다시선택
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* 모달 닫기 버튼 */}
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsOffModalOpen(false);
+                  setSelectedOffType(null);
+                  setConflictMessage("");
+                }}
+                disabled={isSubmitting}
+              >
+                취소
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

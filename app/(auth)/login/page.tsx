@@ -19,7 +19,7 @@ const Login = async ({ searchParams }: { searchParams: SearchParams }) => {
   };
 
   return (
-    <main className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center px-4">
+    <main className="mt-20 w-full bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* 로고 및 브랜딩 */}
         <div className="text-center mb-8 animate-fadeIn">
@@ -81,7 +81,7 @@ const Login = async ({ searchParams }: { searchParams: SearchParams }) => {
           </div>
 
           {/* 비밀번호 로그인과 회원가입 */}
-          <LoginClient />
+          {/* <LoginClient /> */}
 
           {/* 에러 메시지 */}
           {error && errorMessages[error as string] && (

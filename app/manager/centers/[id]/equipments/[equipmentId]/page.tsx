@@ -346,8 +346,8 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
           </div>
         </div>
 
-        {/* Images */}
-        <div className="space-y-6">
+        {/* Images - 임시 주석 처리 */}
+        {/* <div className="space-y-6">
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
               <div className="flex items-center justify-between">
@@ -384,7 +384,7 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Existing saved images */}
-                {equipment.images?.map((image) => (
+                {/* {equipment.images?.map((image) => (
                   <div key={image.id} className="relative">
                     <Image
                       src={getOptimizedImageUrl(
@@ -404,10 +404,10 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
                       <X className="w-3 h-3" />
                     </button>
                   </div>
-                ))}
+                ))} */}
 
                 {/* Pending images (preview only) */}
-                {pendingImages.map((_, index) => (
+                {/* {pendingImages.map((_, index) => (
                   <div key={`pending-${index}`} className="relative">
                     <Image
                       src={pendingImagePreviews[index]}
@@ -429,10 +429,10 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
                       </div>
                     </div>
                   </div>
-                ))}
+                ))} */}
 
                 {/* Add new image button */}
-                {(equipment.images?.length || 0) + pendingImages.length < 3 && (
+                {/* {(equipment.images?.length || 0) + pendingImages.length < 3 && (
                   <div className="border-2 border-dashed border-gray-300 rounded-lg h-32">
                     <label className="cursor-pointer w-full h-full flex items-center justify-center">
                       <input
@@ -456,11 +456,11 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
                       </div>
                     </label>
                   </div>
-                )}
-              </div>
+                )} */}
+              {/* </div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Delete Confirmation Modal */}

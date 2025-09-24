@@ -155,7 +155,7 @@ export async function getTrainerPtList(trainerId: string) {
     return {
       id: pt.id,
       state: pt.state,
-      memberName: pt.member?.user.username || "알 수 없음",
+      memberName: pt.member?.user.username || "탈퇴한 회원",
       productName: pt.ptProduct.title,
       totalSessions,
       completedSessions,
@@ -184,7 +184,7 @@ export async function getTrainerPtList(trainerId: string) {
     return {
       id: pt.id,
       state: pt.state,
-      memberName: pt.member?.user.username || "알 수 없음",
+      memberName: pt.member?.user.username || "탈퇴한 회원",
       lastSessionDate,
       status: "completed" as const,
     };
@@ -252,14 +252,13 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
         },
       },
       lessons: {
-        where: {
-          isCanceled: false, // 취소되지 않은 레슨만 조회
-        },
         select: {
           id: true,
           memo: true,
           scheduledAt: true,
           endAt: true,
+          isCanceled: true,
+          managerCheckedAt: true,
           records: {
             where: {
               deletedAt: null,
@@ -370,6 +369,8 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
       status: lessonStatus,
       memo: lesson.memo || null,
       recordCount: lesson.records.length,
+      isCanceled: lesson.isCanceled,
+      managerCheckedAt: lesson.managerCheckedAt,
     };
   });
 
@@ -409,7 +410,7 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
 
   return {
     id: pt.id,
-    memberName: pt.member?.user.username || "알 수 없음",
+    memberName: pt.member?.user.username || "탈퇴한 회원",
     memberPhone: pt.member?.user.mobile || "",
     memberEmail: pt.member?.user.email || "",
     memberProfileImage: pt.member?.user.avatarImageId || null,
@@ -626,7 +627,7 @@ async function checkTrainerLessonConflict(
         hour: "2-digit",
         minute: "2-digit",
       }),
-      memberName: lesson.pt?.member?.user.username || "알 수 없음",
+      memberName: lesson.pt?.member?.user.username || "탈퇴한 회원",
     }));
 }
 
@@ -747,13 +748,18 @@ export async function createLessonWithPtApproval(
         },
       });
 
-      // 3. 첫 레슨 생성 (중복 체크는 이미 트랜잭션 밖에서 완료됨)
+      // 3. 트레이너 피트니스센터 정보 확인
+      if (!ptInfo.trainer?.fitnessCenterId) {
+        throw new Error("트레이너의 피트니스센터 정보가 없습니다.");
+      }
+
+      // 4. 첫 레슨 생성 (중복 체크는 이미 트랜잭션 밖에서 완료됨)
       const lesson = await tx.lesson.create({
         data: {
           ptId: ptId,
           scheduledAt: scheduledAt,
           endAt: endAt,
-          fitnessCenterId: ptInfo.trainer!.fitnessCenterId!,
+          fitnessCenterId: ptInfo.trainer.fitnessCenterId,
           memo: lessonData.memo || "",
         },
         select: {
@@ -1791,11 +1797,16 @@ export async function confirmPtWithFirstLesson(
         },
       });
 
+      // 트레이너 피트니스센터 정보 확인
+      if (!pt.trainer?.fitnessCenterId) {
+        throw new Error("트레이너의 피트니스센터 정보가 없습니다.");
+      }
+
       // 첫 레슨 생성
       const lesson = await tx.lesson.create({
         data: {
           ptId,
-          fitnessCenterId: pt.trainer!.fitnessCenterId!,
+          fitnessCenterId: pt.trainer.fitnessCenterId,
           scheduledAt,
           endAt,
           memo: lessonInput.memo || "",

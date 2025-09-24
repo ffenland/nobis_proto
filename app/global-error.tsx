@@ -1,26 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
-import { ErrorReporter } from "@/app/lib/utils/error-reporter";
-import { ErrorContexts } from "@/app/lib/utils/error-contexts";
 
-export default function GlobalError({ 
+export default function GlobalError({
   error,
-  reset 
-}: { 
+  reset
+}: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
   useEffect(() => {
-    // ErrorReporter를 사용하여 더 상세한 컨텍스트와 함께 에러 리포트
-    ErrorReporter.report(error, {
-      action: "global-error-boundary",
-      metadata: {
-        description: ErrorContexts.UNKNOWN_ERROR,
-        digest: error.digest,
-        url: typeof window !== "undefined" ? window.location.href : undefined,
-      }
-    });
+    // Log error to console
+    console.error("Global error:", error);
   }, [error]);
 
   return (

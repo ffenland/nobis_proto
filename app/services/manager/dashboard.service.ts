@@ -398,6 +398,55 @@ export async function getManagerCenters(managerId: string) {
   }
 }
 
+// PENDING 상태인 TrainerOff 개수 조회 (매니저가 관리하는 센터의 트레이너만)
+export async function getPendingTrainerOffCount(managerId: string) {
+  try {
+    const count = await prisma.trainerOff.count({
+      where: {
+        state: "PENDING",
+        trainer: {
+          fitnessCenter: {
+            managers: {
+              some: {
+                id: managerId, // 매니저가 관리하는 센터의 트레이너만
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return count;
+  } catch (error) {
+    console.error("Get pending trainer off count error:", error);
+    throw error;
+  }
+}
+
+// 취소되었지만 매니저 확인이 안 된 레슨 개수 조회 (매니저가 관리하는 센터만)
+export async function getUncheckedCanceledLessonsCount(managerId: string) {
+  try {
+    const count = await prisma.lesson.count({
+      where: {
+        isCanceled: true,
+        managerCheckedAt: null,
+        fitnessCenter: {
+          managers: {
+            some: {
+              id: managerId, // 매니저가 관리하는 센터만
+            },
+          },
+        },
+      },
+    });
+
+    return count;
+  } catch (error) {
+    console.error("Get unchecked canceled lessons count error:", error);
+    throw error;
+  }
+}
+
 // 타입 추론
 export type GetTodayLessonsResult = Awaited<ReturnType<typeof getTodayLessons>>;
 export type GetWeeklyLessonsCountResult = Awaited<
@@ -405,3 +454,9 @@ export type GetWeeklyLessonsCountResult = Awaited<
 >;
 export type GetPtStatsResult = Awaited<ReturnType<typeof getPtStats>>;
 export type GetManagerCentersResult = Awaited<ReturnType<typeof getManagerCenters>>;
+export type GetPendingTrainerOffCountResult = Awaited<
+  ReturnType<typeof getPendingTrainerOffCount>
+>;
+export type GetUncheckedCanceledLessonsCountResult = Awaited<
+  ReturnType<typeof getUncheckedCanceledLessonsCount>
+>;

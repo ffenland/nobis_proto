@@ -114,6 +114,10 @@ export default function TrainersPage() {
             전체 {stats.total}명 · 활성 {stats.working}명
           </p>
         </div>
+        <Link href="/manager/trainers/new" className="btn btn-primary">
+          <User className="w-4 h-4 mr-2" />
+          신규 트레이너 등록
+        </Link>
       </div>
 
       {/* 통계 카드 */}

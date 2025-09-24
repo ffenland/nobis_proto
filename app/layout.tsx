@@ -37,7 +37,7 @@ export default function RootLayout({
         <SWRProvider>
           <div className="h-full flex flex-col max-w-5xl mx-auto px-2 md:px-6">
             <GlobalHeader />
-            <main className="flex-1 mx-auto w-full overflow-auto">
+            <main className="MAIN flex-1 flex flex-col mx-auto w-full overflow-hidden">
               {children}
             </main>
           </div>

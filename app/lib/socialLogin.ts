@@ -2,7 +2,6 @@ import { createRandomNumber } from "./utils";
 import prisma from "./prisma";
 import { getCurrentIronSession } from "./session";
 import { redirect } from "next/navigation";
-import { setSentryUser } from "./utils/sentry-session";
 
 interface NaverAccessTokenResponseSuccess {
   access_token: string;
@@ -31,42 +30,6 @@ export const loginToSession = async (
   session.roleId = roleId;
   await session.save();
 
-  // Sentry에 사용자 정보 설정
-  try {
-    // 사용자 정보 조회
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-      },
-    });
-
-    if (user) {
-      // 센터 정보 조회 (트레이너/매니저의 경우)
-      let centerId: string | undefined;
-      if (role === "TRAINER") {
-        const trainer = await prisma.trainer.findUnique({
-          where: { id: roleId },
-          select: { fitnessCenterId: true },
-        });
-        centerId = trainer?.fitnessCenterId ?? undefined;
-      }
-
-      setSentryUser({
-        id: user.id,
-        email: user.email || undefined,
-        username: user.username,
-        role,
-        roleId,
-        centerId,
-      });
-    }
-  } catch (error) {
-    // Sentry 설정 실패는 로그인을 막지 않음
-    console.error("Failed to set Sentry user context:", error);
-  }
 };
 
 export const createRandomUsername = async (

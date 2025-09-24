@@ -259,35 +259,49 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
 
                   {/* 추가 예정 수업들 */}
                   {(() => {
-                    const futureLessons = pt.lessons.filter(
-                      (s) =>
-                        s.status === "scheduled" &&
-                        s.date !== pt.nextLesson?.date
-                    );
+                    const futureLessons = pt.lessons
+                      .filter(
+                        (s) =>
+                          !s.isCanceled &&
+                          s.status === "scheduled" &&
+                          s.date !== pt.nextLesson?.date
+                      )
+                      .sort((a, b) => {
+                        // 날짜 오름차순 정렬
+                        const dateA = new Date(a.date).getTime();
+                        const dateB = new Date(b.date).getTime();
+                        if (dateA !== dateB) return dateA - dateB;
+                        // 같은 날짜면 시간 오름차순
+                        return a.startTime - b.startTime;
+                      });
+
                     return futureLessons.length > 0 ? (
                       <div className="pt-4 border-t border-blue-200">
-                        <p className="text-sm font-medium text-blue-800 mb-2">
-                          추가 예정 수업
+                        <p className="text-sm font-medium text-blue-800 mb-3">
+                          예정된 수업
                         </p>
-                        <div className="flex flex-wrap gap-2">
-                          {futureLessons.slice(0, 3).map((lesson) => (
-                            <div
+                        <div className="space-y-2">
+                          {futureLessons.map((lesson) => (
+                            <Link
                               key={lesson.id}
-                              className="bg-white/60 px-3 py-1 rounded-lg text-sm"
+                              href={`/trainer/lesson/${lesson.id}`}
+                              className="block"
                             >
-                              <span className="text-blue-700 font-medium">
-                                {lesson.date}
-                              </span>
-                              <span className="text-blue-600 ml-2">
-                                {formatTime(lesson.startTime)}
-                              </span>
-                            </div>
+                              <div className="bg-white/60 px-3 py-2 rounded-lg text-sm hover:bg-white/80 transition-colors cursor-pointer">
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-blue-700 font-medium">
+                                      {lesson.date}
+                                    </span>
+                                    <span className="text-blue-600">
+                                      {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)}
+                                    </span>
+                                  </div>
+                                  <span className="text-gray-400">→</span>
+                                </div>
+                              </div>
+                            </Link>
                           ))}
-                          {futureLessons.length > 3 && (
-                            <span className="text-sm text-blue-600">
-                              +{futureLessons.length - 3}개
-                            </span>
-                          )}
                         </div>
                       </div>
                     ) : null;
@@ -319,9 +333,11 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
               <CardContent>
                 <div className="space-y-3">
                   {(() => {
-                    // 과거 수업만 필터링 (completed, absent)
+                    // 과거 수업만 필터링 (completed, absent, 취소되지 않은 레슨)
                     const pastLessons = pt.lessons.filter(
-                      (s) => s.status === "completed" || s.status === "absent"
+                      (s) =>
+                        !s.isCanceled &&
+                        (s.status === "completed" || s.status === "absent")
                     );
 
                     if (pastLessons.length === 0) {
@@ -386,6 +402,66 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* 취소된 수업 섹션 */}
+            {(() => {
+              const canceledLessons = pt.lessons.filter((s) => s.isCanceled);
+
+              if (canceledLessons.length === 0) {
+                return null;
+              }
+
+              return (
+                <Card className="border-orange-200 bg-orange-50/30">
+                  <CardHeader className="pb-3">
+                    <h3 className="text-lg font-semibold text-orange-900">
+                      취소된 수업 ({canceledLessons.length}회)
+                    </h3>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {[...canceledLessons].reverse().map((lesson) => (
+                        <div
+                          key={lesson.id}
+                          className="border border-orange-200 rounded-lg p-4 bg-white/60"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="default" className="text-xs bg-orange-100 text-orange-800">
+                                  취소
+                                </Badge>
+                                {lesson.managerCheckedAt ? (
+                                  <Badge variant="success" className="text-xs">
+                                    매니저 확인
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="warning" className="text-xs">
+                                    매니저 확인 대기중
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                                <span>{lesson.date}</span>
+                                <span>
+                                  {formatTime(lesson.startTime)} -{" "}
+                                  {formatTime(lesson.endTime)}
+                                </span>
+                              </div>
+                              {lesson.memo && (
+                                <p className="text-sm text-gray-700">
+                                  {lesson.memo}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
           </div>
         </div>

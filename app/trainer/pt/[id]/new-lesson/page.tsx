@@ -1,568 +1,641 @@
 // app/trainer/pt/[id]/new-lesson/page.tsx
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import useSWR from "swr";
-import useSWRMutation from "swr/mutation";
+import useSWR, { mutate } from "swr";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/dist/style.css";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 import { PageHeader } from "@/app/components/ui/Dropdown";
-import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
+import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
+import { Badge } from "@/app/components/ui/Loading";
 import { Button } from "@/app/components/ui/Button";
-import {
-  formatTime,
-  generateTimeSlots,
-  getMinSelectableDate,
-  filterFutureTimeSlots,
-  toTimeInt,
-  type TimeInt,
-} from "@/app/lib/utils/time.utils";
+import { generateTimeSlots, formatTime } from "@/app/lib/utils/time.utils";
+import type { GetTrainerScheduleResult } from "@/app/services/trainer/schedule.service";
 import type { GetTrainerPtDetailResult } from "@/app/services/trainer/pt.service";
 import type { CreateLessonInput } from "@/app/services/trainer/lesson.service";
-import type { CreateLessonServiceResult } from "@/app/services/trainer/lesson.service";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-// 스케줄 체크 결과 타입
-interface ScheduleCheckResult {
-  conflicts: {
-    id: string;
-    startTime: string;
-    endTime: string;
-    memberName: string;
-  }[];
-  isAvailable: boolean;
-  message: string;
-}
-
-// POST 요청을 위한 fetcher
-async function createLessonFetcher(
-  url: string,
-  { arg }: { arg: CreateLessonInput }
-): Promise<CreateLessonServiceResult> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(arg),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-
-    // 409 스케줄 충돌 에러 처리
-    if (response.status === 409 && errorData.type === "SCHEDULE_CONFLICT") {
-      throw new Error(errorData.error);
-    }
-
-    throw new Error(errorData.error || "레슨 생성에 실패했습니다.");
-  }
-
-  return response.json();
-}
-
 const NewLessonPage = ({ params }: PageProps) => {
-  const { id } = use(params);
+  const resolvedParams = use(params);
+  const ptId = resolvedParams.id;
   const router = useRouter();
 
-  // PT 정보 가져오기
-  const { data: pt } = useSWR<GetTrainerPtDetailResult>(
-    `/api/trainer/pt/${id}`
+  const now = new Date();
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(now);
+  const [currentMonth, setCurrentMonth] = useState<Date>(now);
+  const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
+  const [selectedStartTime, setSelectedStartTime] = useState<string>("");
+  const [lessonMemo, setLessonMemo] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState<string>("");
+
+  // PT 정보 조회
+  const { data: ptData, error: ptError } = useSWR<GetTrainerPtDetailResult>(
+    `/api/trainer/pt/${ptId}`
   );
 
-  // 상태 관리
-  const [selectedDate, setSelectedDate] = useState<string>("");
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [endTime, setEndTime] = useState<number | null>(null);
-  const [memo, setMemo] = useState<string>("");
-  const [toastMessage, setToastMessage] = useState<{
-    type: "success" | "error" | "warning" | "info";
-    message: string;
-  } | null>(null);
+  // 현재 표시 중인 월을 YYYYMM 형식으로 변환
+  const targetMonth = format(currentMonth, "yyyyMM");
 
-  // 스케줄 체크 관련 상태
-  const [scheduleCheckLoading, setScheduleCheckLoading] = useState(false);
-  const [scheduleCheckResult, setScheduleCheckResult] =
-    useState<ScheduleCheckResult | null>(null);
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
-
-  // 레슨 생성 mutation
-  const { trigger, isMutating } = useSWRMutation(
-    `/api/trainer/pt/${id}`,
-    createLessonFetcher
+  // 스케줄 데이터 페칭
+  const {
+    data: scheduleData,
+    error: scheduleError,
+    isLoading,
+  } = useSWR<GetTrainerScheduleResult>(
+    `/api/trainer/schedule?target=${targetMonth}`
   );
 
-  // Toast 함수
-  const showToast = (
-    type: "success" | "error" | "warning" | "info",
-    message: string
-  ) => {
-    setToastMessage({ type, message });
-    setTimeout(() => setToastMessage(null), 2500);
+  // 타입 정의
+  type LessonType = GetTrainerScheduleResult["lessons"][0];
+  type OffType = GetTrainerScheduleResult["offDays"][0];
+
+  // 날짜별 스케줄 데이터 매핑
+  const dateScheduleMap = useMemo(() => {
+    if (!scheduleData) return new Map();
+
+    const map = new Map<
+      string,
+      {
+        lessons: LessonType[];
+        offs: OffType[];
+      }
+    >();
+
+    // Lesson 데이터 매핑
+    scheduleData.lessons.forEach((lesson) => {
+      const dateKey = format(new Date(lesson.scheduledAt), "yyyy-MM-dd");
+      if (!map.has(dateKey)) {
+        map.set(dateKey, { lessons: [], offs: [] });
+      }
+      map.get(dateKey)!.lessons.push(lesson);
+    });
+
+    // TrainerOff 데이터 매핑
+    scheduleData.offDays.forEach((off) => {
+      const dateKey = format(new Date(off.startAt), "yyyy-MM-dd");
+      if (!map.has(dateKey)) {
+        map.set(dateKey, { lessons: [], offs: [] });
+      }
+      map.get(dateKey)!.offs.push(off);
+    });
+
+    return map;
+  }, [scheduleData]);
+
+  // 선택된 날짜의 스케줄 정보
+  const selectedDateSchedule = useMemo(() => {
+    if (!selectedDate) return null;
+    const dateKey = format(selectedDate, "yyyy-MM-dd");
+    return dateScheduleMap.get(dateKey) || { lessons: [], offs: [] };
+  }, [selectedDate, dateScheduleMap]);
+
+  // 날짜별 스타일 modifier
+  const modifiers = {
+    hasLesson: (date: Date) => {
+      const dateKey = format(date, "yyyy-MM-dd");
+      const schedule = dateScheduleMap.get(dateKey);
+      return schedule ? schedule.lessons.length > 0 : false;
+    },
+    hasOff: (date: Date) => {
+      const dateKey = format(date, "yyyy-MM-dd");
+      const schedule = dateScheduleMap.get(dateKey);
+      return schedule
+        ? schedule.offs.length > 0 && schedule.lessons.length === 0
+        : false;
+    },
   };
 
-  // 스케줄 체크 함수
-  const checkSchedule = async (date: string, start: number, end: number) => {
-    if (!date || !start || !end) return;
+  const modifiersStyles = {
+    hasLesson: {
+      backgroundColor: "#3B82F6",
+      color: "white",
+      fontWeight: "bold" as const,
+    },
+    hasOff: {
+      backgroundColor: "#EF4444",
+      color: "white",
+      fontWeight: "bold" as const,
+    },
+  };
 
-    setScheduleCheckLoading(true);
-    setScheduleError(null);
-    setScheduleCheckResult(null);
+  // 시간 선택 옵션 생성 (06:00 ~ 23:30, 30분 단위)
+  const timeSlots = generateTimeSlots();
+  const formattedTimeSlots = timeSlots.map((time) => formatTime(time));
 
+  // 종료 시간 자동 계산 함수
+  const calculateEndTime = (startTime: string): string => {
+    if (!ptData || !startTime) return "";
+
+    const [hours, minutes] = startTime.split(":").map(Number);
+    const startDate = new Date();
+    startDate.setHours(hours, minutes, 0, 0);
+
+    // sessionTime은 분 단위로 저장되어 있음
+    const endDate = new Date(
+      startDate.getTime() + ptData.ptProduct.sessionTime * 60 * 1000
+    );
+
+    return format(endDate, "HH:mm");
+  };
+
+  // 충돌 검사 함수
+  const checkConflict = (startTime: string) => {
+    if (!selectedDate || !selectedDateSchedule || !startTime) return "";
+
+    const endTime = calculateEndTime(startTime);
+    if (!endTime) return "";
+
+    const startDate = new Date(
+      `${format(selectedDate, "yyyy-MM-dd")}T${startTime}:00`
+    );
+    const endDate = new Date(
+      `${format(selectedDate, "yyyy-MM-dd")}T${endTime}:00`
+    );
+
+    // 레슨과의 충돌 검사
+    for (const lesson of selectedDateSchedule.lessons) {
+      const lessonStart = new Date(lesson.scheduledAt);
+      const lessonEnd = new Date(lesson.endAt);
+
+      if (startDate < lessonEnd && endDate > lessonStart) {
+        return `${format(lessonStart, "HH:mm")}-${format(
+          lessonEnd,
+          "HH:mm"
+        )}에 ${lesson.member.username}님과의 수업이 있습니다.`;
+      }
+    }
+
+    // 휴무와의 충돌 검사
+    for (const off of selectedDateSchedule.offs) {
+      const offStart = new Date(off.startAt);
+      const offEnd = new Date(off.endAt);
+
+      if (startDate < offEnd && endDate > offStart) {
+        const offStartHour = offStart.getHours();
+        const offEndHour = offEnd.getHours();
+        const offEndMinute = offEnd.getMinutes();
+
+        let offType = "";
+        if (offStartHour === 0 && offEndHour === 23 && offEndMinute === 59) {
+          offType = "종일 휴무";
+        } else if (
+          offStartHour === 0 &&
+          offEndHour === 12 &&
+          offEndMinute === 59
+        ) {
+          offType = "오전 휴무";
+        } else if (
+          offStartHour === 13 &&
+          offEndHour === 23 &&
+          offEndMinute === 59
+        ) {
+          offType = "오후 휴무";
+        } else {
+          offType = `${format(offStart, "HH:mm")}-${format(
+            offEnd,
+            "HH:mm"
+          )} 휴무`;
+        }
+        return `${offType} 일정이 있습니다.`;
+      }
+    }
+
+    return "";
+  };
+
+  // 시간 선택 핸들러
+  const handleStartTimeChange = (time: string) => {
+    setSelectedStartTime(time);
+    if (time) {
+      const conflict = checkConflict(time);
+      setConflictMessage(conflict);
+    } else {
+      setConflictMessage("");
+    }
+  };
+
+  // 레슨 생성 핸들러
+  const handleLessonCreate = async () => {
+    if (!selectedDate || !selectedStartTime || conflictMessage) {
+      return;
+    }
+
+    const endTime = calculateEndTime(selectedStartTime);
+    if (!endTime) {
+      alert("종료 시간을 계산할 수 없습니다.");
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      // 날짜와 시간을 조합하여 ISO 문자열 생성
-      const startHour = Math.floor(start / 100);
-      const startMinute = start % 100;
-      const endHour = Math.floor(end / 100);
-      const endMinute = end % 100;
-
       const scheduledAt = new Date(
-        `${date}T${startHour.toString().padStart(2, "0")}:${startMinute
-          .toString()
-          .padStart(2, "0")}:00`
+        `${format(selectedDate, "yyyy-MM-dd")}T${selectedStartTime}:00`
       );
       const endAt = new Date(
-        `${date}T${endHour.toString().padStart(2, "0")}:${endMinute
-          .toString()
-          .padStart(2, "0")}:00`
+        `${format(selectedDate, "yyyy-MM-dd")}T${endTime}:00`
       );
 
-      const response = await fetch(
-        `/api/trainer/lesson/schedule-check?scheduledAt=${scheduledAt.toISOString()}&endAt=${endAt.toISOString()}`
-      );
+      const lessonData: CreateLessonInput = {
+        scheduledAt: scheduledAt.toISOString(),
+        endAt: endAt.toISOString(),
+        memo: lessonMemo || undefined,
+      };
 
-      if (!response.ok) {
-        throw new Error("스케줄 체크 요청이 실패했습니다.");
-      }
-
-      const result = await response.json();
-      setScheduleCheckResult(result);
-
-      // 충돌이 있는 경우 에러 메시지 설정
-      if (!result.isAvailable && result.conflicts.length > 0) {
-        const conflict = result.conflicts[0];
-        setScheduleError(
-          `선택하신 시간에 ${conflict.startTime}부터 ${conflict.endTime}까지 ${conflict.memberName}님과의 수업이 있습니다.`
-        );
-      }
-    } catch (error) {
-      console.error("스케줄 체크 실패:", error);
-      setScheduleError("스케줄 체크 중 오류가 발생했습니다.");
-    } finally {
-      setScheduleCheckLoading(false);
-    }
-  };
-
-  // 오늘 날짜 계산 (최소 선택 가능 날짜)
-  const minDate = getMinSelectableDate();
-
-  // 시간 슬롯 생성 (6:00 ~ 22:00, 30분 단위)
-  const allTimeSlots = generateTimeSlots(600, 2200);
-
-  // 선택된 날짜에 따라 과거 시간 필터링
-  const timeSlots = selectedDate
-    ? filterFutureTimeSlots(allTimeSlots, selectedDate)
-    : allTimeSlots;
-
-  // 종료 시간 옵션 (시작 시간 선택 후)
-  const getEndTimeOptions = () => {
-    if (!startTime) return [];
-
-    // 시작 시간부터 최소 30분, 최대 2시간까지 10분 단위로 옵션 생성
-    const endOptions = [];
-    const startHour = Math.floor(startTime / 100);
-    const startMinute = startTime % 100;
-    const startTotalMinutes = startHour * 60 + startMinute;
-
-    // 30분부터 120분(2시간)까지 10분 단위
-    for (let addMinutes = 30; addMinutes <= 120; addMinutes += 10) {
-      const endTotalMinutes = startTotalMinutes + addMinutes;
-      const endHour = Math.floor(endTotalMinutes / 60);
-      const endMinute = endTotalMinutes % 60;
-      const endTime = endHour * 100 + endMinute;
-
-      // 22:30까지만 가능
-      if (endTime <= 2230) {
-        endOptions.push(endTime);
-      }
-    }
-
-    return endOptions;
-  };
-
-  // 폼 제출 처리
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedDate || !startTime || !endTime) {
-      showToast("warning", "날짜와 시간을 모두 선택해주세요.");
-      return;
-    }
-
-    // 스케줄 충돌이 있으면 제출 차단
-    if (scheduleCheckResult && !scheduleCheckResult.isAvailable) {
-      showToast("warning", "스케줄 충돌이 있습니다. 다른 시간을 선택해주세요.");
-      return;
-    }
-
-    try {
-      // 날짜와 시간을 조합하여 Date 객체 생성
-      const hour = Math.floor(startTime / 100);
-      const minute = startTime % 100;
-
-      // 시작 시간 - 로컬 시간으로 Date 객체 생성
-      const scheduledDate = new Date(
-        `${selectedDate}T${hour.toString().padStart(2, "0")}:${minute
-          .toString()
-          .padStart(2, "0")}:00`
-      );
-
-      // 종료 시간 = 시작 시간 + PT 상품의 세션 시간(분)
-      const sessionMinutes = pt?.ptProduct.sessionTime || 60;
-      const endDate = new Date(
-        scheduledDate.getTime() + sessionMinutes * 60 * 1000
-      );
-
-      const result = await trigger({
-        scheduledAt: scheduledDate.toISOString(),
-        endAt: endDate.toISOString(),
-        memo: memo.trim(),
+      const response = await fetch(`/api/trainer/pt/${ptId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(lessonData),
       });
 
+      const result = await response.json();
+
       if (result.success) {
-        showToast(
-          "success",
-          "새 수업이 성공적으로 등록되었습니다. 잠시후 레슨 페이지로 이동합니다."
-        );
-        // 등록된 레슨 상세 페이지로 바로 이동
-        router.push(`/trainer/lesson/${result.lessonId}`);
+        // 스케줄 데이터 재조회
+        mutate(`/api/trainer/schedule?target=${targetMonth}`);
+        // PT 상세 페이지로 이동
+        router.push(`/trainer/pt/${ptId}`);
+      } else {
+        alert(result.message || "레슨 생성에 실패했습니다.");
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "레슨 생성에 실패했습니다.";
-
-      // 스케줄 충돌 에러인지 확인
-      const isScheduleConflict = errorMessage.includes("일정이 중복됩니다");
-
-      showToast(isScheduleConflict ? "warning" : "error", errorMessage);
+      console.error("레슨 생성 오류:", error);
+      alert("레슨 생성 중 오류가 발생했습니다.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // 시작 시간 변경 시 종료 시간 자동 설정 및 스케줄 체크
-  const handleStartTimeChange = async (time: number) => {
-    setStartTime(time);
-    setScheduleError(null); // 시간 변경 시 에러 초기화
-    setScheduleCheckResult(null);
-
-    // PT 상품의 세션 시간 기본값 60분으로 자동 설정
-    const sessionMinutes = pt?.ptProduct.sessionTime || 60;
-
-    const startHour = Math.floor(time / 100);
-    const startMinute = time % 100;
-    const startTotalMinutes = startHour * 60 + startMinute;
-
-    // 세션 시간만큼 더해서 종료 시간 계산
-    const endTotalMinutes = startTotalMinutes + sessionMinutes;
-    const endHour = Math.floor(endTotalMinutes / 60);
-    const endMinute = endTotalMinutes % 60;
-    const calculatedEndTime = endHour * 100 + endMinute;
-
-    let finalEndTime;
-    // 22:30까지만 가능
-    if (calculatedEndTime <= 2230) {
-      finalEndTime = calculatedEndTime;
-    } else {
-      // 22:30 넘으면 22:30으로 설정
-      finalEndTime = 2230;
-    }
-
-    setEndTime(finalEndTime);
-
-    // 스케줄 체크 (날짜와 시작/종료 시간이 모두 설정되면)
-    if (selectedDate && time && finalEndTime) {
-      await checkSchedule(selectedDate, time, finalEndTime);
-    }
+  // 모달 초기화
+  const handleOpenModal = () => {
+    setIsLessonModalOpen(true);
+    setSelectedStartTime("");
+    setLessonMemo("");
+    setConflictMessage("");
   };
+
+  if (ptError || scheduleError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-2">데이터를 불러올 수 없습니다.</p>
+          <p className="text-gray-600 text-sm">
+            {ptError?.message || scheduleError?.message}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      {/* 헤더 */}
-      <div className="mb-6">
-        <PageHeader
-          title="새 수업 등록"
-          subtitle={pt ? `${pt.memberName}님의 ${pt.ptProduct.title}` : ""}
-        />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* 헤더 */}
+        <div className="mb-6 flex justify-between items-center">
+          <PageHeader
+            title="새 레슨 생성"
+            subtitle={
+              ptData ? `${ptData.memberName}님 - ${ptData.ptProduct.title}` : ""
+            }
+          />
+          <Button variant="outline" onClick={() => router.back()}>
+            뒤로가기
+          </Button>
+        </div>
+
+        <div className="md:flex md:gap-6">
+          {/* 달력 영역 */}
+          <div className="md:flex-1">
+            <Card className="mb-6 md:mb-0">
+              <CardContent className="p-4">
+                <div className="flex justify-center">
+                  <DayPicker
+                    mode="single"
+                    navLayout="around"
+                    animate
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    month={currentMonth}
+                    onMonthChange={setCurrentMonth}
+                    locale={ko}
+                    modifiers={modifiers}
+                    modifiersStyles={modifiersStyles}
+                    disabled={(date) =>
+                      date < new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                    className="w-full"
+                    classNames={{
+                      months: "flex flex-col",
+                      month: "w-full",
+                      caption: "flex justify-center items-center",
+                      caption_label: "text-lg font-medium",
+                      table: "w-full border-collapse space-y-1",
+                      head_row: "flex w-full flex-1",
+                      head_cell:
+                        "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem] text-center",
+                      row: "flex w-full mt-2",
+                      cell: "relative h-10 text-center text-sm p-0 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                      day: "h-10 p-0 font-normal aria-selected:opacity-100 hover:bg-gray-100 rounded-md",
+                      day_selected:
+                        "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                      day_today: "bg-accent text-accent-foreground",
+                      day_button: "w-full",
+                      day_outside: "text-muted-foreground opacity-50",
+                      day_disabled: "text-muted-foreground opacity-50",
+                      day_range_middle:
+                        "aria-selected:bg-accent aria-selected:text-accent-foreground",
+                      day_hidden: "invisible",
+                      month_grid: "w-full",
+                    }}
+                  />
+                </div>
+
+                {/* 데이터 로딩 상태 표시 */}
+                {isLoading && (
+                  <div className="flex justify-center mt-4 pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                      <span className="text-sm text-gray-600">
+                        스케줄 로딩 중...
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 범례 */}
+                {!isLoading && (
+                  <div className="flex justify-center gap-4 mt-4 pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                      <span className="text-sm text-gray-600">레슨</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-red-500 rounded"></div>
+                      <span className="text-sm text-gray-600">휴무</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-gray-200 rounded"></div>
+                      <span className="text-sm text-gray-600">일정없음</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 스케줄 상세 영역 */}
+          <div className="md:w-96">
+            <Card>
+              <CardHeader className="pb-3 flex justify-between items-center">
+                <h3 className="text-lg font-semibold">
+                  {selectedDate
+                    ? format(selectedDate, "M월 d일 (EEEE)", { locale: ko })
+                    : "날짜를 선택하세요"}
+                </h3>
+                {selectedDate && (
+                  <Button
+                    variant="primary"
+                    onClick={handleOpenModal}
+                    disabled={isLoading}
+                  >
+                    <span>레슨 생성</span>
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {selectedDate && selectedDateSchedule ? (
+                  <>
+                    {/* 레슨 목록 */}
+                    {selectedDateSchedule.lessons.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-700">
+                          레슨
+                        </h4>
+                        {selectedDateSchedule.lessons.map(
+                          (lesson: LessonType) => (
+                            <div
+                              key={lesson.id}
+                              className="p-3 bg-blue-50 rounded-lg border border-blue-200"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium text-blue-900">
+                                    {lesson.member.username} 회원님
+                                  </p>
+                                  <p className="text-sm text-blue-700">
+                                    {format(
+                                      new Date(lesson.scheduledAt),
+                                      "HH:mm"
+                                    )}{" "}
+                                    ~ {format(new Date(lesson.endAt), "HH:mm")}
+                                  </p>
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    {lesson.fitnessCenter.title}
+                                  </p>
+                                </div>
+                                <Badge variant="info" className="text-xs">
+                                  레슨
+                                </Badge>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+
+                    {/* OFF 목록 */}
+                    {selectedDateSchedule.offs.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-700">
+                          휴무
+                        </h4>
+                        {selectedDateSchedule.offs.map((off: OffType) => {
+                          const startDate = new Date(off.startAt);
+                          const endDate = new Date(off.endAt);
+                          const startHour = startDate.getHours();
+                          const endHour = endDate.getHours();
+                          const endMinute = endDate.getMinutes();
+
+                          let offType = "";
+                          if (
+                            startHour === 0 &&
+                            endHour === 23 &&
+                            endMinute === 59
+                          ) {
+                            offType = "휴무";
+                          } else if (
+                            startHour === 0 &&
+                            endHour === 12 &&
+                            endMinute === 59
+                          ) {
+                            offType = "오전반차";
+                          } else if (
+                            startHour === 13 &&
+                            endHour === 23 &&
+                            endMinute === 59
+                          ) {
+                            offType = "오후반차";
+                          } else {
+                            offType = `${format(startDate, "HH:mm")} ~ ${format(
+                              endDate,
+                              "HH:mm"
+                            )}`;
+                          }
+
+                          return (
+                            <div
+                              key={off.id}
+                              className="p-3 bg-red-50 rounded-lg border border-red-200"
+                            >
+                              <div className="flex items-center justify-between">
+                                <p
+                                  className={`font-medium ${
+                                    off.state === "CONFIRMED"
+                                      ? "text-red-900"
+                                      : off.state === "PENDING"
+                                      ? "text-purple-800"
+                                      : "text-slate-700"
+                                  }`}
+                                >
+                                  {offType}
+                                </p>
+                                <Badge variant="error" className="text-xs">
+                                  {off.state === "PENDING"
+                                    ? "승인 대기중"
+                                    : off.state === "CONFIRMED"
+                                    ? "승인 완료"
+                                    : "오류"}
+                                </Badge>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* 일정 없음 */}
+                    {selectedDateSchedule.lessons.length === 0 &&
+                      selectedDateSchedule.offs.length === 0 && (
+                        <div className="p-4 text-center text-gray-500">
+                          <p>일정 없음</p>
+                        </div>
+                      )}
+                  </>
+                ) : (
+                  <div className="p-4 text-center text-gray-500">
+                    <p>날짜를 선택하여 일정을 확인하세요</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
 
-      {/* 뒤로가기 버튼 */}
-      <Link href={`/trainer/pt/${id}`} className="inline-block mb-6">
-        <Button variant="outline" size="sm">
-          ← PT 상세로 돌아가기
-        </Button>
-      </Link>
+      {/* 레슨 생성 모달 */}
+      {isLessonModalOpen && selectedDate && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-md max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">새 레슨 생성</h3>
 
-      {/* 레슨 등록 폼 */}
-      <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold">수업 일정 선택</h3>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* 날짜 선택 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                수업 날짜
-              </label>
-              <input
-                type="date"
-                min={minDate}
-                value={selectedDate}
-                onChange={async (e) => {
-                  const newDate = e.target.value;
-                  setSelectedDate(newDate);
-                  setScheduleError(null);
-                  setScheduleCheckResult(null);
-
-                  // 시간이 모두 설정되어 있으면 스케줄 체크
-                  if (startTime && endTime) {
-                    await checkSchedule(newDate, startTime, endTime);
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
+            {/* 선택한 날짜 표시 */}
+            <div className="mb-4">
+              <p className="text-gray-700">
+                {format(selectedDate, "yyyy년 M월 d일 EEEE", { locale: ko })}
+              </p>
             </div>
 
             {/* 시작 시간 선택 */}
-            <div>
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 시작 시간
               </label>
               <select
-                value={startTime || ""}
-                onChange={(e) => handleStartTimeChange(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
+                value={selectedStartTime}
+                onChange={(e) => handleStartTimeChange(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
               >
-                <option value="">시간을 선택하세요</option>
-                {timeSlots.map((slot) => (
-                  <option key={slot} value={slot}>
-                    {formatTime(slot)}
+                <option value="">선택하세요</option>
+                {formattedTimeSlots.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 종료 시간 선택 */}
-            {startTime && (
-              <div>
+            {/* 자동 계산된 종료 시간 표시 */}
+            {selectedStartTime && (
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  종료 시간
+                  종료 시간 (자동 계산)
                 </label>
-                <select
-                  value={endTime || ""}
-                  onChange={async (e) => {
-                    const newEndTime = Number(e.target.value);
-                    setEndTime(newEndTime);
-                    setScheduleError(null);
-                    setScheduleCheckResult(null);
-
-                    // 날짜와 시작시간이 설정되어 있으면 스케줄 체크
-                    if (selectedDate && startTime) {
-                      await checkSchedule(selectedDate, startTime, newEndTime);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">시간을 선택하세요</option>
-                  {getEndTimeOptions().map((slot) => (
-                    <option key={slot} value={slot}>
-                      {formatTime(slot)}
-                    </option>
-                  ))}
-                </select>
-                {pt && endTime && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    수업 시간:{" "}
-                    {Math.round(
-                      Math.floor(endTime / 100) * 60 +
-                        (endTime % 100) -
-                        (Math.floor(startTime / 100) * 60 + (startTime % 100))
-                    )}
-                    분 (권장: {pt.ptProduct.sessionTime}분)
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* 스케줄 체크 상태 */}
-            {scheduleCheckLoading && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-                  <p className="text-sm text-blue-700">
-                    스케줄을 확인하고 있습니다...
-                  </p>
+                <div className="w-full p-2 border border-gray-200 rounded-md bg-gray-50">
+                  <span className="text-gray-900">
+                    {calculateEndTime(selectedStartTime)}
+                    <span className="text-sm text-gray-500 ml-2">
+                      ({ptData?.ptProduct.sessionTime}분 수업)
+                    </span>
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* 스케줄 가능 상태 */}
-            {scheduleCheckResult &&
-              scheduleCheckResult.isAvailable &&
-              !scheduleCheckLoading && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-start">
-                    <svg
-                      className="w-5 h-5 text-green-400 mt-0.5 mr-3"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <div>
-                      <h4 className="text-sm font-semibold text-green-800">
-                        스케줄 사용 가능
-                      </h4>
-                      <p className="text-sm text-green-700 mt-1">
-                        {scheduleCheckResult.message}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            {/* 에러 메시지 (스케줄 충돌) */}
-            {scheduleError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-start">
-                  <svg
-                    className="w-5 h-5 text-red-400 mt-0.5 mr-3"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <div>
-                    <h4 className="text-sm font-semibold text-red-800">
-                      스케줄 충돌
-                    </h4>
-                    <p className="text-sm text-red-700 mt-1">{scheduleError}</p>
-                    <p className="text-xs text-red-600 mt-2">
-                      다른 날짜나 시간을 선택해주세요.
-                    </p>
-                  </div>
-                </div>
+            {/* 충돌 메시지 */}
+            {conflictMessage && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-700 text-sm">{conflictMessage}</p>
               </div>
             )}
 
-            {/* 메모 */}
-            <div>
+            {/* 메모 입력 */}
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                메모 (선택)
+                메모 (선택사항)
               </label>
               <textarea
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                placeholder="수업 관련 메모를 입력하세요"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={lessonMemo}
+                onChange={(e) => setLessonMemo(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
                 rows={3}
+                placeholder="레슨 관련 메모를 입력하세요"
               />
             </div>
 
-            {/* 제출 버튼 */}
+            {/* 버튼들 */}
             <div className="flex gap-3">
               <Button
-                type="submit"
-                variant="primary"
+                variant="default"
+                className="flex-1 bg-green-700 text-white hover:bg-green-500"
+                onClick={handleLessonCreate}
                 disabled={
-                  isMutating ||
-                  !selectedDate ||
-                  !startTime ||
-                  !endTime ||
-                  scheduleCheckLoading ||
-                  (scheduleCheckResult
-                    ? !scheduleCheckResult.isAvailable
-                    : false)
+                  !selectedStartTime || !!conflictMessage || isSubmitting
                 }
-                className="flex-1"
               >
-                {isMutating
-                  ? "등록 중..."
-                  : scheduleCheckLoading
-                  ? "스케줄 확인 중..."
-                  : "수업 등록"}
+                {isSubmitting ? "생성 중..." : "레슨 생성"}
               </Button>
-              <Link href={`/trainer/pt/${id}`} className="flex-1">
-                <Button type="button" variant="outline" className="w-full">
-                  취소
-                </Button>
-              </Link>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setIsLessonModalOpen(false);
+                  setSelectedStartTime("");
+                  setLessonMemo("");
+                  setConflictMessage("");
+                }}
+                disabled={isSubmitting}
+              >
+                취소
+              </Button>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* 안내 사항 */}
-      <Card className="mt-6 bg-blue-50 border-blue-200">
-        <CardContent className="pt-6">
-          <h4 className="font-semibold text-blue-900 mb-2">📌 안내사항</h4>
-          <ul className="space-y-1 text-sm text-blue-800">
-            <li>
-              • 수업 시간은 PT 상품의 기본 시간({pt?.ptProduct.sessionTime}
-              분)으로 자동 설정됩니다.
-            </li>
-            <li>• 필요시 종료 시간을 조정할 수 있습니다.</li>
-            <li>• 등록된 수업은 PT 상세 페이지에서 확인할 수 있습니다.</li>
-            <li>• 수업 시간 변경이 필요한 경우, 회원과 협의 후 진행하세요.</li>
-          </ul>
-        </CardContent>
-      </Card>
-
-      {/* Toast */}
-      {toastMessage && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
-          <div className={`
-            px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3 max-w-sm
-            ${toastMessage.type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' : ''}
-            ${toastMessage.type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' : ''}
-            ${toastMessage.type === 'warning' ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : ''}
-            ${toastMessage.type === 'info' ? 'bg-blue-50 border border-blue-200 text-blue-800' : ''}
-          `}>
-            {/* 아이콘 */}
-            {toastMessage.type === 'success' && (
-              <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            )}
-            {toastMessage.type === 'error' && (
-              <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            )}
-            {toastMessage.type === 'warning' && (
-              <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            )}
-            {toastMessage.type === 'info' && (
-              <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            )}
-            <span className="text-sm font-medium">{toastMessage.message}</span>
           </div>
         </div>
       )}

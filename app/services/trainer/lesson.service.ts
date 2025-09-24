@@ -445,6 +445,45 @@ export async function createLesson(
       throw new Error(message);
     }
 
+    // TrainerOff와 충돌 검사
+    const conflictingOffs = await prisma.trainerOff.findMany({
+      where: {
+        trainerId,
+        state: { in: ["PENDING", "CONFIRMED"] },
+        AND: [{ startAt: { lt: endAt } }, { endAt: { gt: scheduledAt } }],
+      },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        state: true,
+      },
+    });
+
+    if (conflictingOffs.length > 0) {
+      const firstOff = conflictingOffs[0];
+      const startHour = firstOff.startAt.getHours();
+      const endHour = firstOff.endAt.getHours();
+      const endMinute = firstOff.endAt.getMinutes();
+
+      let offType = "";
+      if (startHour === 0 && endHour === 23 && endMinute === 59) {
+        offType = "종일 휴무";
+      } else if (startHour === 0 && endHour === 12 && endMinute === 59) {
+        offType = "오전 휴무";
+      } else if (startHour === 13 && endHour === 23 && endMinute === 59) {
+        offType = "오후 휴무";
+      } else {
+        offType = "휴무";
+      }
+
+      const stateText = firstOff.state === "PENDING" ? " (승인 대기중)" : "";
+      const message = `선택하신 시간에 ${offType} 일정이 있습니다${stateText}.`;
+
+      // 에러를 던져서 API 에러 처리에서 409 상태로 반환
+      throw new Error(message);
+    }
+
     // 새 레슨 생성
     const lesson = await prisma.lesson.create({
       data: {
@@ -1004,7 +1043,6 @@ export async function checkTrainerScheduleConflict(
   return await checkTrainerLessonConflict(trainerId, scheduledAt, endAt);
 }
 
-
 // ===== 컨디션 기록 관련 서비스 =====
 
 // 컨디션 기록 생성 입력 타입
@@ -1406,3 +1444,141 @@ export async function cancelLesson(
 
 // 타입 추론
 export type CancelLessonResult = Awaited<ReturnType<typeof cancelLesson>>;
+
+// 레슨 취소 가능 여부 체크
+export async function checkLessonCancellable(
+  trainerId: string,
+  lessonId: string
+) {
+  try {
+    // 권한 체크 및 레슨 정보 조회
+    const lesson = await prisma.lesson.findFirst({
+      where: {
+        id: lessonId,
+        pt: {
+          trainerId: trainerId,
+        },
+      },
+      select: {
+        id: true,
+        scheduledAt: true,
+        isCanceled: true,
+        memo: true,
+        records: {
+          where: {
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+          },
+        },
+        images: {
+          select: {
+            id: true,
+          },
+        },
+        videos: {
+          select: {
+            id: true,
+          },
+        },
+        conditionImages: {
+          select: {
+            id: true,
+          },
+        },
+        pt: {
+          select: {
+            id: true,
+            member: {
+              select: {
+                user: {
+                  select: {
+                    username: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      return {
+        canCancel: false,
+        reason: "레슨을 찾을 수 없거나 권한이 없습니다.",
+        lesson: null,
+      };
+    }
+
+    if (lesson.isCanceled) {
+      return {
+        canCancel: false,
+        reason: "이미 취소된 레슨입니다.",
+        ptId: lesson.pt.id,
+        lesson: {
+          id: lesson.id,
+          memberName: lesson.pt.member?.user?.username || "알 수 없음",
+          scheduledAt: lesson.scheduledAt,
+          isCanceled: lesson.isCanceled,
+        },
+      };
+    }
+
+    // 취소 불가능한 조건들 체크
+    const hasRecords = lesson.records.length > 0;
+    const hasImages = lesson.images.length > 0;
+    const hasVideos = lesson.videos.length > 0;
+    const hasConditionImages = lesson.conditionImages.length > 0;
+
+    if (hasRecords || hasImages || hasVideos || hasConditionImages) {
+      const reasons = [];
+      if (hasRecords) reasons.push("운동 기록");
+      if (hasImages) reasons.push("레슨 이미지");
+      if (hasVideos) reasons.push("레슨 비디오");
+      if (hasConditionImages) reasons.push("컨디션 이미지");
+
+      return {
+        canCancel: false,
+        reason: `이미 ${reasons.join(
+          ", "
+        )}이 있어 취소할 수 없습니다. 기록을 먼저 삭제하시거나 수업을 진행해주세요.`,
+        ptId: lesson.pt.id,
+        lesson: {
+          id: lesson.id,
+          memberName: lesson.pt.member?.user?.username || "알 수 없음",
+          scheduledAt: lesson.scheduledAt,
+          isCanceled: lesson.isCanceled,
+          memo: lesson.memo,
+        },
+      };
+    }
+
+    // 취소 가능한 경우
+    return {
+      canCancel: true,
+      reason: null,
+      ptId: lesson.pt.id,
+      lesson: {
+        id: lesson.id,
+        memberName: lesson.pt.member?.user?.username || "알 수 없음",
+        scheduledAt: lesson.scheduledAt,
+        isCanceled: lesson.isCanceled,
+        memo: lesson.memo,
+      },
+    };
+  } catch (error) {
+    console.error("Check lesson cancellable error:", error);
+    return {
+      canCancel: false,
+      reason: "레슨 취소 가능 여부를 확인하는 중 오류가 발생했습니다.",
+      lesson: null,
+    };
+  }
+}
+
+// 타입 추론
+export type CheckLessonCancellableResult = Awaited<
+  ReturnType<typeof checkLessonCancellable>
+>;
