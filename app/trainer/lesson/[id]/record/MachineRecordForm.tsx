@@ -6,21 +6,7 @@ import { Trash2, Plus } from "lucide-react";
 import { Badge } from "@/app/components/ui/Loading";
 import useSWR from "swr";
 import type { IMachinesByFitnessCenter } from "@/app/services/fitness-center/machine.service";
-
-// Form 데이터 타입 - page.tsx의 MachineFormData와 일치
-interface MachineFormData {
-  type: "MACHINE";
-  title: string;
-  description?: string;
-  exerciseId: string; // Machine ID (exerciseId로 명명됨)
-  sets: Array<{
-    reps: number;
-    settings: Array<{
-      settingId: string;
-      valueId: string;
-    }>;
-  }>;
-}
+import type { CreateMachineRecordInput } from "@/app/services/trainer/lesson.service";
 
 // MachineSetRecord 구조 - schema.prisma와 일치
 interface SetRecord {
@@ -35,7 +21,7 @@ interface SetRecord {
 }
 
 interface MachineRecordFormProps {
-  onComplete: (data: MachineFormData) => void;
+  onComplete: (data: Omit<CreateMachineRecordInput, "entry" | "tempId">) => void;
   onCancel: () => void;
   nextEntry: number;
   centerId?: string; // parent에서 전달받을 centerId
@@ -179,19 +165,17 @@ export default function MachineRecordForm({
       }
     }
 
-    // MachineFormData 구조로 생성
-    const formData: MachineFormData = {
+    // CreateMachineRecordInput 구조로 생성 (entry, tempId 제외)
+    const formData: Omit<CreateMachineRecordInput, "entry" | "tempId"> = {
       type: "MACHINE",
       title: selectedMachine.name,
       description: description || undefined,
-      exerciseId: selectedMachine.id, // exerciseId로 명명됨 (실제로는 machineId)
-      sets: sets.map((set) => ({
+      machineId: selectedMachine.id,
+      machineSetRecords: sets.map((set, index) => ({
+        set: index + 1,
         reps: parseInt(set.reps),
-        settings: Object.values(set.settingValues).map(
-          ({ settingId, valueId }) => ({
-            settingId,
-            valueId,
-          })
+        settingValueIds: Object.values(set.settingValues).map(
+          ({ valueId }) => valueId
         ),
       })),
     };

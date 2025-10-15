@@ -35,7 +35,7 @@ const PtApplicationPage = () => {
     TrainersWithPtProgramsByCenter[number] | null
   >(null);
   const [selectedPt, setSelectedPt] = useState<
-    TrainersWithPtProgramsByCenter[number]["ptProduct"][number] | null
+    TrainersWithPtProgramsByCenter[number]["ptProducts"][number] | null
   >(null);
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [message, setMessage] = useState("");

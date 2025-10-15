@@ -11,20 +11,20 @@ export const GET = async (request: Request) => {
   }
 
   try {
-    const session = sessionOrResponse;
+    // TRAINER만가능
+    if (sessionOrResponse.role !== "TRAINER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || undefined;
 
-    const members = await getMembersForPtCreation(session.roleId, search);
+    const members = await getMembersForPtCreation(search);
     return NextResponse.json(members);
   } catch (error) {
     console.error("Error fetching members for PT creation:", error);
-    
+
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(

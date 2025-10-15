@@ -183,3 +183,38 @@ export function normalizeMetadata(
 
   return normalized;
 }
+
+// 비디오 메타데이터 추출 (썸네일 생성용)
+export const getVideoMetadata = (
+  file: File
+): Promise<{ duration: number; thumbnailUrl: string }> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+
+    video.onloadedmetadata = () => {
+      video.currentTime = 1; // 1초 지점에서 썸네일 추출
+    };
+
+    video.onseeked = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const thumbnailUrl = canvas.toDataURL("image/jpeg");
+        resolve({ duration: video.duration, thumbnailUrl });
+      } else {
+        reject(new Error("Canvas context not available"));
+      }
+      URL.revokeObjectURL(video.src);
+    };
+
+    video.onerror = () => {
+      reject(new Error("비디오 메타데이터 로드 실패"));
+    };
+
+    video.src = URL.createObjectURL(file);
+  });
+};

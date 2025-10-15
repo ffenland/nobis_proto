@@ -8,6 +8,12 @@ import { ArrowLeft, Trash2, X, Plus } from "lucide-react";
 import Image from "next/image";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import { GetMachineByIdResult } from "@/app/services/fitness-center/machine.service";
+import FullscreenMediaViewer, {
+  type MediaItem,
+} from "@/app/components/media/FullscreenMediaViewer";
+import ImageUploadModal from "@/app/components/media/ImageUploadModal";
+import VideoUploadModal from "@/app/components/media/VideoUploadModal";
+import { getCloudflareStreamThumbnailUrl } from "@/app/services/media/media.service";
 
 type Params = Promise<{ id: string; machineId: string }>;
 
@@ -23,34 +29,19 @@ const deleteMachineFetcher = async (url: string) => {
   return response.json();
 };
 
-const confirmImageUpload = async (
-  cloudflareId: string,
-  entityType: string,
-  entityId: string
+const deleteMediaRequest = async (
+  mediaId: string,
+  mediaType: "image" | "video"
 ) => {
-  const response = await fetch("/api/media/images/confirm", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      cloudflareId,
-      entityType,
-      entityId,
-    }),
-  });
+  const response = await fetch(
+    `/api/media/${mediaType === "image" ? "images" : "videos"}/${mediaId}`,
+    {
+      method: "DELETE",
+    }
+  );
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || "Failed to confirm image upload");
-  }
-  return response.json();
-};
-
-const deleteImageFetcher = async (imageId: string) => {
-  const response = await fetch(`/api/media/images/${imageId}`, {
-    method: "DELETE",
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to delete image");
+    throw new Error(error.error || "Failed to delete media");
   }
   return response.json();
 };
@@ -60,11 +51,10 @@ export default function MachineDetailPage({ params }: { params: Params }) {
   const [centerId, setCenterId] = useState<string>("");
   const [machineId, setMachineId] = useState<string>("");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const [pendingImages, setPendingImages] = useState<File[]>([]);
-  const [pendingImagePreviews, setPendingImagePreviews] = useState<string[]>(
-    []
-  );
+  const [isMediaViewerOpen, setIsMediaViewerOpen] = useState(false);
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
   // Get params
   useEffect(() => {
@@ -83,7 +73,11 @@ export default function MachineDetailPage({ params }: { params: Params }) {
   // Delete machine mutation
   const { trigger: deleteMachine, isMutating: isDeleting } = useSWRMutation(
     machineId ? `/api/machines/${machineId}` : null,
-    deleteMachineFetcher
+    deleteMachineFetcher,
+    {
+      populateCache: false, // 캐시 업데이트 비활성화
+      revalidate: false, // mutation 후 revalidation 비활성화
+    }
   );
 
   // Handle machine deletion
@@ -98,140 +92,65 @@ export default function MachineDetailPage({ params }: { params: Params }) {
     }
   };
 
-  // Handle adding image to pending list (preview only)
-  const handleAddImage = (file: File) => {
-    const existingCount = machine?.images?.length || 0;
-    const pendingCount = pendingImages.length;
-    const totalCount = existingCount + pendingCount;
+  // 미디어 뷰어용 데이터 변환
+  const allMediaItems: MediaItem[] = [
+    ...(machine?.images?.map((img) => ({
+      id: img.id,
+      cloudflareId: img.cloudflareId,
+      thumbnailUrl: getOptimizedImageUrl(img.cloudflareId, "thumbnail"),
+      isPrimary: img.isPrimary,
+    })) || []),
+    ...(machine?.videos?.map((vid) => ({
+      id: vid.id,
+      streamId: vid.streamId,
+    })) || []),
+  ];
 
-    if (totalCount >= 3) {
-      alert("최대 3개까지만 이미지를 추가할 수 있습니다.");
-      return;
-    }
-
-    // Add to pending images
-    setPendingImages((prev) => [...prev, file]);
-
-    // Create preview URL
-    const previewUrl = URL.createObjectURL(file);
-    setPendingImagePreviews((prev) => [...prev, previewUrl]);
+  // 미디어 클릭 핸들러
+  const handleMediaClick = (index: number) => {
+    setSelectedMediaIndex(index);
+    setIsMediaViewerOpen(true);
   };
 
-  // Remove pending image
-  const handleRemovePendingImage = (index: number) => {
-    // Revoke preview URL to free memory
-    URL.revokeObjectURL(pendingImagePreviews[index]);
-
-    setPendingImages((prev) => prev.filter((_, i) => i !== index));
-    setPendingImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  // 미디어 삭제 핸들러 (뷰어에서 사용)
+  const handleDeleteMedia = async (
+    mediaId: string,
+    mediaType: "image" | "video"
+  ) => {
+    try {
+      await deleteMediaRequest(mediaId, mediaType);
+      // 머신 데이터 갱신
+      mutate();
+    } catch (error) {
+      console.error("미디어 삭제 실패:", error);
+      alert("미디어 삭제 중 오류가 발생했습니다.");
+      throw error; // 뷰어에서 에러 처리할 수 있도록
+    }
   };
 
-  // Save all pending images with integrated media system
-  const handleSaveImages = async () => {
-    if (pendingImages.length === 0) {
-      alert("저장할 이미지가 없습니다.");
+  // 개별 썸네일 삭제 핸들러
+  const handleThumbnailDelete = async (
+    mediaId: string,
+    mediaType: "image" | "video"
+  ) => {
+    if (
+      !confirm(
+        `이 ${mediaType === "image" ? "이미지" : "비디오"}를 삭제하시겠습니까?`
+      )
+    )
       return;
-    }
-
-    setIsUploadingImages(true);
-    let successCount = 0;
-    const failedFiles: string[] = [];
 
     try {
-      for (let i = 0; i < pendingImages.length; i++) {
-        const file = pendingImages[i];
-
-        try {
-          // Step 1: Request upload URL from integrated media system
-          const uploadUrlResponse = await fetch("/api/media/images/upload", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              entityType: "MACHINE",
-              entityId: machineId,
-            }),
-          });
-
-          if (!uploadUrlResponse.ok) {
-            const error = await uploadUrlResponse.json();
-            throw new Error(error.error || "Failed to get upload URL");
-          }
-
-          const { uploadURL, id } = await uploadUrlResponse.json();
-
-          // Step 2: Upload directly to Cloudflare
-          const formData = new FormData();
-          formData.append("file", file);
-
-          const cloudflareResponse = await fetch(uploadURL, {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!cloudflareResponse.ok) {
-            throw new Error("Failed to upload to Cloudflare");
-          }
-
-          // Step 3: Confirm upload and save to DB
-          await confirmImageUpload(id, "MACHINE", machineId);
-
-          successCount++;
-        } catch (error: any) {
-          console.error(`${file.name} upload failed:`, error);
-          failedFiles.push(file.name);
-        }
-      }
-
-      // Show result message
-      let message = "";
-      if (successCount > 0) {
-        message = `${successCount}개의 이미지가 성공적으로 저장되었습니다.`;
-      }
-      if (failedFiles.length > 0) {
-        message += `\n\n실패한 파일 (${
-          failedFiles.length
-        }개): ${failedFiles.join(", ")}`;
-      }
-
-      if (successCount > 0) {
-        alert(message);
-        // Clear pending images and refresh machine data
-        setPendingImages([]);
-        setPendingImagePreviews((prev) => {
-          prev.forEach((url) => URL.revokeObjectURL(url));
-          return [];
-        });
-        mutate();
-      } else {
-        alert("모든 이미지 저장에 실패했습니다.");
-      }
+      await deleteMediaRequest(mediaId, mediaType);
+      mutate();
+      alert(
+        `${
+          mediaType === "image" ? "이미지" : "비디오"
+        }가 성공적으로 삭제되었습니다.`
+      );
     } catch (error: any) {
-      console.error("Image save failed:", error);
-      alert("이미지 저장 중 오류가 발생했습니다.");
-    } finally {
-      setIsUploadingImages(false);
-    }
-  };
-
-  // Cancel pending images
-  const handleCancelPendingImages = () => {
-    // Revoke all preview URLs to free memory
-    pendingImagePreviews.forEach((url) => URL.revokeObjectURL(url));
-    setPendingImages([]);
-    setPendingImagePreviews([]);
-  };
-
-  // Handle image deletion with integrated media system
-  const handleImageDelete = async (imageId: string) => {
-    if (!confirm("이 이미지를 삭제하시겠습니까?")) return;
-
-    try {
-      await deleteImageFetcher(imageId);
-      mutate(); // Refresh machine data
-      alert("이미지가 성공적으로 삭제되었습니다.");
-    } catch (error: any) {
-      console.error("Image delete failed:", error);
-      alert(error.message || "이미지 삭제에 실패했습니다.");
+      console.error("미디어 삭제 실패:", error);
+      alert(error.message || "미디어 삭제에 실패했습니다.");
     }
   };
 
@@ -245,8 +164,10 @@ export default function MachineDetailPage({ params }: { params: Params }) {
     );
   }
 
+  const canAddImages = (machine.images?.length || 0) < 3;
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="h-full container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -261,7 +182,7 @@ export default function MachineDetailPage({ params }: { params: Params }) {
         <button
           onClick={() => setShowDeleteModal(true)}
           className="btn btn-error"
-          disabled={isDeleting || isUploadingImages}
+          disabled={isDeleting}
         >
           {isDeleting ? (
             <span className="loading loading-spinner loading-sm"></span>
@@ -284,152 +205,204 @@ export default function MachineDetailPage({ params }: { params: Params }) {
                   <span className="ml-2">{machine.title}</span>
                 </div>
 
-                {/* Machine Settings */}
-                {machine.machineSetting && machine.machineSetting.length > 0 && (
+                <div>
+                  <span className="font-medium text-gray-600">브랜드:</span>
+                  <span className="ml-2">{machine.brand.name}</span>
+                </div>
+
+                {machine.model && (
                   <div>
-                    <span className="font-medium text-gray-600 block mb-2">
-                      설정 항목:
-                    </span>
-                    <div className="space-y-2">
-                      {machine.machineSetting.map((setting) => (
-                        <div key={setting.id} className="bg-gray-50 p-4 rounded">
-                          <div className="font-medium text-base mb-2">
-                            {setting.title} ({setting.unit})
-                          </div>
-                          {setting.values && setting.values.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {setting.values.map((value) => (
-                                <span
-                                  key={value.id}
-                                  className="badge badge-outline px-3 py-2 text-sm"
-                                >
-                                  {value.value}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <span className="font-medium text-gray-600">모델:</span>
+                    <span className="ml-2">{machine.model}</span>
                   </div>
                 )}
+
+                <div>
+                  <span className="font-medium text-gray-600">설명:</span>
+                  <p className="ml-2 text-gray-700 whitespace-pre-wrap">
+                    {machine.description}
+                  </p>
+                </div>
+
+                {machine.musclesUsed && (
+                  <div>
+                    <span className="font-medium text-gray-600">
+                      사용 근육:
+                    </span>
+                    <span className="ml-2">{machine.musclesUsed}</span>
+                  </div>
+                )}
+
+                {machine.spec && (
+                  <div>
+                    <span className="font-medium text-gray-600">제원:</span>
+                    <p className="ml-2 text-gray-700 whitespace-pre-wrap">
+                      {machine.spec}
+                    </p>
+                  </div>
+                )}
+
+                {/* Machine Settings */}
+                {machine.machineSetting &&
+                  machine.machineSetting.length > 0 && (
+                    <div>
+                      <span className="font-medium text-gray-600 block mb-2">
+                        설정 항목:
+                      </span>
+                      <div className="space-y-2">
+                        {machine.machineSetting.map((setting) => (
+                          <div
+                            key={setting.id}
+                            className="bg-gray-50 p-4 rounded"
+                          >
+                            <div className="font-medium text-base mb-2">
+                              {setting.title} ({setting.unit})
+                            </div>
+                            {setting.values && setting.values.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {setting.values
+                                  .slice()
+                                  .sort((a, b) => {
+                                    const aNum = parseFloat(a.value);
+                                    const bNum = parseFloat(b.value);
+
+                                    // 둘 다 숫자인 경우 숫자로 비교
+                                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                                      return aNum - bNum;
+                                    }
+
+                                    // 그 외에는 문자열로 비교
+                                    return a.value.localeCompare(b.value);
+                                  })
+                                  .map((value) => (
+                                    <span
+                                      key={value.id}
+                                      className="badge badge-outline px-3 py-2 text-sm"
+                                    >
+                                      {value.value}
+                                    </span>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Images */}
+        {/* Media Section */}
         <div className="space-y-6">
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
-              <div className="flex items-center justify-between">
-                <h2 className="card-title">
-                  이미지 (
-                  {(machine.images?.length || 0) + pendingImages.length}/3)
-                </h2>
-                {pendingImages.length > 0 && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCancelPendingImages}
-                      disabled={isUploadingImages}
-                      className="btn btn-sm btn-ghost"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={handleSaveImages}
-                      disabled={isUploadingImages}
-                      className="btn btn-sm btn-primary"
-                    >
-                      {isUploadingImages ? (
-                        <>
-                          <span className="loading loading-spinner loading-xs"></span>
-                          저장 중...
-                        </>
-                      ) : (
-                        `저장하기 (${pendingImages.length}개)`
-                      )}
-                    </button>
-                  </div>
-                )}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="card-title">미디어</h2>
+                <div className="text-sm font-bold flex items-center gap-4">
+                  <span>이미지: {machine.images.length || 0}/3</span>
+                  <span>
+                    비디오:
+                    {machine.videos.length || 0}/2
+                  </span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {/* Existing saved images */}
-                {machine.images?.map((image) => (
-                  <div key={image.id} className="relative">
-                    <Image
-                      src={getOptimizedImageUrl(
-                        image.cloudflareId,
-                        "thumbnail"
+              {/* Unified Media Thumbnails (64x64) */}
+              {allMediaItems.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {machine.images?.map((image, index) => (
+                    <div key={`img-${image.id}`} className="relative group">
+                      <button
+                        onClick={() => handleMediaClick(index)}
+                        className="block"
+                      >
+                        <Image
+                          src={getOptimizedImageUrl(
+                            image.cloudflareId,
+                            "thumbnail"
+                          )}
+                          alt="Machine"
+                          width={64}
+                          height={64}
+                          className="w-16 h-16 object-cover rounded-lg hover:opacity-80 transition-opacity"
+                        />
+                      </button>
+                      {/* 대표 이미지 배지 */}
+                      {image.isPrimary && (
+                        <div className="absolute -top-1 -left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">
+                          대표
+                        </div>
                       )}
-                      alt="Machine"
-                      width={128}
-                      height={128}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
-                    <button
-                      onClick={() => handleImageDelete(image.id)}
-                      disabled={isUploadingImages}
-                      className="absolute top-2 right-2 btn btn-circle btn-xs btn-error"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-
-                {/* Pending images (preview only) */}
-                {pendingImages.map((_, index) => (
-                  <div key={`pending-${index}`} className="relative">
-                    <Image
-                      src={pendingImagePreviews[index]}
-                      alt="Pending upload"
-                      width={128}
-                      height={128}
-                      className="w-full h-32 object-cover rounded-lg border-2 border-dashed border-blue-300"
-                    />
-                    <button
-                      onClick={() => handleRemovePendingImage(index)}
-                      disabled={isUploadingImages}
-                      className="absolute top-2 right-2 btn btn-circle btn-xs btn-warning"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                    <div className="absolute bottom-1 left-1 right-1">
-                      <div className="bg-blue-500 bg-opacity-90 text-white text-xs px-2 py-1 rounded text-center">
-                        미저장
-                      </div>
+                      {/* 삭제 버튼 */}
+                      <button
+                        onClick={() => handleThumbnailDelete(image.id, "image")}
+                        className="absolute -top-1 -right-1 btn btn-circle btn-xs btn-error opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {/* Add new image button */}
-                {(machine.images?.length || 0) + pendingImages.length < 3 && (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg h-32">
-                    <label className="cursor-pointer w-full h-full flex items-center justify-center">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          files.forEach((file) => handleAddImage(file));
-                          // Reset input
-                          e.target.value = "";
-                        }}
-                        disabled={isUploadingImages}
-                      />
-                      <div className="text-center">
-                        <Plus className="w-8 h-8 mx-auto text-gray-400" />
-                        <span className="text-sm text-gray-500">
-                          이미지 추가
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-                )}
+                  {machine.videos?.map((video, index) => (
+                    <div key={`vid-${video.id}`} className="relative group">
+                      <button
+                        onClick={() =>
+                          handleMediaClick(
+                            (machine.images?.length || 0) + index
+                          )
+                        }
+                        className="block"
+                      >
+                        <Image
+                          src={getCloudflareStreamThumbnailUrl(video.streamId)}
+                          alt="비디오 썸네일"
+                          width={64}
+                          height={64}
+                          className="w-16 h-16 object-cover rounded-lg hover:opacity-80 transition-opacity"
+                          unoptimized
+                          onError={(e) => {
+                            console.error("비디오 썸네일 로드 실패:", e);
+                          }}
+                        />
+                      </button>
+                      <button
+                        onClick={() => handleThumbnailDelete(video.id, "video")}
+                        className="absolute -top-1 -right-1 btn btn-circle btn-xs btn-error opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Upload Buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsImageModalOpen(true)}
+                  disabled={!canAddImages}
+                  className="flex-1 btn btn-sm btn-outline gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  이미지 추가
+                  {!canAddImages && " (최대)"}
+                </button>
+                <button
+                  onClick={() => setIsVideoModalOpen(true)}
+                  className="flex-1 btn btn-sm btn-outline gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  비디오 추가
+                </button>
               </div>
+
+              {!canAddImages && (
+                <p className="text-xs text-gray-500 mt-2">
+                  이미지는 최대 3개까지만 추가할 수 있습니다.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -444,14 +417,15 @@ export default function MachineDetailPage({ params }: { params: Params }) {
               <strong>{machine.title}</strong>를 삭제하시겠습니까?
               <br />
               <span className="text-sm text-gray-600">
-                이 작업은 되돌릴 수 없으며, 관련된 모든 이미지도 함께 삭제됩니다.
+                이 작업은 되돌릴 수 없으며, 관련된 모든 미디어도 함께
+                삭제됩니다.
               </span>
             </p>
             <div className="flex gap-3">
               <button
                 onClick={handleDelete}
                 className="btn btn-error flex-1"
-                disabled={isDeleting || isUploadingImages}
+                disabled={isDeleting}
               >
                 {isDeleting ? (
                   <span className="loading loading-spinner loading-sm"></span>
@@ -462,7 +436,7 @@ export default function MachineDetailPage({ params }: { params: Params }) {
               <button
                 onClick={() => setShowDeleteModal(false)}
                 className="btn btn-ghost"
-                disabled={isDeleting || isUploadingImages}
+                disabled={isDeleting}
               >
                 취소
               </button>
@@ -470,6 +444,41 @@ export default function MachineDetailPage({ params }: { params: Params }) {
           </div>
         </div>
       )}
+
+      {/* Fullscreen Media Viewer */}
+      <FullscreenMediaViewer
+        isOpen={isMediaViewerOpen}
+        onClose={() => {
+          setIsMediaViewerOpen(false);
+          mutate(); // 모달 닫을 때 데이터 갱신
+        }}
+        mediaItems={allMediaItems}
+        initialIndex={selectedMediaIndex}
+        onDelete={handleDeleteMedia}
+      />
+
+      {/* Image Upload Modal */}
+      <ImageUploadModal
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        entityType="MACHINE"
+        entityId={machineId}
+        onUploadComplete={() => mutate()}
+        title="머신 이미지 추가"
+        maxImages={3 - (machine.images.length || 0)}
+      />
+
+      {/* Video Upload Modal */}
+      <VideoUploadModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        entityType="MACHINE"
+        entityId={machineId}
+        onUploadComplete={() => mutate()}
+        title="머신 영상 추가"
+        maxVideos={2 - (machine.videos.length || 0)}
+        maxDurationSeconds={600}
+      />
     </div>
   );
 }

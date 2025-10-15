@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { mutate } from "swr";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;

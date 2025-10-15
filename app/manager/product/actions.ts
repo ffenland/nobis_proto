@@ -16,7 +16,7 @@ export const getPtProductsOverviewService = cache(async () => {
       createdAt: true,
       openedAt: true,
       closedAt: true,
-      trainer: {
+      trainerLevels: {
         select: {
           id: true,
         },
@@ -47,7 +47,7 @@ export const getPtProductsOverviewService = cache(async () => {
     createdAt: product.createdAt,
     openedAt: product.openedAt,
     closedAt: product.closedAt,
-    trainerCount: product.trainer.length,
+    trainerLevelCount: product.trainerLevels.length,
     activePtCount: product.pt.length,
   }));
 });

@@ -168,21 +168,100 @@ export async function deleteImage(imageId: string) {
 }
 
 
+// ===== Stream API 타입 =====
+
+interface Watermark {
+  created?: string; // format: date-time
+  downloadedFrom?: string;
+  height?: number;
+  name?: string;
+  opacity?: number;
+  padding?: number;
+  position?: string;
+  scale?: number;
+  size?: number;
+  uid?: string; // maxLength: 32
+  width?: number;
+}
+
+interface DirectUploadVideoResult {
+  scheduledDeletion?: string; // format: date-time
+  uid?: string; // maxLength: 32, Cloudflare-generated unique identifier
+  uploadURL?: string; // The URL for unauthenticated upload
+  watermark?: Watermark;
+}
+
+interface VideoStatus {
+  state: string;
+  pctComplete: string;
+  errorReasonCode: string;
+  errorReasonText: string;
+}
+
+interface VideoInput {
+  width: number;
+  height: number;
+}
+
+interface VideoPlayback {
+  hls: string;
+  dash: string;
+}
+
+interface VideoPublicDetails {
+  title: string;
+  share_link: string;
+  channel_link: string;
+  logo: string;
+}
+
+interface VideoInfo {
+  uid: string;
+  creator: string | null;
+  thumbnail: string;
+  thumbnailTimestampPct: number;
+  readyToStream: boolean;
+  readyToStreamAt: string | null;
+  status: VideoStatus;
+  meta: Record<string, string>;
+  created: string;
+  modified: string;
+  scheduledDeletion: string | null;
+  size: number;
+  preview: string;
+  allowedOrigins: string[];
+  requireSignedURLs: boolean;
+  uploaded: string;
+  uploadExpiry: string;
+  maxSizeBytes: number | null;
+  maxDurationSeconds: number;
+  duration: number;
+  input: VideoInput;
+  playback: VideoPlayback;
+  watermark: Watermark | null;
+  clippedFrom: string | null;
+  publicDetails: VideoPublicDetails;
+}
+
 // ===== Stream API =====
 
 /**
  * Cloudflare Stream Direct Upload URL 생성
  */
 export async function createVideoUploadUrl(metadata?: Record<string, string>) {
-  const body: any = {
+  const body: {
+    maxDurationSeconds: number;
+    expiry: string;
+    meta?: Record<string, string>;
+  } = {
     maxDurationSeconds: 600, // 10분 제한
     expiry: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   };
-  
+
   if (metadata) {
     body.meta = metadata;
   }
-  
+
   const response = await fetch(`${CLOUDFLARE_STREAM_API}/direct_upload`, {
     method: "POST",
     headers: {
@@ -191,21 +270,24 @@ export async function createVideoUploadUrl(metadata?: Record<string, string>) {
     },
     body: JSON.stringify(body),
   });
-  
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`Cloudflare Stream API error: ${response.status} - ${error}`);
   }
-  
-  const data = await response.json();
-  
+
+  const data: CloudflareApiResponse<DirectUploadVideoResult> = await response.json();
+
   if (!data.success) {
-    throw new Error(`Cloudflare Stream API error: ${JSON.stringify(data.errors)}`);
+    const errorMessage = data.errors.length > 0
+      ? data.errors.map(e => e.message).join(", ")
+      : "Unknown error";
+    throw new Error(`Cloudflare Stream API error: ${errorMessage}`);
   }
-  
+
   return {
-    uid: data.result.uid,
-    uploadURL: data.result.uploadURL,
+    uid: data.result.uid!,
+    uploadURL: data.result.uploadURL!,
   };
 }
 
@@ -266,34 +348,47 @@ export async function getVideoInfo(videoId: string) {
       Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}`,
     },
   });
-  
+
   if (response.status === 404) {
     return null;
   }
-  
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`Cloudflare Stream API error: ${response.status} - ${error}`);
   }
-  
-  const data = await response.json();
-  
+
+  const data: CloudflareApiResponse<VideoInfo> = await response.json();
+
   if (!data.success) {
     throw new Error(`Cloudflare Stream API error: ${JSON.stringify(data.errors)}`);
   }
-  
+
   return {
     uid: data.result.uid,
     thumbnail: data.result.thumbnail,
     thumbnailTimestampPct: data.result.thumbnailTimestampPct,
     readyToStream: data.result.readyToStream,
+    readyToStreamAt: data.result.readyToStreamAt,
     status: data.result.status,
     meta: data.result.meta,
     created: new Date(data.result.created),
     modified: new Date(data.result.modified),
-    duration: data.result.duration,
+    scheduledDeletion: data.result.scheduledDeletion,
     size: data.result.size,
     preview: data.result.preview,
+    allowedOrigins: data.result.allowedOrigins,
+    requireSignedURLs: data.result.requireSignedURLs,
+    uploaded: new Date(data.result.uploaded),
+    uploadExpiry: data.result.uploadExpiry,
+    maxSizeBytes: data.result.maxSizeBytes,
+    maxDurationSeconds: data.result.maxDurationSeconds,
+    duration: data.result.duration,
+    input: data.result.input,
+    playback: data.result.playback,
+    watermark: data.result.watermark,
+    clippedFrom: data.result.clippedFrom,
+    publicDetails: data.result.publicDetails,
   };
 }
 

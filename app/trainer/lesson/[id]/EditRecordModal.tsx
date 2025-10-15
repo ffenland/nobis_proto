@@ -204,11 +204,11 @@ export default function EditRecordModal({
               <div className="space-y-2 text-sm">
                 <div><span className="font-medium">운동명:</span> {record.title}</div>
                 <div><span className="font-medium">세트 수:</span> {record.freeSetRecords?.length || 0}세트</div>
-                {record.freeSetRecords?.[0]?.equipments && record.freeSetRecords[0].equipments.length > 0 && (
+                {record.freeSetRecords?.[0]?.freeSetEquipments && record.freeSetRecords[0].freeSetEquipments.length > 0 && (
                   <div>
                     <span className="font-medium">사용 장비:</span> {
-                      record.freeSetRecords[0].equipments.map(eq => 
-                        `${eq.group} ${eq.primaryValue || ''}${eq.primaryUnit || ''}`
+                      record.freeSetRecords[0].freeSetEquipments.map((eq) =>
+                        eq.equipment?.title || '알 수 없음'
                       ).join(", ")
                     }
                   </div>
@@ -264,11 +264,11 @@ export default function EditRecordModal({
                 {record.stretchingExerciseRecords?.[0]?.stretchingExercise && (
                   <div><span className="font-medium">운동 정보:</span> {record.stretchingExerciseRecords[0].stretchingExercise.title}</div>
                 )}
-                {record.stretchingExerciseRecords?.[0]?.equipments && record.stretchingExerciseRecords[0].equipments.length > 0 && (
+                {record.stretchingExerciseRecords?.[0]?.stretchingEquipments && record.stretchingExerciseRecords[0].stretchingEquipments.length > 0 && (
                   <div>
                     <span className="font-medium">사용 장비:</span> {
-                      record.stretchingExerciseRecords[0].equipments.map(eq => 
-                        `${eq.group} ${eq.primaryValue || ''}${eq.primaryUnit || ''}`
+                      record.stretchingExerciseRecords[0].stretchingEquipments.map((eq) =>
+                        eq.equipment?.title || '알 수 없음'
                       ).join(", ")
                     }
                   </div>

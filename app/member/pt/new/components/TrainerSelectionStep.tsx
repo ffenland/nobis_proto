@@ -13,9 +13,9 @@ import type {
 interface TrainerSelectionStepProps {
   selectedCenter: FitnessCentersForPtApply[number];
   selectedTrainer: TrainersWithPtProgramsByCenter[number] | null;
-  selectedPt: TrainersWithPtProgramsByCenter[number]["ptProduct"][number] | null;
+  selectedPt: TrainersWithPtProgramsByCenter[number]["ptProducts"][number] | null;
   onSelectTrainer: (trainer: TrainersWithPtProgramsByCenter[number]) => void;
-  onSelectPt: (pt: TrainersWithPtProgramsByCenter[number]["ptProduct"][number]) => void;
+  onSelectPt: (pt: TrainersWithPtProgramsByCenter[number]["ptProducts"][number]) => void;
   onNext: () => void;
 }
 
@@ -69,7 +69,7 @@ export default function TrainerSelectionStep({
     }
   };
 
-  const handlePtSelect = (trainer: TrainersWithPtProgramsByCenter[number], pt: TrainersWithPtProgramsByCenter[number]["ptProduct"][number]) => {
+  const handlePtSelect = (trainer: TrainersWithPtProgramsByCenter[number], pt: TrainersWithPtProgramsByCenter[number]["ptProducts"][number]) => {
     setSelectedPtId(pt.id);
     onSelectTrainer(trainer);
     onSelectPt(pt);
@@ -167,7 +167,7 @@ export default function TrainerSelectionStep({
                       수업 가능한 PT 프로그램
                     </h5>
                     <div className="space-y-3">
-                      {trainer.ptProduct.map((ptProgram) => (
+                      {trainer.ptProducts.map((ptProgram) => (
                         <div key={ptProgram.id} className="space-y-2">
                           <div
                             className={`p-3 bg-white border rounded-lg cursor-pointer transition-colors ${

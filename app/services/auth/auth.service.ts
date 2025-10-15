@@ -267,217 +267,6 @@ export async function processKakaoLogin(
   }
 }
 
-// 회원가입/로그인 스키마
-export const SignUpSchema = z.object({
-  username: z.string().min(3, "사용자명은 최소 3자 이상이어야 합니다"),
-  email: z.string().email("올바른 이메일 형식이 아닙니다"),
-  password: z.string().min(6, "비밀번호는 최소 6자 이상이어야 합니다"),
-  mobile: z.string().regex(/^010\d{8}$/, "올바른 휴대폰 번호 형식이 아닙니다"),
-  role: z.enum(["MEMBER", "TRAINER"], {
-    errorMap: () => ({ message: "역할을 선택해주세요" }),
-  }),
-});
-
-export const LoginSchema = z.object({
-  username: z.string().min(1, "사용자명을 입력해주세요"),
-  password: z.string().min(1, "비밀번호를 입력해주세요"),
-});
-
-export type SignUpInput = z.infer<typeof SignUpSchema>;
-export type LoginInput = z.infer<typeof LoginSchema>;
-
-// 회원가입 서비스
-export async function signUp(data: SignUpInput) {
-  try {
-    // 입력값 검증
-    const validatedData = SignUpSchema.parse(data);
-
-    // 중복 체크
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { username: validatedData.username },
-          { email: validatedData.email },
-          { mobile: validatedData.mobile },
-        ],
-      },
-    });
-
-    if (existingUser) {
-      if (existingUser.username === validatedData.username) {
-        throw new Error("이미 사용 중인 사용자명입니다");
-      }
-      if (existingUser.email === validatedData.email) {
-        throw new Error("이미 사용 중인 이메일입니다");
-      }
-      if (existingUser.mobile === validatedData.mobile) {
-        throw new Error("이미 사용 중인 휴대폰 번호입니다");
-      }
-    }
-
-    // 비밀번호 해싱
-    const hashedPassword = await bcrypt.hash(validatedData.password, 10);
-
-    // 트랜잭션으로 User와 역할 모델 생성
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          username: validatedData.username,
-          email: validatedData.email,
-          password: hashedPassword,
-          mobile: validatedData.mobile,
-          role: validatedData.role,
-        },
-      });
-
-      let roleData;
-      if (validatedData.role === "MEMBER") {
-        roleData = await tx.member.create({
-          data: {
-            userId: user.id,
-          },
-          select: {
-            id: true,
-          },
-        });
-      } else {
-        roleData = await tx.trainer.create({
-          data: {
-            userId: user.id,
-          },
-          select: {
-            id: true,
-          },
-        });
-      }
-
-      return {
-        user,
-        roleId: roleData.id,
-      };
-    });
-
-    return {
-      success: true,
-      data: {
-        id: result.user.id,
-        role: result.user.role,
-        roleId: result.roleId,
-      },
-    };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        error: error.errors[0].message,
-      };
-    }
-    if (error instanceof Error) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-    return {
-      success: false,
-      error: "회원가입 중 오류가 발생했습니다",
-    };
-  }
-}
-
-// 비밀번호 로그인 서비스
-export async function passwordLogin(data: LoginInput) {
-  try {
-    // 입력값 검증
-    const validatedData = LoginSchema.parse(data);
-
-    // 사용자 찾기
-    const user = await prisma.user.findFirst({
-      where: {
-        username: validatedData.username,
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        password: true,
-        role: true,
-        memberProfile: {
-          select: {
-            id: true,
-          },
-        },
-        trainerProfile: {
-          select: {
-            id: true,
-          },
-        },
-        managerProfile: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    });
-
-    if (!user || !user.password) {
-      return {
-        success: false,
-        error: "사용자명 또는 비밀번호가 일치하지 않습니다",
-      };
-    }
-
-    // 비밀번호 검증
-    const isPasswordValid = await bcrypt.compare(
-      validatedData.password,
-      user.password
-    );
-
-    if (!isPasswordValid) {
-      return {
-        success: false,
-        error: "사용자명 또는 비밀번호가 일치하지 않습니다",
-      };
-    }
-
-    // 역할 확인
-    let roleId: string;
-
-    if (user.memberProfile) {
-      roleId = user.memberProfile.id;
-    } else if (user.trainerProfile) {
-      roleId = user.trainerProfile.id;
-    } else if (user.managerProfile) {
-      roleId = user.managerProfile.id;
-    } else {
-      return {
-        success: false,
-        error: "사용자 역할을 찾을 수 없습니다",
-      };
-    }
-
-    return {
-      success: true,
-      data: {
-        id: user.id,
-        role: user.role,
-        roleId: roleId,
-      },
-    };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        error: error.errors[0].message,
-      };
-    }
-    return {
-      success: false,
-      error: "로그인 중 오류가 발생했습니다",
-    };
-  }
-}
-
 // Role Switch 관련 타입 및 함수
 export interface RoleSwitchResult {
   success: boolean;
@@ -498,42 +287,25 @@ async function getOrCreateTrainerProfile(userId: string) {
     return existingTrainer;
   }
 
-  // 없으면 새로 생성 (트랜잭션으로 처리)
-  return await prisma.$transaction(async (tx) => {
-    // 1. MASTER 레벨로 트레이너 프로필 생성
-    const newTrainer = await tx.trainer.create({
-      data: {
-        userId,
-        level: TrainerLevel.MASTER, // Manager의 트레이너 프로필은 MASTER 레벨
-        introduce: "안녕하세요",
-        working: true,
-      },
-      select: { id: true },
-    });
-
-    // 2. MASTER 레벨이면서 onSale이 true인 PtProduct들을 조회
-    const masterProducts = await tx.ptProduct.findMany({
-      where: {
-        trainerLevel: { has: TrainerLevel.MASTER },
-        onSale: true,
-      },
-      select: { id: true },
-    });
-
-    // 3. 조회된 PtProduct들을 트레이너에 연결
-    if (masterProducts.length > 0) {
-      await tx.trainer.update({
-        where: { id: newTrainer.id },
-        data: {
-          ptProduct: {
-            connect: masterProducts.map((product) => ({ id: product.id })),
-          },
-        },
-      });
-    }
-
-    return newTrainer;
+  // 없으면 새로 생성
+  // MASTER TrainerLevel 찾기
+  const masterLevel = await prisma.trainerLevel.findFirst({
+    where: { title: "MASTER" },
+    select: { id: true },
   });
+
+  // 트레이너 프로필 생성 (MASTER 레벨이 있으면 연결, 없으면 null)
+  const newTrainer = await prisma.trainer.create({
+    data: {
+      userId,
+      levelId: masterLevel?.id ?? null,
+      introduce: "안녕하세요",
+      working: true,
+    },
+    select: { id: true },
+  });
+
+  return newTrainer;
 }
 
 // 매니저 프로필 조회 (Trainer용)
@@ -621,6 +393,5 @@ export async function switchUserRole(
 }
 
 // 타입 추론
-export type SignUpResult = Awaited<ReturnType<typeof signUp>>;
-export type LoginResult = Awaited<ReturnType<typeof passwordLogin>>;
+
 export type SwitchRoleResult = Awaited<ReturnType<typeof switchUserRole>>;

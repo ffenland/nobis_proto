@@ -1,7 +1,8 @@
 // app/api/media/list/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
+import { getSessionOrReturn401 } from "@/app/lib/session";
+import { logApiError } from "@/app/services/error/error-logging.service";
 import {
   ImageType,
   type ListImagesByEntityResult,
@@ -9,7 +10,6 @@ import {
   VideoType,
   listImagesByEntity,
   listVideosByEntity,
-  type UserSession,
 } from "@/app/services/media/media.service";
 
 // 유효한 ImageType 및 VideoType 값들
@@ -25,13 +25,15 @@ function isValidEntityType(entityType: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  try {
-    // 세션 확인
-    const session = await getSession();
-    if (!session || !session.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // 1. 세션 확인 (필수)
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 2. 비즈니스 로직 (try-catch 내부)
+  try {
     // 쿼리 파라미터 파싱
     const searchParams = request.nextUrl.searchParams;
     const entityType = searchParams.get("entityType");
@@ -93,7 +95,14 @@ export async function GET(request: NextRequest) {
       videoList,
     });
   } catch (error) {
-    console.error("Failed to fetch media list:", error);
+    // 3. 에러 로깅 (필수)
+    await logApiError(request, error as Error, {
+      errorCode: "MEDIA_LIST_001",
+      userId: sessionOrResponse.id,
+      metadata: { action: "listMediaByEntity" },
+      tags: ["media", "list"],
+    });
+
     return NextResponse.json(
       { error: "Failed to fetch media list" },
       { status: 500 }

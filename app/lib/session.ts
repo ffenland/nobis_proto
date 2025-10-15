@@ -3,6 +3,7 @@ import { getIronSession } from "iron-session";
 import type { IronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 
 export interface SessionContent {
   id?: string;
@@ -10,10 +11,17 @@ export interface SessionContent {
   roleId?: string;
 }
 
+// 검증된 세션 타입 (모든 필수 필드가 존재하는 세션)
+export interface ValidatedSession {
+  id: string;
+  role: "MEMBER" | "TRAINER" | "MANAGER";
+  roleId: string;
+}
+
 // type guard
 const isSessionWithIdAndRole = (
   session: SessionContent
-): session is SessionContent & { id: string; role: string; roleId: string } => {
+): session is ValidatedSession => {
   return (
     typeof session.id === "string" &&
     (session.role === "MEMBER" ||
@@ -40,11 +48,7 @@ export const getCurrentIronSession = async () => {
   return session;
 };
 
-export const getSessionOrRedirect = async (): Promise<{
-  id: string;
-  role: string;
-  roleId: string;
-}> => {
+export const getSessionOrRedirect = async (): Promise<ValidatedSession> => {
   // for server components - legacy function, consider using getSession() with manual redirect
   const session = await getSession();
 
@@ -68,11 +72,7 @@ export const logoutCurrentSession = async (
   redirect("/login");
 };
 
-export const getSession = async (): Promise<{
-  id: string;
-  role: string;
-  roleId: string;
-} | null> => {
+export const getSession = async (): Promise<ValidatedSession | null> => {
   // Main authentication function for both API routes and server actions
   const session = await getCurrentIronSession();
 
@@ -103,12 +103,11 @@ export const createSession = async (sessionData: {
 export const getSessionOrReturn401 = async () => {
   const session = await getSession();
 
-  // 세션이 없거나 필수 정보(id, role, roleId)가 하나라도 없으면 401 반환
-  if (!session || !session.id || !session.role || !session.roleId) {
-    // 동적 import로 NextResponse 가져오기 (서버 전용)
-    const { NextResponse } = await import("next/server");
+  // 세션이 없으면 401 반환
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // getSession()이 null이 아니면 이미 ValidatedSession 타입 보장됨
   return session;
 };

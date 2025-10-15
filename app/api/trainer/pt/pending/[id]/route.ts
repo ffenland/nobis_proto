@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
+import { getSessionOrReturn401 } from "@/app/lib/session";
 import {
   getPendingPtDetail,
   updatePendingPt,
@@ -7,6 +7,7 @@ import {
   UpdatePendingPtInput,
   CreateFirstLessonInput,
 } from "@/app/services/trainer/pt.service";
+import { updateMemberProfile } from "@/app/services/member/profile.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -14,19 +15,24 @@ export async function GET(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
-  try {
-    const session = await getSession();
-    if (!session || session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
-    }
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 권한 확인 - TRAINER만 접근 가능
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const params = await segmentData.params;
     const { id } = params;
 
-    const ptDetail = await getPendingPtDetail(id, session.roleId);
+    const ptDetail = await getPendingPtDetail(id, sessionOrResponse.roleId);
 
     return NextResponse.json(ptDetail);
   } catch (error) {
@@ -42,18 +48,30 @@ export async function PUT(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
-  try {
-    const session = await getSession();
-    if (!session || session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
-    }
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 권한 확인 - TRAINER만 접근 가능
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const params = await segmentData.params;
     const { id } = params;
     const body = await request.json();
+
+    // member의 realname이 필요한 경우 먼저 업데이트
+    if (body.memberUserId && body.memberRealname) {
+      await updateMemberProfile(body.memberUserId, {
+        realname: body.memberRealname,
+      });
+    }
 
     const updateData: UpdatePendingPtInput = {
       description: body.description,
@@ -61,7 +79,7 @@ export async function PUT(
       contractImageIds: body.contractImageIds,
     };
 
-    const result = await updatePendingPt(id, session.roleId, updateData);
+    const result = await updatePendingPt(id, sessionOrResponse.roleId, updateData);
 
     return NextResponse.json(result);
   } catch (error) {
@@ -77,15 +95,20 @@ export async function POST(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
-  try {
-    const session = await getSession();
-    if (!session || session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
-    }
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 권한 확인 - TRAINER만 접근 가능
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const params = await segmentData.params;
     const { id } = params;
     const body = await request.json();
@@ -105,7 +128,11 @@ export async function POST(
       memo,
     };
 
-    const result = await confirmPtWithFirstLesson(id, session.roleId, lessonData);
+    const result = await confirmPtWithFirstLesson(
+      id,
+      sessionOrResponse.roleId,
+      lessonData
+    );
 
     return NextResponse.json(result);
   } catch (error) {

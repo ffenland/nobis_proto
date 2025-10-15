@@ -7,6 +7,8 @@ import {
   createCenterAction,
   type IServerActionResponse,
 } from "../actions";
+import { usePostcode } from "@/app/lib/hooks/usePostcode";
+
 
 const initialState: IServerActionResponse = {
   success: false,
@@ -50,6 +52,23 @@ export default function CenterForm() {
   const [state, formAction] = useActionState(createCenterAction, initialState);
   const [closedDays, setClosedDays] = useState<Set<string>>(new Set());
 
+  // 다음 우편번호 API 훅 사용 (팝업 모드)
+  const {
+    isReady: isPostcodeReady,
+    addressData,
+    openPostcode,
+    PostcodeScript,
+  } = usePostcode({
+    width: 500,
+    height: 600,
+    includeExtraAddress: false, // 상세주소는 별도 입력받음
+  });
+
+  // 주소 검색 함수
+  const handleAddressSearch = () => {
+    openPostcode();
+  };
+
   // 폼 제출 성공 시 리다이렉트
   useEffect(() => {
     if (state.success && state.data) {
@@ -71,8 +90,11 @@ export default function CenterForm() {
     });
   };
 
+
   return (
-    <form action={formAction} className="space-y-8">
+    <>
+      <PostcodeScript />
+      <form action={formAction} className="space-y-8">
       {/* 에러 메시지 */}
       {state.error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -150,26 +172,73 @@ export default function CenterForm() {
           </div>
         </div>
 
-        <div>
-          <label
-            htmlFor="address"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
-            주소 *
-          </label>
-          <input
-            type="text"
-            id="address"
-            name="address"
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-            placeholder="서울시 강남구 테헤란로 123"
-          />
-          {state.fieldErrors?.address && (
-            <p className="mt-1 text-sm text-red-600">
-              {state.fieldErrors.address}
-            </p>
-          )}
+        {/* 주소 검색 */}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              주소 *
+            </label>
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                name="postCode"
+                value={addressData.postCode}
+                readOnly
+                className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50"
+                placeholder="우편번호"
+              />
+              <button
+                type="button"
+                onClick={handleAddressSearch}
+                disabled={!isPostcodeReady}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPostcodeReady ? "주소 검색" : "로딩중..."}
+              </button>
+            </div>
+          </div>
+
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              주소
+            </label>
+            <input
+              type="text"
+              name="address"
+              value={addressData.address}
+              readOnly
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50"
+              placeholder="주소 검색을 클릭해 주세요"
+            />
+            {state.fieldErrors?.address && (
+              <p className="mt-1 text-sm text-red-600">
+                {state.fieldErrors.address}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="addressDetail"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              상세 주소
+            </label>
+            <input
+              type="text"
+              id="addressDetail"
+              name="addressDetail"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+              placeholder="상세 주소를 입력해주세요 (예: 101동 202호)"
+            />
+            {state.fieldErrors?.addressDetail && (
+              <p className="mt-1 text-sm text-red-600">
+                {state.fieldErrors.addressDetail}
+              </p>
+            )}
+          </div>
         </div>
 
         <div>
@@ -271,6 +340,7 @@ export default function CenterForm() {
           {isPending ? "등록 중..." : "센터 등록"}
         </button>
       </div>
-    </form>
+      </form>
+    </>
   );
 }

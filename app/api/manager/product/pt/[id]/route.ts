@@ -3,39 +3,47 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getPtProductDetail,
   stopOrDeletePtProduct,
+  updatePtProductTrainerLevels,
+  updatePtProductDescription,
 } from "@/app/services/manager/product.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string }>;
 
 export const GET = async (
-  _request: NextRequest,
+  request: NextRequest,
   segmentData: { params: Params }
 ) => {
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  if (sessionOrResponse.role !== "MANAGER") {
+    return NextResponse.json(
+      { error: "매니저 권한이 필요합니다." },
+      { status: 403 }
+    );
+  }
+
   try {
-    // 세션 확인
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    // 매니저 권한 확인
-    if (sessionOrResponse.role !== "MANAGER") {
-      return NextResponse.json(
-        { error: "매니저 권한이 필요합니다." },
-        { status: 403 }
-      );
-    }
-
     const params = await segmentData.params;
     const { id } = params;
 
-    // 서비스 함수 호출
     const product = await getPtProductDetail(id, sessionOrResponse.roleId);
 
     return NextResponse.json(product);
   } catch (error) {
-    console.error("Error fetching PT product detail:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_PT_PRODUCT_DETAIL_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getPtProductDetail",
+      },
+      tags: ["api", "pt-product", "manager"],
+    });
+
     return NextResponse.json(
       {
         error:
@@ -46,35 +54,76 @@ export const GET = async (
   }
 };
 
-export const PUT = async (
-  _request: NextRequest,
+export const PATCH = async (
+  request: NextRequest,
   segmentData: { params: Params }
 ) => {
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  if (sessionOrResponse.role !== "MANAGER") {
+    return NextResponse.json(
+      { error: "매니저 권한이 필요합니다." },
+      { status: 403 }
+    );
+  }
+
   try {
-    // 세션 확인
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    // 매니저 권한 확인
-    if (sessionOrResponse.role !== "MANAGER") {
-      return NextResponse.json(
-        { error: "매니저 권한이 필요합니다." },
-        { status: 403 }
-      );
-    }
-
     const params = await segmentData.params;
     const { id } = params;
 
-    // 서비스 함수 호출 - 판매 중지 또는 삭제
-    const result = await stopOrDeletePtProduct(id, sessionOrResponse.roleId);
+    // 요청 본문 파싱
+    const body = await request.json();
 
-    return NextResponse.json(result);
+    let product;
+
+    // description 업데이트
+    if (body.description !== undefined) {
+      if (typeof body.description !== "string") {
+        return NextResponse.json(
+          { error: "설명은 문자열이어야 합니다." },
+          { status: 400 }
+        );
+      }
+
+      product = await updatePtProductDescription(
+        id,
+        body.description,
+        sessionOrResponse.roleId
+      );
+    }
+
+    // trainerLevelIds 업데이트
+    if (body.trainerLevelIds && Array.isArray(body.trainerLevelIds)) {
+      product = await updatePtProductTrainerLevels(
+        id,
+        body.trainerLevelIds,
+        sessionOrResponse.roleId
+      );
+    }
+
+    // 둘 다 없으면 에러
+    if (!body.description && !body.trainerLevelIds) {
+      return NextResponse.json(
+        { error: "수정할 필드를 지정해주세요." },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(product);
   } catch (error) {
-    console.error("Error updating PT product:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_PT_PRODUCT_UPDATE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "updatePtProduct",
+      },
+      tags: ["api", "pt-product", "manager"],
+    });
+
     return NextResponse.json(
       {
         error:
@@ -84,3 +133,6 @@ export const PUT = async (
     );
   }
 };
+
+// 판매 중지/삭제는 별도의 DELETE 엔드포인트로 처리 (향후 추가 가능)
+// 현재는 프론트에서 stopOrDeletePtProduct를 직접 호출하는 방식 유지

@@ -1,7 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import LoginClient from "../legacy/LoginClient";
-
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 const Login = async ({ searchParams }: { searchParams: SearchParams }) => {

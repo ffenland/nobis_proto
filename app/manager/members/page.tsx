@@ -88,7 +88,7 @@ export default function MembersPage() {
     members?.reduce((sum, member) => sum + member.stats.activePt, 0) || 0;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="h-full container mx-auto px-4 py-8 max-w-7xl">
       {/* 헤더 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
         <div>
@@ -98,45 +98,49 @@ export default function MembersPage() {
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="stat bg-base-100 shadow-lg rounded-lg p-6">
-          <div className="stat-figure text-primary">
-            <Users className="w-8 h-8" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-base-100 shadow-lg rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">전체 회원</p>
+              <p className="text-3xl font-bold text-primary">{totalMembers}</p>
+              <p className="text-xs text-gray-400 mt-1">등록된 총 회원 수</p>
+            </div>
+            <Users className="w-8 h-8 text-primary flex-shrink-0" />
           </div>
-          <div className="stat-title text-sm">전체 회원</div>
-          <div className="stat-value text-primary text-2xl">{totalMembers}</div>
-          <div className="stat-desc">등록된 총 회원 수</div>
         </div>
 
-        <div className="stat bg-base-100 shadow-lg rounded-lg p-6">
-          <div className="stat-figure text-success">
-            <UserCheck className="w-8 h-8" />
+        <div className="bg-base-100 shadow-lg rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">활성 회원</p>
+              <p className="text-3xl font-bold text-success">{activeMembers}</p>
+              <p className="text-xs text-gray-400 mt-1">현재 활동 중인 회원</p>
+            </div>
+            <UserCheck className="w-8 h-8 text-success flex-shrink-0" />
           </div>
-          <div className="stat-title text-sm">활성 회원</div>
-          <div className="stat-value text-success text-2xl">
-            {activeMembers}
-          </div>
-          <div className="stat-desc">현재 활동 중인 회원</div>
         </div>
 
-        <div className="stat bg-base-100 shadow-lg rounded-lg p-6">
-          <div className="stat-figure text-info">
-            <CreditCard className="w-8 h-8" />
+        <div className="bg-base-100 shadow-lg rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">활성 멤버십</p>
+              <p className="text-3xl font-bold text-info">{activeMemberships}</p>
+              <p className="text-xs text-gray-400 mt-1">유효한 멤버십</p>
+            </div>
+            <CreditCard className="w-8 h-8 text-info flex-shrink-0" />
           </div>
-          <div className="stat-title text-sm">활성 멤버십</div>
-          <div className="stat-value text-info text-2xl">
-            {activeMemberships}
-          </div>
-          <div className="stat-desc">유효한 멤버십</div>
         </div>
 
-        <div className="stat bg-base-100 shadow-lg rounded-lg p-6">
-          <div className="stat-figure text-warning">
-            <CheckCircle className="w-8 h-8" />
+        <div className="bg-base-100 shadow-lg rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">진행중 PT</p>
+              <p className="text-3xl font-bold text-warning">{activePTs}</p>
+              <p className="text-xs text-gray-400 mt-1">전체 활성 PT</p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-warning flex-shrink-0" />
           </div>
-          <div className="stat-title text-sm">진행중 PT</div>
-          <div className="stat-value text-warning text-2xl">{activePTs}</div>
-          <div className="stat-desc">전체 활성 PT</div>
         </div>
       </div>
 

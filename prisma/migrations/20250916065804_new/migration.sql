@@ -1,8 +1,0 @@
--- AlterTable
-ALTER TABLE "Image" ADD COLUMN     "ptId" UUID;
-
--- AlterTable
-ALTER TABLE "PtProduct" ALTER COLUMN "closedAt" SET DEFAULT TIMESTAMP '2199-12-31 23:59:59';
-
--- AddForeignKey
-ALTER TABLE "Image" ADD CONSTRAINT "Image_ptId_fkey" FOREIGN KEY ("ptId") REFERENCES "Pt"("id") ON DELETE SET NULL ON UPDATE CASCADE;

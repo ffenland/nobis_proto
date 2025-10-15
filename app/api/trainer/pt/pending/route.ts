@@ -1,6 +1,6 @@
 // app/api/trainer/pt/pending/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
+import { getSessionOrReturn401 } from "@/app/lib/session";
 import {
   rejectPt,
   createLessonWithPtApproval,
@@ -10,18 +10,24 @@ import {
 } from "@/app/services/trainer/pt.service";
 
 export async function GET() {
-  try {
-    // 세션 확인
-    const session = await getSession();
-    if (!session || session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
-    }
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 권한 확인 - TRAINER만 접근 가능
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     // ACCEPTING, PENDING 상태 PT 목록 조회 (새로운 정렬 방식)
-    const pendingPts = await getTrainerAcceptingPendingPts(session.roleId);
+    const pendingPts = await getTrainerAcceptingPendingPts(
+      sessionOrResponse.roleId
+    );
 
     return NextResponse.json(pendingPts);
   } catch (error) {
@@ -35,16 +41,20 @@ export async function GET() {
 
 // POST: PENDING PT 생성 (Description 단계에서)
 export async function POST(request: NextRequest) {
-  try {
-    // 세션 확인
-    const session = await getSession();
-    if (!session || session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
-    }
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 권한 확인 - TRAINER만 접근 가능
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const body = await request.json();
     const { memberId, ptProductId, description, goals } = body;
 
@@ -63,24 +73,18 @@ export async function POST(request: NextRequest) {
       goals,
     };
 
-    const result = await createPendingPt(session.roleId, ptData);
+    const result = await createPendingPt(sessionOrResponse.roleId, ptData);
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error creating pending PT:", error);
-    
+
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(
@@ -92,16 +96,20 @@ export async function POST(request: NextRequest) {
 
 // PATCH: PT 승인/거절 처리
 export async function PATCH(request: NextRequest) {
-  try {
-    // 세션 확인
-    const session = await getSession();
-    if (!session || session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
-    }
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 권한 확인 - TRAINER만 접근 가능
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
     const body = await request.json();
     const { ptId, action, reason, lessonData } = body;
 
@@ -113,7 +121,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (!['reject', 'approveWithLesson'].includes(action)) {
+    if (!["reject", "approveWithLesson"].includes(action)) {
       return NextResponse.json(
         { error: "action은 'reject' 또는 'approveWithLesson'이어야 합니다." },
         { status: 400 }
@@ -121,7 +129,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 거절 시 reason 필수
-    if (action === 'reject' && (!reason || reason.trim().length === 0)) {
+    if (action === "reject" && (!reason || reason.trim().length === 0)) {
       return NextResponse.json(
         { error: "거절 시 사유는 필수입니다." },
         { status: 400 }
@@ -129,14 +137,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 레슨과 함께 승인 시 lessonData 필수
-    if (action === 'approveWithLesson' && !lessonData) {
+    if (action === "approveWithLesson" && !lessonData) {
       return NextResponse.json(
         { error: "레슨 데이터가 필요합니다." },
         { status: 400 }
       );
     }
 
-    if (action === 'approveWithLesson') {
+    if (action === "approveWithLesson") {
       const { scheduledAt, endAt } = lessonData;
       if (!scheduledAt || !endAt) {
         return NextResponse.json(
@@ -148,12 +156,16 @@ export async function PATCH(request: NextRequest) {
 
     let result;
 
-    if (action === 'approveWithLesson') {
+    if (action === "approveWithLesson") {
       // PT 승인과 동시에 첫 레슨 생성
-      result = await createLessonWithPtApproval(session.roleId, ptId, lessonData);
+      result = await createLessonWithPtApproval(
+        sessionOrResponse.roleId,
+        ptId,
+        lessonData
+      );
     } else {
       // PT 거절 처리
-      result = await rejectPt(ptId, session.roleId, reason.trim());
+      result = await rejectPt(ptId, sessionOrResponse.roleId, reason.trim());
     }
 
     return NextResponse.json({
@@ -163,9 +175,9 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("PT 승인/거절 처리 실패:", error);
-    
+
     // Prisma 에러 처리
-    if (error.code === 'P2025') {
+    if (error.code === "P2025") {
       return NextResponse.json(
         { error: "해당 PT를 찾을 수 없거나 권한이 없습니다." },
         { status: 404 }

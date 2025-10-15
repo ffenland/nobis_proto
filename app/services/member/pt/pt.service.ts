@@ -30,14 +30,18 @@ export const getFitnessCentersForPtApply = cache(async () => {
 });
 
 // 타입 추론
-export type FitnessCentersForPtApply = Awaited<ReturnType<typeof getFitnessCentersForPtApply>>;
+export type FitnessCentersForPtApply = Awaited<
+  ReturnType<typeof getFitnessCentersForPtApply>
+>;
 
 // 센터별 트레이너 및 PT 프로그램 조회
-export const getTrainersWithPtProgramsByCenter = cache(async (centerId: string) => {
+export const getTrainersWithPtProgramsByCenter = async (centerId: string) => {
   // 해당 센터의 트레이너들과 그들이 담당하는 PT 프로그램 조회
+  // Trainer → TrainerLevel → PtProductTrainerLevel → PtProduct 경로로 조회
   const trainers = await prisma.trainer.findMany({
     where: {
       fitnessCenterId: centerId,
+      working: true, // 근무 중인 트레이너만
     },
     select: {
       id: true,
@@ -53,24 +57,39 @@ export const getTrainersWithPtProgramsByCenter = cache(async (centerId: string) 
         },
       },
       introduce: true,
-      ptProduct: {
-        where: {
-          onSale: true,
-          closedAt: {
-            gt: new Date(),
-          },
-        },
+      level: {
         select: {
           id: true,
           title: true,
-          description: true,
-          price: true,
-          totalCount: true,
-          time: true,
-          expiration_period: true,
-        },
-        orderBy: {
-          price: "asc",
+          displayTitle: true,
+          ptProducts: {
+            where: {
+              ptProduct: {
+                onSale: true,
+                closedAt: {
+                  gt: new Date(),
+                },
+              },
+            },
+            select: {
+              ptProduct: {
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                  price: true,
+                  totalCount: true,
+                  time: true,
+                  expiration_period: true,
+                },
+              },
+            },
+            orderBy: {
+              ptProduct: {
+                price: "asc",
+              },
+            },
+          },
         },
       },
     },
@@ -81,11 +100,17 @@ export const getTrainersWithPtProgramsByCenter = cache(async (centerId: string) 
     },
   });
 
-  return trainers;
-});
+  // 데이터 변환: ptProducts 배열을 평탄화
+  return trainers.map((trainer) => ({
+    ...trainer,
+    ptProducts: trainer.level?.ptProducts.map((tp) => tp.ptProduct) ?? [],
+  }));
+};
 
 // 타입 추론
-export type TrainersWithPtProgramsByCenter = Awaited<ReturnType<typeof getTrainersWithPtProgramsByCenter>>;
+export type TrainersWithPtProgramsByCenter = Awaited<
+  ReturnType<typeof getTrainersWithPtProgramsByCenter>
+>;
 
 // PT 신청 데이터 타입
 export interface PtApplicationData {
@@ -112,8 +137,12 @@ export interface IPendingPtCheck {
 }
 
 // PT 신청 서비스 함수
-export const applyForPt = async (memberId: string, applicationData: PtApplicationData) => {
-  const { centerId, ptProductId, trainerId, startDate, description } = applicationData;
+export const applyForPt = async (
+  memberId: string,
+  applicationData: PtApplicationData
+) => {
+  const { centerId, ptProductId, trainerId, startDate, description } =
+    applicationData;
 
   // PT 상품 정보 조회 (가격, 수업 횟수 등)
   const ptProduct = await prisma.ptProduct.findUnique({
@@ -165,7 +194,6 @@ export const applyForPt = async (memberId: string, applicationData: PtApplicatio
       trainerId,
       startDate,
       state: "PENDING",
-      paymentAmount: 0, // 신청 시점에는 0, 추후 결제 확인 시 업데이트
       description: description || "",
       goals: "", // 기본값
     },
@@ -197,7 +225,9 @@ export const applyForPt = async (memberId: string, applicationData: PtApplicatio
 };
 
 // PENDING PT 체크 함수
-export const checkPendingPt = async (memberId: string): Promise<IPendingPtCheck> => {
+export const checkPendingPt = async (
+  memberId: string
+): Promise<IPendingPtCheck> => {
   // PENDING 상태이고 시작일이 미래인 PT 조회
   const pendingPt = await prisma.pt.findFirst({
     where: {
@@ -262,7 +292,14 @@ export const getMemberActivePt = async (memberId: string) => {
       description: true,
       goals: true,
       startDate: true,
-      paymentAmount: true,
+      payment: {
+        select: {
+          method: true,
+          amount: true,
+          discount: true,
+          paidAt: true,
+        },
+      },
       ptProduct: {
         select: {
           id: true,
@@ -331,7 +368,7 @@ export const getMemberActivePt = async (memberId: string) => {
   }
 
   const now = new Date();
-  
+
   // 완료된 수업 수 계산 (과거 날짜이고 기록이 있는 수업)
   const completedLessons = activePt.lessons.filter(
     (lesson) => lesson.scheduledAt < now && lesson.records.length > 0
@@ -341,7 +378,7 @@ export const getMemberActivePt = async (memberId: string) => {
   const upcomingLessons = activePt.lessons
     .filter((lesson) => lesson.scheduledAt > now)
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-  
+
   const nextLesson = upcomingLessons[0] || null;
 
   // 진행률 계산
@@ -355,7 +392,7 @@ export const getMemberActivePt = async (memberId: string) => {
     description: activePt.description,
     goals: activePt.goals,
     startDate: activePt.startDate.toISOString(),
-    paymentAmount: activePt.paymentAmount,
+    paymentAmount: activePt.payment?.amount ?? 0,
     ptProduct: activePt.ptProduct,
     trainer: activePt.trainer,
     progress: {
@@ -368,14 +405,19 @@ export const getMemberActivePt = async (memberId: string) => {
           id: nextLesson.id,
           scheduledAt: nextLesson.scheduledAt.toISOString(),
           endAt: nextLesson.endAt.toISOString(),
-          duration: Math.floor((nextLesson.endAt.getTime() - nextLesson.scheduledAt.getTime()) / (1000 * 60)), // 호환성을 위해 계산
+          duration: Math.floor(
+            (nextLesson.endAt.getTime() - nextLesson.scheduledAt.getTime()) /
+              (1000 * 60)
+          ), // 호환성을 위해 계산
         }
       : null,
     recentLessons: activePt.lessons.map((lesson) => ({
       id: lesson.id,
       scheduledAt: lesson.scheduledAt.toISOString(),
       endAt: lesson.endAt.toISOString(),
-      duration: Math.floor((lesson.endAt.getTime() - lesson.scheduledAt.getTime()) / (1000 * 60)), // 호환성을 위해 계산
+      duration: Math.floor(
+        (lesson.endAt.getTime() - lesson.scheduledAt.getTime()) / (1000 * 60)
+      ), // 호환성을 위해 계산
       memo: lesson.memo,
       recordsCount: lesson.records.length,
       isCompleted: lesson.scheduledAt < now && lesson.records.length > 0,
@@ -384,4 +426,6 @@ export const getMemberActivePt = async (memberId: string) => {
 };
 
 // 타입 추론
-export type GetMemberActivePtResult = Awaited<ReturnType<typeof getMemberActivePt>>;
+export type GetMemberActivePtResult = Awaited<
+  ReturnType<typeof getMemberActivePt>
+>;

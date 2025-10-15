@@ -11,9 +11,9 @@ const SecretTestLogin = async ({
   const { key } = await searchParams;
 
   return (
-    <main className="min-h-screen bg-gray-100 py-8 max-w-sm mx-auto">
-      <div className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
+    <div className=" bg-gray-100  overflow-y-auto">
+      <div className=" ">
+        <div className="">
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <h1 className="text-2xl font-bold text-gray-800 mb-2">
               테스트 로그인
@@ -28,7 +28,7 @@ const SecretTestLogin = async ({
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 };
 

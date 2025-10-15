@@ -1,109 +1,107 @@
 import prisma from "@/app/lib/prisma";
-import { sortEquipmentByCategory } from "@/app/lib/utils/equipment.utils";
 
 // === Equipment 관련 서비스 ===
 
-// 센터별 장비 목록 조회 (새로운 구조)
+// 센터별 장비 목록 조회
 export async function getCenterEquipments(centerId: string) {
-  const equipments = await prisma.equipment.findMany({
-    where: {
-      fitnessCenterId: centerId,
-    },
-    select: {
-      id: true,
-      primaryValue: true,
-      primaryUnit: true,
-      secondaryValue: true,
-      secondaryUnit: true,
-      description: true,
-      model: true,
-      group: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
+  const [center, equipments] = await Promise.all([
+    prisma.fitnessCenter.findUnique({
+      where: { id: centerId },
+      select: { title: true },
+    }),
+    prisma.equipment.findMany({
+      where: {
+        fitnessCenterId: centerId,
+      },
+      select: {
+        id: true,
+        title: true,
+        unit: true,
+        createdAt: true,
+        updatedAt: true,
+        images: {
+          select: {
+            id: true,
+            cloudflareId: true,
+          },
         },
       },
-      brand: {
-        select: {
-          id: true,
-          name: true,
-        },
+      orderBy: {
+        title: "asc",
       },
-    },
-  });
+    }),
+  ]);
 
-  // 카테고리별 정렬 적용
-  return sortEquipmentByCategory(equipments);
+  if (!center) {
+    throw new Error("센터를 찾을 수 없습니다.");
+  }
+
+  return {
+    centerTitle: center.title,
+    equipments,
+  };
 }
 
 // 센터별 장비 목록 조회 (간단한 버전 - ID와 타이틀 정보만)
 export async function getCenterEquipmentsSimple(centerId: string) {
+  const center = await prisma.fitnessCenter.findFirst({
+    where: {
+      id: centerId,
+    },
+    select: {
+      title: true,
+    },
+  });
   const equipments = await prisma.equipment.findMany({
     where: {
       fitnessCenterId: centerId,
     },
     select: {
       id: true,
-      primaryValue: true,
-      primaryUnit: true,
-      group: {
+      title: true,
+      unit: true,
+    },
+    orderBy: {
+      title: "asc",
+    },
+  });
+  if (!center) {
+    //?
+  } else {
+    return {
+      centerTitle: center.title,
+      equipments,
+    };
+  }
+}
+
+// 전체 장비 목록 조회 (센터 무관)
+export async function getAllEquipments() {
+  const equipments = await prisma.equipment.findMany({
+    select: {
+      id: true,
+      title: true,
+      unit: true,
+      createdAt: true,
+      fitnessCenter: {
         select: {
-          name: true,
+          id: true,
+          title: true,
+        },
+      },
+      images: {
+        select: {
+          id: true,
+          cloudflareId: true,
         },
       },
     },
-  });
-
-  return sortEquipmentByCategory(equipments);
-}
-
-// 그룹별 장비 목록 조회
-export async function getCenterEquipmentsByGroup(centerId: string) {
-  const equipments = await getCenterEquipments(centerId);
-
-  // 그룹별로 분류
-  const groupedEquipments = equipments.reduce((acc, equipment) => {
-    const groupName = equipment.group.name;
-    if (!acc[groupName]) {
-      acc[groupName] = [];
-    }
-    acc[groupName].push(equipment);
-    return acc;
-  }, {} as Record<string, typeof equipments>);
-
-  return groupedEquipments;
-}
-
-// Equipment 그룹 목록 조회
-export async function getEquipmentGroups() {
-  const groups = await prisma.equipmentGroup.findMany({
-    select: {
-      id: true,
-      name: true,
-      description: true,
-    },
     orderBy: {
-      name: "asc",
+      title: "asc",
     },
   });
 
-  return groups;
-}
-
-// Equipment 브랜드 목록 조회
-export async function getEquipmentBrands() {
-  const brands = await prisma.equipmentBrand.findMany({
-    select: {
-      id: true,
-      name: true,
-    },
-    orderBy: {
-      name: "asc",
-    },
-  });
-
-  return brands;
+  return equipments;
 }
 
 // 특정 Equipment 상세 조회
@@ -114,24 +112,15 @@ export async function getEquipmentById(equipmentId: string) {
     },
     select: {
       id: true,
-      primaryValue: true,
-      primaryUnit: true,
-      secondaryValue: true,
-      secondaryUnit: true,
-      description: true,
-      model: true,
+      title: true,
+      unit: true,
+      createdAt: true,
+      updatedAt: true,
       fitnessCenterId: true,
-      group: {
+      fitnessCenter: {
         select: {
           id: true,
-          name: true,
-          description: true,
-        },
-      },
-      brand: {
-        select: {
-          id: true,
-          name: true,
+          title: true,
         },
       },
       images: {
@@ -155,167 +144,120 @@ export type GetCenterEquipmentsSimpleResult = Awaited<
   ReturnType<typeof getCenterEquipmentsSimple>
 >;
 
-export type GetEquipmentGroupsResult = Awaited<
-  ReturnType<typeof getEquipmentGroups>
->;
-
-export type GetEquipmentBrandsResult = Awaited<
-  ReturnType<typeof getEquipmentBrands>
+export type GetAllEquipmentsResult = Awaited<
+  ReturnType<typeof getAllEquipments>
 >;
 
 export type GetEquipmentByIdResult = Awaited<
   ReturnType<typeof getEquipmentById>
 >;
 
+// 개별 장비 타입
+export type Equipment = GetCenterEquipmentsResult["equipments"][number];
+
 // === Equipment 생성 관련 ===
 
 // Equipment 생성 입력 타입
 export interface CreateEquipmentInput {
-  groupId: string;
-  brandId?: string;
-  primaryValues: string[];  // 여러 개의 primaryValue (예: ["2", "3", "4", "5"] for kg)
-  primaryUnit: string;
-  secondaryValue?: string;
-  secondaryUnit?: string;
-  description?: string;
-  model?: string;
-  images?: { cloudflareId: string; uploadedById: string }[];  // 이미지 정보 배열 (최대 3개)
+  title: string;
+  unit?: string; // 기본값 "none"
+  images?: { cloudflareId: string; uploadedById: string }[]; // 이미지 정보 배열 (최대 3개)
 }
 
-// Equipment 일괄 생성
-export async function createEquipments(
-  fitnessCenterId: string,
+// Equipment 생성
+export async function createEquipment(
+  fitnessCenterId: string | null,
   input: CreateEquipmentInput
 ) {
-  const {
-    groupId,
-    brandId,
-    primaryValues,
-    primaryUnit,
-    secondaryValue,
-    secondaryUnit,
-    description,
-    model,
-    images = [],
-  } = input;
+  const { title, unit, images = [] } = input;
 
-  // 트랜잭션으로 여러 Equipment 생성
-  const createdEquipments = await prisma.$transaction(
-    primaryValues.map((primaryValue) =>
-      prisma.equipment.create({
-        data: {
-          fitnessCenterId,
-          groupId,
-          brandId: brandId || undefined,
-          primaryValue,
-          primaryUnit,
-          secondaryValue,
-          secondaryUnit,
-          description,
-          model,
-          images: images.length > 0
-            ? {
-                create: images.slice(0, 3).map((img) => ({
-                  cloudflareId: img.cloudflareId,
-                  type: "EQUIPMENT" as const,
-                  uploadedById: img.uploadedById,
-                })),
-              }
-            : undefined,
-        },
+  // unit이 undefined이거나 빈 문자열이면 "none"으로 설정
+  const equipmentUnit = unit && unit.trim() ? unit.trim() : "none";
+
+  const createdEquipment = await prisma.equipment.create({
+    data: {
+      title,
+      unit: equipmentUnit,
+      fitnessCenterId: fitnessCenterId || undefined,
+      images:
+        images.length > 0
+          ? {
+              create: images.slice(0, 3).map((img) => ({
+                cloudflareId: img.cloudflareId,
+                type: "EQUIPMENT" as const,
+                uploadedById: img.uploadedById,
+              })),
+            }
+          : undefined,
+    },
+    select: {
+      id: true,
+      title: true,
+      unit: true,
+      createdAt: true,
+      updatedAt: true,
+      fitnessCenterId: true,
+      fitnessCenter: {
         select: {
           id: true,
-          primaryValue: true,
-          primaryUnit: true,
-          secondaryValue: true,
-          secondaryUnit: true,
-          description: true,
-          model: true,
-          group: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-            },
-          },
-          brand: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          images: {
-            select: {
-              id: true,
-              cloudflareId: true,
-            },
-          },
+          title: true,
         },
-      })
-    )
-  );
-
-  return createdEquipments;
-}
-
-// 타입 추론
-export type CreateEquipmentsResult = Awaited<
-  ReturnType<typeof createEquipments>
->;
-
-// === Equipment 그룹/브랜드 생성 관련 ===
-
-// Equipment 그룹 생성 입력 타입
-export interface CreateEquipmentGroupInput {
-  name: string;
-  description?: string;
-}
-
-// Equipment 브랜드 생성 입력 타입
-export interface CreateEquipmentBrandInput {
-  name: string;
-}
-
-// Equipment 그룹 생성
-export async function createEquipmentGroup(input: CreateEquipmentGroupInput) {
-  const group = await prisma.equipmentGroup.create({
-    data: {
-      name: input.name,
-      description: input.description,
-    },
-    select: {
-      id: true,
-      name: true,
-      description: true,
+      },
+      images: {
+        select: {
+          id: true,
+          cloudflareId: true,
+        },
+      },
     },
   });
 
-  return group;
+  return createdEquipment;
 }
 
-// Equipment 브랜드 생성
-export async function createEquipmentBrand(input: CreateEquipmentBrandInput) {
-  const brand = await prisma.equipmentBrand.create({
+// Equipment 수정 입력 타입
+export interface UpdateEquipmentInput {
+  title?: string;
+  unit?: string;
+}
+
+// Equipment 수정
+export async function updateEquipment(
+  equipmentId: string,
+  input: UpdateEquipmentInput
+) {
+  const updatedEquipment = await prisma.equipment.update({
+    where: {
+      id: equipmentId,
+    },
     data: {
-      name: input.name,
+      title: input.title,
+      unit: input.unit,
     },
     select: {
       id: true,
-      name: true,
+      title: true,
+      unit: true,
+      createdAt: true,
+      updatedAt: true,
+      fitnessCenterId: true,
+      fitnessCenter: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      images: {
+        select: {
+          id: true,
+          cloudflareId: true,
+        },
+      },
     },
   });
 
-  return brand;
+  return updatedEquipment;
 }
-
-// 타입 추론
-export type CreateEquipmentGroupResult = Awaited<
-  ReturnType<typeof createEquipmentGroup>
->;
-
-export type CreateEquipmentBrandResult = Awaited<
-  ReturnType<typeof createEquipmentBrand>
->;
 
 // === Equipment 삭제 관련 ===
 
@@ -337,6 +279,7 @@ export async function deleteEquipment(equipmentId: string) {
       },
       select: {
         id: true,
+        title: true,
         fitnessCenterId: true,
       },
     });
@@ -353,10 +296,6 @@ export async function deleteEquipment(equipmentId: string) {
 // - 삭제: /api/media/images/[id]
 
 // 타입 추론
+export type CreateEquipmentResult = Awaited<ReturnType<typeof createEquipment>>;
+export type UpdateEquipmentResult = Awaited<ReturnType<typeof updateEquipment>>;
 export type DeleteEquipmentResult = Awaited<ReturnType<typeof deleteEquipment>>;
-
-// 배열 요소 타입
-export type Equipment = GetCenterEquipmentsResult[number];
-export type EquipmentSimple = GetCenterEquipmentsSimpleResult[number];
-export type EquipmentGroup = GetEquipmentGroupsResult[number];
-export type EquipmentBrand = GetEquipmentBrandsResult[number];

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { getCentersData } from "./actions";
 import type { ICenterSummary } from "@/app/manager/centers/actions";
+import { formatMobile } from "@/app/lib/utils/format.utils";
 
 // 시간 표시 유틸리티
 function displayTime(time: number): string {
@@ -35,8 +36,21 @@ function CenterCard({ center }: { center: ICenterSummary }) {
           <h3 className="text-xl font-bold text-gray-900 mb-2">
             {center.title}
           </h3>
-          <p className="text-gray-600 text-sm mb-1">{center.address}</p>
-          <p className="text-gray-600 text-sm">{center.phone}</p>
+          <div className="space-y-1">
+            <p className="text-gray-600 text-sm">
+              <span className="inline-block w-12 text-gray-500">주소:</span>
+              ({center.postCode}) {center.address}
+            </p>
+            {center.addressDetail && (
+              <p className="text-gray-600 text-sm ml-12">
+                {center.addressDetail}
+              </p>
+            )}
+            <p className="text-gray-600 text-sm">
+              <span className="inline-block w-12 text-gray-500">전화:</span>
+              {formatMobile(center.phone)}
+            </p>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-sm text-gray-500 space-y-1">
@@ -48,7 +62,7 @@ function CenterCard({ center }: { center: ICenterSummary }) {
       </div>
 
       {center.description && (
-        <p className="text-gray-700 text-sm mb-4 line-clamp-2">
+        <p className="text-gray-700 text-sm mb-4 line-clamp-4 whitespace-pre-line">
           {center.description}
         </p>
       )}
@@ -109,9 +123,18 @@ function CenterCard({ center }: { center: ICenterSummary }) {
           href={`/manager/centers/${center.id}/machines`}
           className="bg-blue-600 text-white text-center py-2 px-4 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-1"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            />
           </svg>
           머신 관리
         </Link>
@@ -119,9 +142,18 @@ function CenterCard({ center }: { center: ICenterSummary }) {
           href={`/manager/centers/${center.id}/equipments`}
           className="bg-green-600 text-white text-center py-2 px-4 rounded-md hover:bg-green-700 transition-colors text-sm font-medium flex items-center justify-center gap-1"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                  d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"
+            />
           </svg>
           운동기구 관리
         </Link>
@@ -168,7 +200,7 @@ export default async function CentersPage() {
   const centers = await getCentersData();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* 헤더 */}
       <div className="flex justify-between items-center mb-8">
         <div>
@@ -177,12 +209,20 @@ export default async function CentersPage() {
             총 {centers.length}개의 센터가 등록되어 있습니다.
           </p>
         </div>
-        <Link
-          href="/manager/centers/new"
-          className="bg-gray-900 text-white px-3 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium"
-        >
-          새 센터 등록
-        </Link>
+        <div className="flex gap-3">
+          <Link
+            href="/manager/centers/new-manager"
+            className="bg-blue-600 text-white px-3 py-3 rounded-md hover:bg-blue-700 transition-colors font-medium"
+          >
+            신규 매니저 등록
+          </Link>
+          <Link
+            href="/manager/centers/new"
+            className="bg-gray-900 text-white px-3 py-3 rounded-md hover:bg-gray-800 transition-colors font-medium"
+          >
+            새 센터 등록
+          </Link>
+        </div>
       </div>
 
       {/* 센터 목록 */}

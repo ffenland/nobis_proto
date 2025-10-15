@@ -1,5 +1,5 @@
 // prisma/seed.ts
-import { PrismaClient, UserRole, WeekDay } from "@prisma/client";
+import { PrismaClient, UserRole } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -18,26 +18,8 @@ async function main() {
   console.log("🌱 시드 데이터 생성 시작...");
 
   try {
-    // 1. 사용자 및 역할별 데이터 생성
+    // User 11명 생성 (Member 10명, Manager 1명)
     await createUsers();
-
-    // 2. 피트니스 센터 및 영업시간 생성
-    await createFitnessCenters();
-
-    // 3. 머신 데이터 생성
-    await createMachines();
-
-    // 4. Equipment 그룹 및 브랜드 생성
-    await createEquipmentGroupsAndBrands();
-
-    // 5. 웨이트 도구 생성 (새로운 구조)
-    await createAllEquipmentData();
-
-    // 6. 프리 웨이트 운동 생성
-    await createFreeExercises();
-
-    // 7. 스트레칭 운동 생성
-    await createStretchingExercises();
 
     console.log("🎉 시드 데이터 생성 완료!");
   } catch (error) {
@@ -72,78 +54,67 @@ async function createUsers() {
     return kakaoId;
   }
 
-  // 트레이너 3명 생성 (naver 2명, kakao 1명)
-  const dummyTrainerData = [
-    { username: "김태호", mobile: "01012345678", email: "kimtaeho@test.com" },
+  // Member 10명 생성 데이터
+  const memberData = [
     {
-      username: "이영희",
-      mobile: "01023456789",
-      email: "leeyounghee@test.com",
+      username: "심심한 풋사과",
+      mobile: "01012340001",
+      email: "member1@test.com",
     },
     {
-      username: "박철수",
-      mobile: "01034567890",
-      email: "parkchulsoo@test.com",
+      username: "날쌘 거북이",
+      mobile: "01012340002",
+      email: "member2@test.com",
     },
-  ];
-
-  // 멤버 5명 생성 (naver 3명, kakao 2명)
-  const dummyMemberData = [
-    { username: "김민준", mobile: "01012340001", email: "kimminjun@test.com" },
-    { username: "이서윤", mobile: "01012340002", email: "leeseoyun@test.com" },
-    { username: "박도현", mobile: "01012340003", email: "parkdohyun@test.com" },
-    { username: "최예은", mobile: "01012340004", email: "choiyeeun@test.com" },
     {
-      username: "정시우",
+      username: "아름다운 운동화",
+      mobile: "01012340003",
+      email: "member3@test.com",
+    },
+    {
+      username: "용감한 고양이",
+      mobile: "01012340004",
+      email: "member4@test.com",
+    },
+    {
+      username: "행복한 도토리",
       mobile: "01012340005",
-      email: "jeongsiwoo@test.com",
+      email: "member5@test.com",
+    },
+    {
+      username: "멋진 햄스터",
+      mobile: "01012340006",
+      email: "member6@test.com",
+    },
+    { username: "빠른 토끼", mobile: "01012340007", email: "member7@test.com" },
+    {
+      username: "조용한 호랑이",
+      mobile: "01012340008",
+      email: "member8@test.com",
+    },
+    {
+      username: "신나는 펭귄",
+      mobile: "01012340009",
+      email: "member9@test.com",
+    },
+    {
+      username: "귀여운 판다",
+      mobile: "01012340010",
+      email: "member10@test.com",
     },
   ];
 
-  // 매니저 2명 생성 (naver, kakao 각 1명)
-  const dummyManagerData = [
-    {
-      username: "관리자1",
-      mobile: "01099999991",
-      email: "manager1@test.com",
-    },
-    {
-      username: "관리자2",
-      mobile: "01099999992",
-      email: "manager2@test.com",
-    },
-  ];
+  // Manager 1명 생성 데이터
+  const managerData = {
+    username: "관리자",
+    mobile: "01099999999",
+    email: "manager@test.com",
+  };
 
-  // 사용자 생성 및 역할별 프로필 생성
-  for (let i = 0; i < dummyTrainerData.length; i++) {
-    const userData = dummyTrainerData[i];
-    const isNaverUser = i < 2; // 첫 2명은 naver, 나머지는 kakao
-
-    const user = await prisma.user.create({
-      data: {
-        username: userData.username,
-        email: userData.email,
-        mobile: userData.mobile,
-        role: UserRole.TRAINER,
-        ...(isNaverUser
-          ? { naverId: getUniqueNaverId() }
-          : { kakaoId: getUniqueKakaoId() }),
-        userData: {
-          create: {},
-        },
-        trainerProfile: {
-          create: {
-            introduce: `안녕하세요! ${userData.username} 트레이너입니다. 건강한 운동 라이프를 만들어가요!`,
-          },
-        },
-      },
-    });
-    console.log(`✅ 트레이너 생성: ${user.username}`);
-  }
-
-  for (let i = 0; i < dummyMemberData.length; i++) {
-    const userData = dummyMemberData[i];
-    const isNaverUser = i < 3; // 첫 3명은 naver, 나머지는 kakao
+  // Member 10명 생성
+  for (let i = 0; i < memberData.length; i++) {
+    const userData = memberData[i];
+    const isNaverUser = i % 2 === 0; // 짝수 인덱스는 naver, 홀수는 kakao
 
     const user = await prisma.user.create({
       data: {
@@ -158,791 +129,35 @@ async function createUsers() {
           create: {},
         },
         memberProfile: {
-          create: {
-            active: true,
-          },
-        },
-      },
-    });
-    console.log(`✅ 멤버 생성: ${user.username}`);
-  }
-
-  for (let i = 0; i < dummyManagerData.length; i++) {
-    const userData = dummyManagerData[i];
-    const isNaverUser = i === 0;
-
-    const user = await prisma.user.create({
-      data: {
-        username: userData.username,
-        email: userData.email,
-        mobile: userData.mobile,
-        role: UserRole.MANAGER,
-        ...(isNaverUser
-          ? { naverId: getUniqueNaverId() }
-          : { kakaoId: getUniqueKakaoId() }),
-        userData: {
-          create: {},
-        },
-        managerProfile: {
           create: {},
         },
       },
     });
-    console.log(`✅ 매니저 생성: ${user.username}`);
+
+    console.log(`  ✅ Member 생성: ${user.username} (${user.email})`);
   }
 
+  // Manager 1명 생성
+  const managerUser = await prisma.user.create({
+    data: {
+      username: managerData.username,
+      email: managerData.email,
+      mobile: managerData.mobile,
+      role: UserRole.MANAGER,
+      naverId: getUniqueNaverId(),
+      userData: {
+        create: {},
+      },
+      managerProfile: {
+        create: {},
+      },
+    },
+  });
+
+  console.log(
+    `  ✅ Manager 생성: ${managerUser.username} (${managerUser.email})`
+  );
   console.log("✅ 사용자 데이터 생성 완료");
-}
-
-async function createFitnessCenters() {
-  console.log("🏢 피트니스 센터 데이터 생성 중...");
-
-  // 영업시간 생성 (월~금: 06:00-22:00, 토: 08:00-20:00, 일: 휴무)
-  const weekdayHours = await prisma.openingHour.upsert({
-    where: {
-      dayOfWeek_openTime_closeTime_isClosed: {
-        dayOfWeek: WeekDay.MON,
-        openTime: 600,
-        closeTime: 2200,
-        isClosed: false,
-      },
-    },
-    update: {},
-    create: {
-      dayOfWeek: WeekDay.MON,
-      openTime: 600,
-      closeTime: 2200,
-      isClosed: false,
-    },
-  });
-
-  const saturdayHours = await prisma.openingHour.upsert({
-    where: {
-      dayOfWeek_openTime_closeTime_isClosed: {
-        dayOfWeek: WeekDay.SAT,
-        openTime: 800,
-        closeTime: 2000,
-        isClosed: false,
-      },
-    },
-    update: {},
-    create: {
-      dayOfWeek: WeekDay.SAT,
-      openTime: 800,
-      closeTime: 2000,
-      isClosed: false,
-    },
-  });
-
-  const sundayHours = await prisma.openingHour.upsert({
-    where: {
-      dayOfWeek_openTime_closeTime_isClosed: {
-        dayOfWeek: WeekDay.SUN,
-        openTime: 0,
-        closeTime: 0,
-        isClosed: true,
-      },
-    },
-    update: {},
-    create: {
-      dayOfWeek: WeekDay.SUN,
-      openTime: 0,
-      closeTime: 0,
-      isClosed: true,
-    },
-  });
-
-  // 트레이너 근무시간 생성 (월~금: 09:00-21:00, 토: 10:00-18:00)
-  const trainerWeekdayHours = await prisma.workingHour.upsert({
-    where: {
-      dayOfWeek_openTime_closeTime: {
-        dayOfWeek: WeekDay.MON,
-        openTime: 900,
-        closeTime: 2100,
-      },
-    },
-    update: {},
-    create: {
-      dayOfWeek: WeekDay.MON,
-      openTime: 900,
-      closeTime: 2100,
-    },
-  });
-
-  const trainerSaturdayHours = await prisma.workingHour.upsert({
-    where: {
-      dayOfWeek_openTime_closeTime: {
-        dayOfWeek: WeekDay.SAT,
-        openTime: 1000,
-        closeTime: 1800,
-      },
-    },
-    update: {},
-    create: {
-      dayOfWeek: WeekDay.SAT,
-      openTime: 1000,
-      closeTime: 1800,
-    },
-  });
-
-  // 피트니스 센터 2개 생성
-  const fitnessCenters = [
-    {
-      title: "노비스 피트니스 강남점",
-      address: "서울특별시 강남구 테헤란로 123",
-      phone: "02-1234-5678",
-      description: "강남의 프리미엄 피트니스 센터",
-    },
-    {
-      title: "노비스 피트니스 홍대점",
-      address: "서울특별시 마포구 홍익로 456",
-      phone: "02-2345-6789",
-      description: "홍대의 트렌디한 피트니스 센터",
-    },
-  ];
-
-  for (const centerData of fitnessCenters) {
-    const center = await prisma.fitnessCenter.create({
-      data: {
-        ...centerData,
-        openingHours: {
-          connect: [
-            { id: weekdayHours.id },
-            { id: saturdayHours.id },
-            { id: sundayHours.id },
-          ],
-        },
-        defaultWorkingHours: {
-          connect: [
-            { id: trainerWeekdayHours.id },
-            { id: trainerSaturdayHours.id },
-          ],
-        },
-      },
-    });
-
-    console.log(`✅ 피트니스 센터 생성: ${center.title}`);
-
-    const centerIndex = fitnessCenters.indexOf(centerData);
-    
-    // 매니저와 트레이너를 센터에 할당
-    const managers = await prisma.manager.findMany({
-      take: 1,
-      skip: centerIndex, // 각 센터당 매니저 1명
-    });
-
-    // 첫 번째 센터: 트레이너 2명, 두 번째 센터: 트레이너 1명
-    const trainers = await prisma.trainer.findMany({
-      take: centerIndex === 0 ? 2 : 1,
-      skip: centerIndex === 0 ? 0 : 2,
-    });
-
-    // 트레이너들 할당 및 근무시간 설정
-    for (const trainer of trainers) {
-      await prisma.trainer.update({
-        where: { id: trainer.id },
-        data: {
-          fitnessCenterId: center.id,
-          workingHours: {
-            connect: [
-              { id: trainerWeekdayHours.id },
-              { id: trainerSaturdayHours.id },
-            ],
-          },
-        },
-      });
-    }
-
-    // 첫 번째 센터: 멤버 3명, 두 번째 센터: 멤버 2명
-    const members = await prisma.member.findMany({
-      take: centerIndex === 0 ? 3 : 2,
-      skip: centerIndex === 0 ? 0 : 3,
-    });
-
-    for (const member of members) {
-      await prisma.member.update({
-        where: { id: member.id },
-        data: { fitnessCenterId: center.id },
-      });
-    }
-  }
-
-  console.log("✅ 피트니스 센터 데이터 생성 완료");
-}
-
-async function createMachines() {
-  console.log("🏋️ 머신 데이터 생성 중...");
-
-  const fitnessCenters = await prisma.fitnessCenter.findMany({
-    select: { id: true, title: true },
-  });
-
-  const machineTemplates = [
-    {
-      title: "레그 프레스",
-      settings: [
-        {
-          title: "무게",
-          unit: "kg",
-          values: Array.from({ length: 20 }, (_, i) => `${(i + 1) * 5}`),
-        },
-        {
-          title: "시트 높이",
-          unit: "level",
-          values: Array.from({ length: 10 }, (_, i) => `${i + 1}`),
-        },
-      ],
-    },
-    {
-      title: "체스트 프레스",
-      settings: [
-        {
-          title: "무게",
-          unit: "kg",
-          values: Array.from({ length: 15 }, (_, i) => `${(i + 1) * 5}`),
-        },
-        {
-          title: "시트 높이",
-          unit: "level",
-          values: Array.from({ length: 8 }, (_, i) => `${i + 1}`),
-        },
-        {
-          title: "등받이 각도",
-          unit: "degree",
-          values: ["80", "85", "90"],
-        },
-      ],
-    },
-    {
-      title: "랫 풀다운",
-      settings: [
-        {
-          title: "무게",
-          unit: "kg",
-          values: Array.from({ length: 15 }, (_, i) => `${(i + 1) * 5}`),
-        },
-        {
-          title: "시트 높이",
-          unit: "level",
-          values: Array.from({ length: 6 }, (_, i) => `${i + 1}`),
-        },
-      ],
-    },
-  ];
-
-  for (const center of fitnessCenters) {
-    console.log(`피트니스 센터 "${center.title}"에 머신 데이터 생성 중...`);
-
-    for (const template of machineTemplates) {
-      const machine = await prisma.machine.create({
-        data: {
-          title: template.title,
-          fitnessCenterId: center.id,
-        },
-      });
-
-      for (const settingTemplate of template.settings) {
-        const setting = await prisma.machineSetting.create({
-          data: {
-            machineId: machine.id,
-            title: settingTemplate.title,
-            unit: settingTemplate.unit,
-          },
-        });
-
-        for (const value of settingTemplate.values) {
-          await prisma.machineSettingValue.create({
-            data: {
-              machineSettingId: setting.id,
-              value: value,
-            },
-          });
-        }
-      }
-
-      console.log(`  ✅ ${template.title} 머신 생성 완료`);
-    }
-  }
-
-  console.log("✅ 머신 데이터 생성 완료");
-}
-
-async function createEquipmentGroupsAndBrands() {
-  console.log("🏷️ Equipment 그룹 및 브랜드 데이터 생성 중...");
-
-  // Equipment 그룹 생성
-  const equipmentGroups = [
-    { name: "덤벨", description: "고정식 및 조절식 덤벨" },
-    { name: "바벨", description: "올림픽바, EZ바 등 바벨류" },
-    { name: "원판", description: "바벨용 웨이트 플레이트" },
-    { name: "케틀벨", description: "케틀벨 웨이트" },
-    { name: "고무밴드", description: "저항 운동용 밴드" },
-    { name: "루프밴드", description: "하체용 루프 밴드" },
-    { name: "폼롤러", description: "근막 이완용 도구" },
-    { name: "밸런스볼", description: "밸런스 트레이닝 도구" },
-    { name: "메디신볼", description: "코어 운동용 볼" },
-    { name: "요가매트", description: "요가 및 스트레칭용 매트" },
-    { name: "줄넘기", description: "유산소 운동용 줄넘기" },
-    { name: "TRX", description: "서스펜션 트레이닝 도구" },
-  ];
-
-  for (const group of equipmentGroups) {
-    const created = await prisma.equipmentGroup.create({
-      data: group,
-    });
-    console.log(`  ✅ 그룹 생성: ${created.name}`);
-  }
-
-  // Equipment 브랜드 생성
-  const equipmentBrands = [
-    { name: "Nike" },
-    { name: "Adidas" },
-    { name: "PowerTech" },
-    { name: "LifeFitness" },
-    { name: "Technogym" },
-    { name: "Hammer" },
-    { name: "Eleiko" },
-    { name: "Rogue" },
-    { name: "Theraband" },
-    { name: "TRX" },
-    { name: "Gaiam" },
-    { name: "SPRI" },
-  ];
-
-  for (const brand of equipmentBrands) {
-    const created = await prisma.equipmentBrand.create({
-      data: brand,
-    });
-    console.log(`  ✅ 브랜드 생성: ${created.name}`);
-  }
-
-  console.log("✅ Equipment 그룹 및 브랜드 데이터 생성 완료");
-}
-
-const createAllEquipmentData = async () => {
-  const fitnessCenters = await prisma.fitnessCenter.findMany({
-    select: { id: true, title: true },
-  });
-
-  for (const center of fitnessCenters) {
-    console.log(`피트니스 센터 "${center.title}"에 기구 데이터 생성 중...`);
-    await createEquipmentData(center.id);
-  }
-};
-
-const createEquipmentData = async (fitnessCenterId: string) => {
-  // 그룹과 브랜드 데이터 가져오기
-  const groups = await prisma.equipmentGroup.findMany();
-  const brands = await prisma.equipmentBrand.findMany();
-
-  const groupMap = new Map(groups.map((g) => [g.name, g.id]));
-  const brandMap = new Map(brands.map((b) => [b.name, b.id]));
-
-  // 덤벨 생성 (2kg~50kg, 2kg 단위)
-  const dumbbellGroup = groupMap.get("덤벨");
-  if (dumbbellGroup) {
-    for (let weight = 2; weight <= 50; weight += 2) {
-      await prisma.equipment.create({
-        data: {
-          groupId: dumbbellGroup,
-          brandId: brandMap.get("PowerTech") || null,
-          primaryValue: weight.toString(),
-          primaryUnit: "kg",
-          description: `고정식 덤벨 ${weight}kg`,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 덤벨 생성 완료 (2kg~50kg)");
-  }
-
-  // 바벨 생성
-  const barbelGroup = groupMap.get("바벨");
-  if (barbelGroup) {
-    // 올림픽 바벨
-    await prisma.equipment.create({
-      data: {
-        groupId: barbelGroup,
-        brandId: brandMap.get("Eleiko") || null,
-        primaryValue: "20",
-        primaryUnit: "kg",
-        secondaryValue: "220",
-        secondaryUnit: "cm",
-        description: "표준 올림픽 바벨",
-        fitnessCenterId,
-      },
-    });
-
-    // EZ 바벨
-    await prisma.equipment.create({
-      data: {
-        groupId: barbelGroup,
-        brandId: brandMap.get("PowerTech") || null,
-        primaryValue: "10",
-        primaryUnit: "kg",
-        description: "컬용 EZ 바벨",
-        fitnessCenterId,
-      },
-    });
-    console.log("  ✅ 바벨 생성 완료");
-  }
-
-  // 원판 생성
-  const plateGroup = groupMap.get("원판");
-  if (plateGroup) {
-    const plateWeights = [1.25, 2.5, 5, 10, 15, 20, 25];
-    for (const weight of plateWeights) {
-      await prisma.equipment.create({
-        data: {
-          groupId: plateGroup,
-          brandId: brandMap.get("Eleiko") || null,
-          primaryValue: weight.toString(),
-          primaryUnit: "kg",
-          description: `고무 원판 ${weight}kg`,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 원판 생성 완료");
-  }
-
-  // 케틀벨 생성
-  const kettlebellGroup = groupMap.get("케틀벨");
-  if (kettlebellGroup) {
-    const kettlebellWeights = [8, 12, 16, 20, 24, 28];
-    for (const weight of kettlebellWeights) {
-      await prisma.equipment.create({
-        data: {
-          groupId: kettlebellGroup,
-          brandId: brandMap.get("Rogue") || null,
-          primaryValue: weight.toString(),
-          primaryUnit: "kg",
-          description: `케틀벨 ${weight}kg`,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 케틀벨 생성 완료");
-  }
-
-  // 고무밴드 생성 (저항력별 색상)
-  const resistanceBandGroup = groupMap.get("고무밴드");
-  if (resistanceBandGroup) {
-    const bandData = [
-      {
-        color: "옐로우",
-        resistance: "15",
-        unit: "lbs",
-        description: "15파운드 저항력 고무밴드",
-      },
-      {
-        color: "레드",
-        resistance: "20",
-        unit: "lbs",
-        description: "20파운드 저항력 고무밴드",
-      },
-      {
-        color: "블루",
-        resistance: "25",
-        unit: "lbs",
-        description: "25파운드 저항력 고무밴드",
-      },
-      {
-        color: "그린",
-        resistance: "30",
-        unit: "lbs",
-        description: "30파운드 저항력 고무밴드",
-      },
-      {
-        color: "블랙",
-        resistance: "35",
-        unit: "lbs",
-        description: "35파운드 저항력 고무밴드",
-      },
-    ];
-
-    for (const band of bandData) {
-      await prisma.equipment.create({
-        data: {
-          groupId: resistanceBandGroup,
-          brandId: brandMap.get("Theraband") || null,
-          primaryValue: band.resistance,
-          primaryUnit: band.unit,
-          secondaryValue: band.color,
-          secondaryUnit: "color",
-          description: band.description,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 고무밴드 생성 완료");
-  }
-
-  // 루프밴드 생성 (강도별)
-  const loopBandGroup = groupMap.get("루프밴드");
-  if (loopBandGroup) {
-    const loopBandData = [
-      {
-        level: "라이트",
-        value: "약",
-        description: "하체용 루프밴드 - 약한 강도",
-      },
-      {
-        level: "미디움",
-        value: "중",
-        description: "하체용 루프밴드 - 보통 강도",
-      },
-      {
-        level: "헤비",
-        value: "강",
-        description: "하체용 루프밴드 - 강한 강도",
-      },
-    ];
-
-    for (const band of loopBandData) {
-      await prisma.equipment.create({
-        data: {
-          groupId: loopBandGroup,
-          brandId: brandMap.get("SPRI") || null,
-          primaryValue: band.value,
-          primaryUnit: "강도",
-          secondaryValue: band.level,
-          secondaryUnit: "level",
-          description: band.description,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 루프밴드 생성 완료");
-  }
-
-  // 폼롤러 생성
-  const foamRollerGroup = groupMap.get("폼롤러");
-  if (foamRollerGroup) {
-    const foamRollerSizes = [60, 90];
-    for (const size of foamRollerSizes) {
-      await prisma.equipment.create({
-        data: {
-          groupId: foamRollerGroup,
-          brandId: brandMap.get("Gaiam") || null,
-          primaryValue: size.toString(),
-          primaryUnit: "cm",
-          description: `근막 이완용 폼롤러 ${size}cm`,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 폼롤러 생성 완료");
-  }
-
-  // 밸런스볼 생성
-  const balanceBallGroup = groupMap.get("밸런스볼");
-  if (balanceBallGroup) {
-    const ballSizes = [55, 65, 75];
-    for (const size of ballSizes) {
-      await prisma.equipment.create({
-        data: {
-          groupId: balanceBallGroup,
-          brandId: brandMap.get("Gaiam") || null,
-          primaryValue: size.toString(),
-          primaryUnit: "cm",
-          description: `밸런스 트레이닝용 짐볼 ${size}cm`,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 밸런스볼 생성 완료");
-  }
-
-  // 메디신볼 생성
-  const medicineBallGroup = groupMap.get("메디신볼");
-  if (medicineBallGroup) {
-    const medicineWeights = [3, 5, 8, 10];
-    for (const weight of medicineWeights) {
-      await prisma.equipment.create({
-        data: {
-          groupId: medicineBallGroup,
-          brandId: brandMap.get("SPRI") || null,
-          primaryValue: weight.toString(),
-          primaryUnit: "kg",
-          description: `코어 운동용 메디신볼 ${weight}kg`,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 메디신볼 생성 완료");
-  }
-
-  // 요가매트 생성
-  const yogaMatGroup = groupMap.get("요가매트");
-  if (yogaMatGroup) {
-    const matThicknesses = [4, 6, 8];
-    for (const thickness of matThicknesses) {
-      await prisma.equipment.create({
-        data: {
-          groupId: yogaMatGroup,
-          brandId: brandMap.get("Gaiam") || null,
-          primaryValue: thickness.toString(),
-          primaryUnit: "mm",
-          description: `요가 및 스트레칭용 매트 ${thickness}mm`,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 요가매트 생성 완료");
-  }
-
-  // 줄넘기 생성
-  const jumpRopeGroup = groupMap.get("줄넘기");
-  if (jumpRopeGroup) {
-    const ropeTypes = [
-      { type: "기본형", description: "일반 줄넘기" },
-      { type: "스피드", description: "스피드 줄넘기" },
-      { type: "무선", description: "무선 줄넘기" },
-    ];
-
-    for (const rope of ropeTypes) {
-      await prisma.equipment.create({
-        data: {
-          groupId: jumpRopeGroup,
-          brandId: brandMap.get("Nike") || null,
-          primaryValue: rope.type,
-          primaryUnit: "type",
-          description: rope.description,
-          fitnessCenterId,
-        },
-      });
-    }
-    console.log("  ✅ 줄넘기 생성 완료");
-  }
-
-  // TRX 생성
-  const trxGroup = groupMap.get("TRX");
-  if (trxGroup) {
-    await prisma.equipment.create({
-      data: {
-        groupId: trxGroup,
-        brandId: brandMap.get("TRX") || null,
-        primaryValue: "프로",
-        primaryUnit: "model",
-        description: "서스펜션 트레이닝 TRX 프로",
-        fitnessCenterId,
-      },
-    });
-    console.log("  ✅ TRX 생성 완료");
-  }
-};
-
-async function createFreeExercises() {
-  console.log("💪 프리 웨이트 운동 데이터 생성 중...");
-
-  const freeExercises = [
-    {
-      title: "벤치프레스",
-      description: "가슴 근육을 발달시키는 대표적인 웨이트 운동",
-    },
-    {
-      title: "스쿼트",
-      description: "하체 전체 근육을 단련하는 기본 운동",
-    },
-    {
-      title: "데드리프트",
-      description: "등과 하체를 동시에 단련하는 복합 운동",
-    },
-    {
-      title: "오버헤드 프레스",
-      description: "어깨와 팔 근육을 발달시키는 운동",
-    },
-    {
-      title: "바벨 로우",
-      description: "등 근육을 집중적으로 단련하는 운동",
-    },
-    {
-      title: "바이셉 컬",
-      description: "팔 앞쪽 근육(이두근)을 단련하는 운동",
-    },
-    {
-      title: "트라이셉 익스텐션",
-      description: "팔 뒤쪽 근육(삼두근)을 단련하는 운동",
-    },
-    {
-      title: "런지",
-      description: "하체 근력과 밸런스를 향상시키는 운동",
-    },
-    {
-      title: "케틀벨 스윙",
-      description: "전신 근력과 심폐지구력을 향상시키는 운동",
-    },
-    {
-      title: "덤벨 플라이",
-      description: "가슴 근육의 스트레칭과 수축을 극대화하는 운동",
-    },
-  ];
-
-  for (const exercise of freeExercises) {
-    const created = await prisma.freeExercise.create({
-      data: exercise,
-    });
-    console.log(`  ✅ ${created.title} 운동 생성`);
-  }
-
-  console.log("✅ 프리 웨이트 운동 데이터 생성 완료");
-}
-
-async function createStretchingExercises() {
-  console.log("🧘 스트레칭 운동 데이터 생성 중...");
-
-  const stretchingExercises = [
-    {
-      title: "목 스트레칭",
-      description: "목과 어깨 근육의 긴장을 완화하는 스트레칭",
-    },
-    {
-      title: "어깨 스트레칭",
-      description: "어깨 관절의 가동성을 향상시키는 스트레칭",
-    },
-    {
-      title: "가슴 스트레칭",
-      description: "가슴 근육을 이완시키고 자세를 개선하는 스트레칭",
-    },
-    {
-      title: "허리 스트레칭",
-      description: "허리 근육의 유연성을 향상시키는 스트레칭",
-    },
-    {
-      title: "고관절 스트레칭",
-      description: "고관절 주변 근육을 이완시키는 스트레칭",
-    },
-    {
-      title: "햄스트링 스트레칭",
-      description: "허벅지 뒤쪽 근육을 늘려주는 스트레칭",
-    },
-    {
-      title: "종아리 스트레칭",
-      description: "종아리 근육의 긴장을 완화하는 스트레칭",
-    },
-    {
-      title: "전신 스트레칭",
-      description: "전신의 근육을 차례대로 이완시키는 통합 스트레칭",
-    },
-    {
-      title: "요가 자세",
-      description: "요가 동작을 활용한 전신 스트레칭",
-    },
-    {
-      title: "쿨다운 스트레칭",
-      description: "운동 후 근육 회복을 돕는 마무리 스트레칭",
-    },
-  ];
-
-  for (const exercise of stretchingExercises) {
-    const created = await prisma.stretchingExercise.create({
-      data: exercise,
-    });
-    console.log(`  ✅ ${created.title} 운동 생성`);
-  }
-
-  console.log("✅ 스트레칭 운동 데이터 생성 완료");
 }
 
 main()

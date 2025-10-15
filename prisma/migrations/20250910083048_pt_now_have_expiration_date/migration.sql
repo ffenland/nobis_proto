@@ -1,5 +1,0 @@
--- AlterTable
-ALTER TABLE "Pt" ADD COLUMN     "expirationDate" TIMESTAMP(3);
-
--- AlterTable
-ALTER TABLE "PtProduct" ALTER COLUMN "closedAt" SET DEFAULT TIMESTAMP '2199-12-31 23:59:59';

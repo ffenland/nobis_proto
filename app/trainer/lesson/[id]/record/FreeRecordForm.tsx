@@ -6,31 +6,20 @@ import { Trash2, Plus } from "lucide-react";
 import { Badge } from "@/app/components/ui/Loading";
 import type { FreeExercise } from "@/app/services/exercise/exercise.service";
 import type { Equipment } from "@/app/services/fitness-center/equipment.service";
-import { getEquipmentDisplayTitle, sortEquipmentByCategory } from "@/app/lib/utils/equipment.utils";
-// Form 데이터 타입
-interface FreeFormData {
-  type: "FREE";
-  title: string;
-  description?: string;
-  isCustomExercise: boolean;
-  freeExerciseId?: string;
-  customExerciseName?: string;
-  customExerciseDescription?: string;
-  sets: Array<{
-    reps: number;
-    equipmentIds: string[];
-  }>;
-}
+import type {
+  EquipmentInfo,
+  CreateFreeRecordInput,
+} from "@/app/services/trainer/lesson.service";
 
 // FreeSetRecord 구조 - schema.prisma와 일치
 interface SetRecord {
   id: string; // 고유 ID for React keys
   reps: string;
-  equipmentIds: string[]; // 세트별 장비 배열
+  equipments: EquipmentInfo[]; // 장비 상세 정보 배열
 }
 
 interface FreeRecordFormProps {
-  onComplete: (data: FreeFormData) => void;
+  onComplete: (data: Omit<CreateFreeRecordInput, "entry" | "tempId">) => void;
   onCancel: () => void;
   nextEntry: number;
   preloadedExercises?: FreeExercise[]; // 프리로딩된 운동 데이터
@@ -55,7 +44,7 @@ export default function FreeRecordForm({
   const [customExerciseDescription, setCustomExerciseDescription] =
     useState<string>("");
   const [sets, setSets] = useState<SetRecord[]>([
-    { id: `set-${Date.now()}-0`, reps: "", equipmentIds: [] },
+    { id: `set-${Date.now()}-0`, reps: "", equipments: [] },
   ]);
   const [description, setDescription] = useState<string>("");
   const [useCustomExercise, setUseCustomExercise] = useState(false);
@@ -75,14 +64,15 @@ export default function FreeRecordForm({
     }
 
     // 이전 세트의 장비를 기본값으로 복사
-    const lastSetEquipments = sets.length > 0 ? sets[sets.length - 1].equipmentIds : [];
+    const lastSetEquipments =
+      sets.length > 0 ? sets[sets.length - 1].equipments : [];
 
     setSets((prevSets) => [
       ...prevSets,
       {
         id: `set-${Date.now()}-${prevSets.length}`,
         reps: "",
-        equipmentIds: [...lastSetEquipments], // 이전 세트 장비 복사
+        equipments: [...lastSetEquipments], // 이전 세트 장비 복사
       },
     ]);
   };
@@ -106,9 +96,22 @@ export default function FreeRecordForm({
     setSets((prevSets) =>
       prevSets.map((set) => {
         if (set.id === setId) {
-          const exists = set.equipmentIds.includes(equipment.id);
+          const exists = set.equipments.some(
+            (eq) => eq.equipmentId === equipment.id
+          );
           if (!exists) {
-            return { ...set, equipmentIds: [...set.equipmentIds, equipment.id] };
+            return {
+              ...set,
+              equipments: [
+                ...set.equipments,
+                {
+                  equipmentId: equipment.id,
+                  value: "",
+                  notes: "",
+                  order: set.equipments.length,
+                },
+              ],
+            };
           }
         }
         return set;
@@ -121,35 +124,75 @@ export default function FreeRecordForm({
     setSets((prevSets) =>
       prevSets.map((set) =>
         set.id === setId
-          ? { ...set, equipmentIds: set.equipmentIds.filter((id) => id !== equipmentId) }
+          ? {
+              ...set,
+              equipments: set.equipments.filter(
+                (eq) => eq.equipmentId !== equipmentId
+              ),
+            }
+          : set
+      )
+    );
+  };
+
+  // 세트별 장비 value 업데이트
+  const updateEquipmentValue = (
+    setId: string,
+    equipmentId: string,
+    value: string
+  ) => {
+    setSets((prevSets) =>
+      prevSets.map((set) =>
+        set.id === setId
+          ? {
+              ...set,
+              equipments: set.equipments.map((eq) =>
+                eq.equipmentId === equipmentId ? { ...eq, value } : eq
+              ),
+            }
+          : set
+      )
+    );
+  };
+
+  // 세트별 장비 notes 업데이트
+  const updateEquipmentNotes = (
+    setId: string,
+    equipmentId: string,
+    notes: string
+  ) => {
+    setSets((prevSets) =>
+      prevSets.map((set) =>
+        set.id === setId
+          ? {
+              ...set,
+              equipments: set.equipments.map((eq) =>
+                eq.equipmentId === equipmentId ? { ...eq, notes } : eq
+              ),
+            }
           : set
       )
     );
   };
 
   // 세트에서 사용하는 장비 객체들 가져오기
-  const getSetEquipments = (setEquipmentIds: string[]): Equipment[] => {
-    return setEquipmentIds
-      .map((id) => preloadedEquipments.find((eq) => eq.id === id))
-      .filter((eq): eq is Equipment => eq !== undefined);
-  };
-
-  // 그룹별 장비 분류 및 정렬 (새로운 구조)
-  const groupEquipmentsByGroup = (equipments: Equipment[]) => {
-    const grouped = {} as Record<string, Equipment[]>;
-
-    equipments.forEach((equipment) => {
-      const groupName = equipment.group.name;
-      if (!grouped[groupName]) grouped[groupName] = [];
-      grouped[groupName].push(equipment);
-    });
-
-    // 각 그룹 내에서 정렬 (이미 utils에서 정렬되지만 추가 보장)
-    Object.keys(grouped).forEach((groupName) => {
-      grouped[groupName] = sortEquipmentByCategory(grouped[groupName]);
-    });
-
-    return grouped;
+  const getSetEquipments = (
+    setEquipments: EquipmentInfo[]
+  ): Array<EquipmentInfo & { equipment: Equipment }> => {
+    return setEquipments
+      .map((eqInfo) => {
+        const equipment = preloadedEquipments.find(
+          (eq) => eq.id === eqInfo.equipmentId
+        );
+        if (equipment) {
+          return { ...eqInfo, equipment };
+        }
+        return null;
+      })
+      .filter(
+        (item): item is EquipmentInfo & { equipment: Equipment } =>
+          item !== null
+      );
   };
 
   // 저장
@@ -177,18 +220,21 @@ export default function FreeRecordForm({
       return;
     }
 
-    // FreeFormData 구조로 생성
-    const formData: FreeFormData = {
+    // CreateFreeRecordInput 구조로 생성 (entry, tempId 제외)
+    const formData: Omit<CreateFreeRecordInput, "entry" | "tempId"> = {
       type: "FREE",
       title: useCustomExercise ? customExerciseName : selectedExercise!.title,
       description: description || undefined,
       isCustomExercise: useCustomExercise,
       freeExerciseId: useCustomExercise ? undefined : selectedExercise!.id,
       customExerciseName: useCustomExercise ? customExerciseName : undefined,
-      customExerciseDescription: useCustomExercise ? customExerciseDescription : undefined,
-      sets: sets.map((set) => ({
+      customExerciseDescription: useCustomExercise
+        ? customExerciseDescription
+        : undefined,
+      freeSetRecords: sets.map((set, index) => ({
+        set: index + 1,
         reps: parseInt(set.reps),
-        equipmentIds: set.equipmentIds,
+        equipments: set.equipments,
       })),
     };
 
@@ -270,7 +316,9 @@ export default function FreeRecordForm({
                 (ex) => ex.id === e.target.value
               );
               setSelectedExercise(exercise || null);
-              setSets([{ id: `set-${Date.now()}-0`, reps: "", equipmentIds: [] }]);
+              setSets([
+                { id: `set-${Date.now()}-0`, reps: "", equipments: [] },
+              ]);
             }}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
           >
@@ -339,11 +387,10 @@ export default function FreeRecordForm({
                     반복 횟수
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     value={set.reps}
                     onChange={(e) => updateSetReps(set.id, e.target.value)}
                     onBlur={(e) => updateSetReps(set.id, e.target.value)}
-                    onWheel={(e) => e.preventDefault()}
                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
                     min="1"
                     placeholder="횟수"
@@ -355,31 +402,86 @@ export default function FreeRecordForm({
                   <label className="text-xs text-gray-600 font-medium mb-2 block">
                     사용 장비
                   </label>
-                  
-                  {/* 선택된 장비 Badge 표시 */}
-                  <div className="mb-2">
-                    <div className="flex flex-wrap gap-1 min-h-[1.5rem] p-2 border border-gray-300 rounded bg-gray-50">
-                      {getSetEquipments(set.equipmentIds).map((equipment) => (
-                        <span
-                          key={equipment.id}
-                          className="inline-flex items-center px-1.5 py-0.5 bg-green-100 text-green-800 rounded text-xs"
-                        >
-                          {getEquipmentDisplayTitle(equipment)}
+
+                  {/* 선택된 장비 목록 및 value/notes 입력 */}
+                  <div className="mb-2 space-y-2">
+                    {getSetEquipments(set.equipments).map((eqInfo) => (
+                      <div
+                        key={eqInfo.equipmentId}
+                        className="p-2 border border-gray-300 rounded bg-white"
+                      >
+                        {/* 장비 이름과 삭제 버튼 */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            {eqInfo.equipment.title}
+                          </span>
                           <button
                             type="button"
-                            onClick={() => removeSetEquipment(set.id, equipment.id)}
-                            className="ml-1 text-green-600 hover:text-green-800 font-bold text-xs"
+                            onClick={() =>
+                              removeSetEquipment(set.id, eqInfo.equipmentId)
+                            }
+                            className="text-red-600 hover:text-red-800"
                           >
-                            ×
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        </span>
-                      ))}
-                      {set.equipmentIds.length === 0 && (
-                        <span className="text-xs text-gray-500 flex items-center">
+                        </div>
+
+                        {/* value 및 notes 입력 */}
+                        <div
+                          className={`grid gap-2 ${
+                            eqInfo.equipment.unit !== "none"
+                              ? "grid-cols-2"
+                              : "grid-cols-1"
+                          }`}
+                        >
+                          {eqInfo.equipment.unit !== "none" && (
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">
+                                값 ({eqInfo.equipment.unit})
+                              </label>
+                              <input
+                                type="text"
+                                value={eqInfo.value || ""}
+                                onChange={(e) =>
+                                  updateEquipmentValue(
+                                    set.id,
+                                    eqInfo.equipmentId,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder={`${eqInfo.equipment.unit} 입력`}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <label className="text-xs text-gray-500 block mb-1">
+                              메모 (선택)
+                            </label>
+                            <input
+                              type="text"
+                              value={eqInfo.notes || ""}
+                              onChange={(e) =>
+                                updateEquipmentNotes(
+                                  set.id,
+                                  eqInfo.equipmentId,
+                                  e.target.value
+                                )
+                              }
+                              placeholder="메모 입력"
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {set.equipments.length === 0 && (
+                      <div className="p-2 border border-gray-300 rounded bg-gray-50 text-center">
+                        <span className="text-xs text-gray-500">
                           장비를 추가하세요
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* 장비 추가 드롭다운 */}
@@ -399,25 +501,16 @@ export default function FreeRecordForm({
                       {isEquipmentsLoading ? "로딩중..." : "장비 추가..."}
                     </option>
                     {!isEquipmentsLoading &&
-                      (() => {
-                        // 이미 선택된 장비는 제외
-                        const availableEquipments = preloadedEquipments.filter(
-                          (eq) => !set.equipmentIds.includes(eq.id)
-                        );
-                        const groupedEquipments = groupEquipmentsByGroup(availableEquipments);
-
-                        return Object.entries(groupedEquipments).map(
-                          ([groupName, equipments]) => (
-                            <optgroup key={groupName} label={groupName}>
-                              {equipments.map((equip) => (
-                                <option key={equip.id} value={equip.id}>
-                                  {getEquipmentDisplayTitle(equip)}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )
-                        );
-                      })()}
+                      preloadedEquipments
+                        .filter(
+                          (eq) =>
+                            !set.equipments.some((e) => e.equipmentId === eq.id)
+                        )
+                        .map((equip) => (
+                          <option key={equip.id} value={equip.id}>
+                            {equip.title}
+                          </option>
+                        ))}
                   </select>
                 </div>
               </div>

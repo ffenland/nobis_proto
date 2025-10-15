@@ -7,8 +7,11 @@ import { Card, CardContent, CardHeader } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { PageHeader } from "@/app/components/ui/Dropdown";
 import { GetPtProductDetailResult } from "@/app/services/manager/product.service";
+import type { IAllTrainerLevelsSimple } from "@/app/services/manager/manager-trainer.service";
 import { toast } from "react-hot-toast";
 import { useState } from "react";
+import { Edit, X, Check, Save } from "lucide-react";
+import { LoadingSpinner } from "@/app/components/ui/Loading";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -30,6 +33,11 @@ const ManagerPtDetailPage = () => {
   const params = useParams();
   const router = useRouter();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isEditingLevels, setIsEditingLevels] = useState(false);
+  const [selectedLevelIds, setSelectedLevelIds] = useState<string[]>([]);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [editedDescription, setEditedDescription] = useState("");
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
 
   const productId = params.id as string;
 
@@ -37,10 +45,18 @@ const ManagerPtDetailPage = () => {
     data: product,
     error,
     isLoading,
+    mutate,
   } = useSWR<GetPtProductDetailResult>(
     `/api/manager/product/pt/${productId}`,
     fetcher
   );
+
+  // TrainerLevels 목록 조회
+  const { data: allLevels, isLoading: levelsLoading } =
+    useSWR<IAllTrainerLevelsSimple>(
+      "/api/manager/trainers/level/simple",
+      fetcher
+    );
 
   const { trigger: stopSale, isMutating } = useSWRMutation(
     `/api/manager/product/pt/${productId}`,
@@ -69,6 +85,95 @@ const ManagerPtDetailPage = () => {
   const confirmStopSale = async () => {
     setShowConfirmDialog(false);
     await stopSale();
+  };
+
+  const handleEditLevels = () => {
+    if (product) {
+      setSelectedLevelIds(
+        product.trainerLevels.map((tl) => tl.trainerLevel.id)
+      );
+      setIsEditingLevels(true);
+    }
+  };
+
+  const handleCancelEditLevels = () => {
+    setIsEditingLevels(false);
+    setSelectedLevelIds([]);
+  };
+
+  const toggleLevelSelection = (levelId: string) => {
+    setSelectedLevelIds((prev) =>
+      prev.includes(levelId)
+        ? prev.filter((id) => id !== levelId)
+        : [...prev, levelId]
+    );
+  };
+
+  const handleSaveLevels = async () => {
+    try {
+      const response = await fetch(`/api/manager/product/pt/${productId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trainerLevelIds: selectedLevelIds }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "레벨 수정에 실패했습니다.");
+      }
+
+      toast.success("트레이너 레벨이 성공적으로 수정되었습니다.");
+      setIsEditingLevels(false);
+      mutate(); // 데이터 리프레시
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "레벨 수정 중 오류가 발생했습니다."
+      );
+    }
+  };
+
+  const handleEditDescription = () => {
+    if (product) {
+      setEditedDescription(product.description || "");
+      setIsEditingDescription(true);
+    }
+  };
+
+  const handleCancelEditDescription = () => {
+    setIsEditingDescription(false);
+    setEditedDescription("");
+  };
+
+  const handleSaveDescription = async () => {
+    if (!productId) return;
+
+    setIsSavingDescription(true);
+    try {
+      const response = await fetch(`/api/manager/product/pt/${productId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: editedDescription }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "설명 수정에 실패했습니다.");
+      }
+
+      toast.success("상품 설명이 성공적으로 수정되었습니다.");
+      setIsEditingDescription(false);
+      mutate(); // 데이터 리프레시
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "설명 수정 중 오류가 발생했습니다."
+      );
+    } finally {
+      setIsSavingDescription(false);
+    }
   };
 
   if (isLoading) {
@@ -105,22 +210,20 @@ const ManagerPtDetailPage = () => {
     });
   };
 
-  const formatTrainerLevel = (level: string) => {
-    const levelMap: Record<string, string> = {
-      JUNIOR: "주니어",
-      ASSOCIATE: "어소시에이트",
-      SENIOR: "시니어",
-      MASTER: "마스터",
-    };
-    return levelMap[level] || level;
-  };
-
   return (
-    <>
-      <PageHeader
-        title="PT 상품 상세"
-        subtitle="PT 상품의 상세 정보를 확인하고 관리합니다"
-      />
+    <div className="h-full">
+      <div className="flex justify-between items-baseline">
+        <PageHeader
+          title="PT 상품 상세"
+          subtitle="PT 상품의 상세 정보를 확인하고 관리합니다"
+        />
+        <Button
+          onClick={() => router.push("/manager/product")}
+          variant="default"
+        >
+          목록으로 돌아가기
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>
@@ -140,12 +243,13 @@ const ManagerPtDetailPage = () => {
               </span>
               {product.onSale && (
                 <Button
+                  className="whitespace-pre-line"
                   onClick={handleStopSale}
                   variant="danger"
                   size="sm"
                   disabled={isMutating}
                 >
-                  {isMutating ? "처리중..." : "판매중지"}
+                  {isMutating ? "처리중..." : "상품판매\n종료하기"}
                 </Button>
               )}
             </div>
@@ -201,43 +305,93 @@ const ManagerPtDetailPage = () => {
             {/* 추가 정보 */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">
-                  트레이너 레벨
-                </label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {product.trainerLevel.length > 0 ? (
-                    product.trainerLevel.map((level) => (
-                      <span
-                        key={level}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                      >
-                        {formatTrainerLevel(level)}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-gray-500">전체 레벨</span>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-600">
+                    트레이너 레벨
+                  </label>
+                  {!isEditingLevels && product.onSale && (
+                    <button
+                      onClick={handleEditLevels}
+                      className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                    >
+                      <Edit className="w-3 h-3" />
+                      레벨 범위 편집
+                    </button>
                   )}
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">
-                  연결된 트레이너
-                </label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {product.trainer.length > 0 ? (
-                    product.trainer.map((trainer) => (
-                      <span
-                        key={trainer.id}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                {isEditingLevels ? (
+                  <div className="space-y-3">
+                    {levelsLoading ? (
+                      <div className="text-sm text-gray-500">로딩중...</div>
+                    ) : !allLevels || allLevels.length === 0 ? (
+                      <div className="text-sm text-gray-500">
+                        등록된 레벨이 없습니다
+                      </div>
+                    ) : (
+                      <div className="space-y-2 p-3 bg-gray-50 rounded-lg">
+                        {allLevels.map((level) => (
+                          <label
+                            key={level.id}
+                            className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 p-2 rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedLevelIds.includes(level.id)}
+                              onChange={() => toggleLevelSelection(level.id)}
+                              className="w-4 h-4 text-blue-600"
+                            />
+                            <span className="text-sm font-medium">
+                              {level.displayTitle}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              ({level.title})
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveLevels}
+                        disabled={selectedLevelIds.length === 0}
+                        className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
-                        {trainer.user.username}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-gray-500">연결된 트레이너 없음</span>
-                  )}
-                </div>
+                        <Check className="w-3 h-3" />
+                        저장
+                      </button>
+                      <button
+                        onClick={handleCancelEditLevels}
+                        className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                      >
+                        <X className="w-3 h-3" />
+                        취소
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {product.trainerLevels.length > 0 ? (
+                      product.trainerLevels.map((tl) => (
+                        <span
+                          key={tl.id}
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                        >
+                          {tl.trainerLevel.displayTitle}
+                          {tl.incentiveRate !== null &&
+                            tl.incentiveRate !== product.incentivePercent && (
+                              <span className="ml-1 text-blue-600">
+                                ({tl.incentiveRate}%)
+                              </span>
+                            )}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500">레벨 미지정</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -245,7 +399,7 @@ const ManagerPtDetailPage = () => {
                   진행중인 PT
                 </label>
                 <p className="text-lg font-semibold text-blue-600">
-                  {product.confirmedPtCount}개
+                  {product.pt.length}개
                 </p>
               </div>
 
@@ -274,12 +428,59 @@ const ManagerPtDetailPage = () => {
 
           {/* 설명 */}
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <label className="block text-sm font-medium text-gray-600 mb-2">
-              상품 설명
-            </label>
-            <p className="text-gray-900 whitespace-pre-wrap">
-              {product.description || "설명이 없습니다."}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-600">
+                상품 설명
+              </label>
+              {!isEditingDescription && product.onSale && (
+                <button
+                  onClick={handleEditDescription}
+                  className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                >
+                  <Edit className="w-3 h-3" />
+                  설명 편집
+                </button>
+              )}
+            </div>
+
+            {isEditingDescription ? (
+              <div className="space-y-3">
+                <textarea
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] text-gray-900"
+                  placeholder="상품 설명을 입력하세요..."
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveDescription}
+                    disabled={isSavingDescription}
+                    className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    {isSavingDescription ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <>
+                        <Save className="w-3 h-3" />
+                        저장
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCancelEditDescription}
+                    disabled={isSavingDescription}
+                    className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    <X className="w-3 h-3" />
+                    취소
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-900 whitespace-pre-wrap">
+                {product.description || "설명이 없습니다."}
+              </p>
+            )}
           </div>
 
           {/* 메타 정보 */}
@@ -300,8 +501,8 @@ const ManagerPtDetailPage = () => {
               판매 중지 확인
             </h3>
             <p className="text-gray-600 mb-6">
-              {product.confirmedPtCount > 0
-                ? `현재 ${product.confirmedPtCount}개의 진행중인 PT가 있습니다. 판매를 중지하시겠습니까?`
+              {product.pt.length > 0
+                ? `현재 ${product.pt.length}개의 진행중인 PT가 있습니다. 판매를 중지하시겠습니까?`
                 : "연결된 PT가 없어 상품이 삭제됩니다. 계속하시겠습니까?"}
             </p>
             <div className="flex justify-end gap-3">
@@ -323,7 +524,7 @@ const ManagerPtDetailPage = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

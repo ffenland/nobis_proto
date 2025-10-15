@@ -250,9 +250,9 @@ const DateSelectionStep = ({
                     months: "w-full",
                     month: "w-full space-y-4",
                     month_caption:
-                      "flex justify-center relative items-center mb-4 px-20",
-                    caption_label: "text-lg font-semibold text-gray-900",
-                    nav: "flex justify-between w-full absolute top-0 left-0 right-0",
+                      "flex justify-center relative items-start mb-4 px-20",
+                    caption_label: "md:text-lg font-semibold text-gray-900",
+                    nav: "z-10 flex justify-between w-full absolute top-0 left-0 right-0",
                     nav_button:
                       "w-1/4 py-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center",
                     nav_button_previous: "absolute left-0 top-0",
@@ -262,9 +262,9 @@ const DateSelectionStep = ({
                     weekday: "text-sm font-medium text-gray-600 p-2",
                     weeks: "w-full",
                     week: "grid grid-cols-7 w-full",
-                    day: "relative p-0 w-full aspect-square flex items-center justify-center",
+                    day: "relative p-0 w-full aspect-square rounded-lg flex items-center justify-center",
                     day_button:
-                      "w-full h-full rounded-lg border-2 border-transparent hover:bg-gray-100 transition-colors flex items-center justify-center text-base font-medium cursor-pointer",
+                      "w-full h-full rounded-lg border-2 border-transparent hover:bg-blue-400 hover:text-white transition-colors flex items-center justify-center text-base font-medium cursor-pointer",
                     selected:
                       "bg-blue-500 text-white hover:bg-blue-600 font-semibold",
                     today: "bg-gray-100 font-bold text-gray-900",
@@ -275,7 +275,7 @@ const DateSelectionStep = ({
                     range_start: "bg-blue-500 text-white rounded-l-lg",
                     range_end: "bg-blue-500 text-white rounded-r-lg",
                     range_middle: "bg-blue-100",
-                    chevron: `${defaultClassNames.chevron} w-5 h-5 fill-gray-600`,
+                    chevron: `${defaultClassNames.chevron} w-7 h-7 fill-gray-600`,
                   }}
                 />
               </div>

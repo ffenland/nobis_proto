@@ -25,7 +25,7 @@ const ContractUploadStep = ({
   onBack,
   existingImages = [],
   onImageDeleted,
-  ptId
+  ptId,
 }: ContractUploadStepProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -33,7 +33,9 @@ const ContractUploadStep = ({
   const [dragActive, setDragActive] = useState(false);
 
   // 기존 이미지 관리 상태
-  const [currentExistingImages, setCurrentExistingImages] = useState<ExistingImage[]>([]);
+  const [currentExistingImages, setCurrentExistingImages] = useState<
+    ExistingImage[]
+  >([]);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
 
   // 기존 이미지 초기화
@@ -45,7 +47,7 @@ const ContractUploadStep = ({
   useEffect(() => {
     return () => {
       // 미리보기 URL 메모리 해제
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [previewUrls]);
 
@@ -72,8 +74,8 @@ const ContractUploadStep = ({
     }
 
     if (validFiles.length > 0) {
-      setSelectedFiles(prev => [...prev, ...validFiles]);
-      setPreviewUrls(prev => [...prev, ...newPreviewUrls]);
+      setSelectedFiles((prev) => [...prev, ...validFiles]);
+      setPreviewUrls((prev) => [...prev, ...newPreviewUrls]);
     }
   };
 
@@ -101,13 +103,13 @@ const ContractUploadStep = ({
     }
 
     // 배열에서 해당 인덱스 제거
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleRemoveAllImages = () => {
     // 모든 URL 메모리 해제
-    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    previewUrls.forEach((url) => URL.revokeObjectURL(url));
     setSelectedFiles([]);
     setPreviewUrls([]);
   };
@@ -118,26 +120,27 @@ const ContractUploadStep = ({
 
     try {
       const response = await fetch(`/api/media/images/${imageId}`, {
-        method: 'DELETE'
+        method: "DELETE",
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || '이미지 삭제에 실패했습니다.');
+        throw new Error(errorData.error || "이미지 삭제에 실패했습니다.");
       }
 
       // UI에서 삭제된 이미지 제거
-      setCurrentExistingImages(prev => prev.filter(img => img.id !== imageId));
+      setCurrentExistingImages((prev) =>
+        prev.filter((img) => img.id !== imageId)
+      );
 
       // 부모 컴포넌트에 삭제 완료 알림 (SWR mutate 트리거)
       onImageDeleted?.();
-
     } catch (error) {
-      console.error('이미지 삭제 중 오류:', error);
+      console.error("이미지 삭제 중 오류:", error);
       alert(
         error instanceof Error
           ? error.message
-          : '이미지 삭제 중 오류가 발생했습니다.'
+          : "이미지 삭제 중 오류가 발생했습니다."
       );
     } finally {
       setDeletingImageId(null);
@@ -238,7 +241,8 @@ const ContractUploadStep = ({
             </div>
 
             <p className="text-sm text-gray-600">
-              자필로 서명한 PT 계약서 사진을 업로드해주세요. 여러 장을 한 번에 선택할 수 있으며, 나중에 업로드하거나 생략할 수 있습니다.
+              자필로 서명한 PT 계약서 사진을 업로드해주세요. 여러 장을 한 번에
+              선택할 수 있으며, 나중에 업로드하거나 생략할 수 있습니다.
             </p>
 
             {/* 기존 업로드된 이미지 섹션 */}
@@ -264,7 +268,10 @@ const ContractUploadStep = ({
                       <div key={image.id} className="relative">
                         <div className="border rounded border-gray-200 overflow-hidden">
                           <Image
-                            src={getOptimizedImageUrl(image.cloudflareId, 'public')}
+                            src={getOptimizedImageUrl(
+                              image.cloudflareId,
+                              "public"
+                            )}
                             alt={`업로드된 계약서 ${index + 1}`}
                             width={400}
                             height={300}
@@ -280,7 +287,9 @@ const ContractUploadStep = ({
                             variant="outline"
                             size="sm"
                             className="text-red-600 hover:text-red-700 ml-2"
-                            disabled={isUploading || deletingImageId === image.id}
+                            disabled={
+                              isUploading || deletingImageId === image.id
+                            }
                           >
                             {deletingImageId === image.id ? (
                               <div className="w-3 h-3 animate-spin rounded-full border-2 border-red-600 border-t-transparent"></div>
@@ -356,7 +365,9 @@ const ContractUploadStep = ({
                     <div className="flex gap-2">
                       <Button
                         onClick={() =>
-                          document.getElementById("contract-file-input-additional")?.click()
+                          document
+                            .getElementById("contract-file-input-additional")
+                            ?.click()
                         }
                         variant="outline"
                         size="sm"
@@ -413,7 +424,8 @@ const ContractUploadStep = ({
                       ))}
                     </div>
                     <p className="text-xs text-gray-500 mt-4 text-center">
-                      "다음 단계" 버튼을 클릭하면 {selectedFiles.length}개의 이미지가 업로드됩니다.
+                      다음 단계 버튼을 클릭하면 {selectedFiles.length}개의
+                      이미지가 업로드됩니다.
                     </p>
                   </div>
                 )}
@@ -442,8 +454,14 @@ const ContractUploadStep = ({
                     <li>• 이 단계는 선택사항으로, 건너뛸 수 있습니다.</li>
                     <li>• 여러 장의 계약서를 한 번에 업로드할 수 있습니다.</li>
                     <li>• 자필 서명이 포함된 계약서 사진을 권장합니다.</li>
-                    <li>• 업로드한 이미지는 안전하게 보관되며, 법적 효력을 갖습니다.</li>
-                    <li>• 기존 계약서는 개별 삭제가 가능하며, 나중에 추가하거나 수정할 수 있습니다.</li>
+                    <li>
+                      • 업로드한 이미지는 안전하게 보관되며, 법적 효력을
+                      갖습니다.
+                    </li>
+                    <li>
+                      • 기존 계약서는 개별 삭제가 가능하며, 나중에 추가하거나
+                      수정할 수 있습니다.
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -467,11 +485,11 @@ const ContractUploadStep = ({
             disabled={isUploading}
             className="min-w-[120px]"
           >
-{isUploading
+            {isUploading
               ? `업로드 중... (${selectedFiles.length}개)`
               : selectedFiles.length > 0
-                ? `다음 단계 (${selectedFiles.length}개 업로드)`
-                : "다음 단계"}
+              ? `다음 단계 (${selectedFiles.length}개 업로드)`
+              : "다음 단계"}
           </Button>
         </div>
       </div>

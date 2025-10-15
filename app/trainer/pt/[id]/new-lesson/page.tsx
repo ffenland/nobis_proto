@@ -145,6 +145,16 @@ const NewLessonPage = ({ params }: PageProps) => {
     return format(endDate, "HH:mm");
   };
 
+  // 레슨 생성 가능 여부 체크
+  const canCreateLesson = useMemo(() => {
+    if (!ptData) return false;
+
+    const nonCanceledLessons = ptData.lessons.filter(
+      (l) => l.status !== "cancelled"
+    );
+    return nonCanceledLessons.length < ptData.ptProduct.totalCount;
+  }, [ptData]);
+
   // 충돌 검사 함수
   const checkConflict = (startTime: string) => {
     if (!selectedDate || !selectedDateSchedule || !startTime) return "";
@@ -404,9 +414,11 @@ const NewLessonPage = ({ params }: PageProps) => {
                   <Button
                     variant="primary"
                     onClick={handleOpenModal}
-                    disabled={isLoading}
+                    disabled={isLoading || !canCreateLesson}
                   >
-                    <span>레슨 생성</span>
+                    <span>
+                      {canCreateLesson ? "레슨 생성" : "수업 횟수 소진"}
+                    </span>
                   </Button>
                 )}
               </CardHeader>

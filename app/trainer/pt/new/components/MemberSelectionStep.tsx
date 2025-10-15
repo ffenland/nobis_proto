@@ -180,6 +180,9 @@ const MemberSelectionStep = ({ onNext }: MemberSelectionStepProps) => {
                           {member.user.username}
                         </p>
                         <p className="text-sm text-gray-600">
+                          실명: {member.user.realname || "실명 미입력"}
+                        </p>
+                        <p className="text-sm text-gray-600">
                           {member.user.email}
                         </p>
                         {member.user.mobile && (
@@ -248,6 +251,10 @@ const MemberSelectionStep = ({ onNext }: MemberSelectionStepProps) => {
                     <div>
                       <span className="text-gray-600">이름:</span>{" "}
                       <span className="font-medium">{memberDetails.user.username}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">실명:</span>{" "}
+                      <span className="font-medium">{memberDetails.user.realname || "실명 미입력"}</span>
                     </div>
                     <div>
                       <span className="text-gray-600">이메일:</span>{" "}

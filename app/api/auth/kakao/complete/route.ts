@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processKakaoLogin } from '@/app/services/auth/auth.service';
+import { logApiError } from '@/app/services/error/error-logging.service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +28,14 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error('Kakao login API error:', error);
+    await logApiError(request, error as Error, {
+      errorCode: 'AUTH_002',
+      metadata: {
+        action: 'kakaoLogin',
+      },
+      tags: ['auth', 'kakao', 'oauth'],
+    });
+
     return NextResponse.json(
       { success: false, error: 'server_error' },
       { status: 500 }

@@ -34,27 +34,12 @@ const updateFetcher = async (url: string, { arg }: { arg: any }) => {
   return response.json();
 };
 
-const trainerLevelLabels: Record<string, string> = {
-  JUNIOR: "주니어",
-  ASSOCIATE: "어소시에이트",
-  SENIOR: "시니어",
-  MASTER: "마스터",
-};
-
-const trainerLevelColors: Record<string, string> = {
-  JUNIOR: "bg-gray-100 text-gray-800",
-  ASSOCIATE: "bg-blue-100 text-blue-800",
-  SENIOR: "bg-green-100 text-green-800",
-  MASTER: "bg-purple-100 text-purple-800",
-};
-
 type Params = Promise<{ id: string }>;
 
 export default function TrainerDetailPage({ params }: { params: Params }) {
   const router = useRouter();
   const [trainerId, setTrainerId] = useState<string>("");
   const [isEditing, setIsEditing] = useState(false);
-  const [editLevel, setEditLevel] = useState<string>("");
   const [editCenterId, setEditCenterId] = useState<string>("");
 
   // Get params
@@ -82,7 +67,6 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
   // Initialize edit form when entering edit mode
   useEffect(() => {
     if (isEditing && trainer) {
-      setEditLevel(trainer.level);
       setEditCenterId(trainer.fitnessCenter?.id || "");
     }
   }, [isEditing, trainer]);
@@ -90,41 +74,14 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
   const handleSave = async () => {
     if (!trainer) return;
 
-    // 레벨 변경 여부 확인
-    const isLevelChanging = trainer.level !== editLevel;
-
-    // 레벨 변경 시 경고 메시지
-    if (isLevelChanging) {
-      const confirmed = confirm(
-        `트레이너 레벨을 ${trainerLevelLabels[trainer.level]}에서 ${
-          trainerLevelLabels[editLevel]
-        }(으)로 변경하시겠습니까?\n\n` +
-          `⚠️ 주의: 레벨 변경 시 관련 PT 상품 연결이 자동으로 조정됩니다.\n` +
-          `- 기존 레벨(${
-            trainerLevelLabels[trainer.level]
-          }) 상품에서 제거됩니다.\n` +
-          `- 새 레벨(${trainerLevelLabels[editLevel]}) 상품에 자동 추가됩니다.`
-      );
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
     try {
       await updateTrainer({
-        level: editLevel,
         fitnessCenterId: editCenterId || null,
       });
 
       setIsEditing(false);
       mutate(); // Refresh data
-
-      if (isLevelChanging) {
-        alert("트레이너 레벨이 변경되고 PT 상품 연결이 자동 조정되었습니다.");
-      } else {
-        alert("트레이너 정보가 성공적으로 업데이트되었습니다.");
-      }
+      alert("트레이너 정보가 성공적으로 업데이트되었습니다.");
     } catch (error) {
       console.error("Failed to update trainer:", error);
       if (error instanceof Error) {
@@ -138,7 +95,6 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
   const handleCancel = () => {
     setIsEditing(false);
     if (trainer) {
-      setEditLevel(trainer.level);
       setEditCenterId(trainer.fitnessCenter?.id || "");
     }
   };
@@ -153,7 +109,7 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
     );
   }
 
-  if (error || !trainer) {
+  if (error) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center h-64">
@@ -169,9 +125,22 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
       </div>
     );
   }
+  if (!trainer) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <p className="text-amber-500 text-lg mb-2">
+              트레이너 정보를 불러오는 중입니다.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="h-full container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
@@ -234,25 +203,32 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
                 <div className="avatar placeholder">
                   <div className="bg-neutral-focus text-neutral-content rounded-full w-20 h-20">
                     <span className="text-2xl font-bold">
-                      {trainer.username[0]}
+                      {trainer.realname?.[0] || trainer.username[0]}
                     </span>
                   </div>
                 </div>
 
                 {/* Basic Info */}
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <h2 className="text-2xl font-bold">{trainer.username}</h2>
-                    {!isEditing && (
-                      <span
-                        className={`badge ${trainerLevelColors[trainer.level]}`}
-                      >
-                        {trainerLevelLabels[trainer.level]}
+                  <div className="mb-3">
+                    <h2 className="text-2xl font-bold mb-1">
+                      {trainer.realname || "실명 미등록"}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">
+                        @{trainer.username}
                       </span>
-                    )}
-                    {!trainer.working && (
-                      <span className="badge badge-error">휴무</span>
-                    )}
+                      {trainer.level ? (
+                        <span className="badge badge-info">
+                          {trainer.level.displayTitle}
+                        </span>
+                      ) : (
+                        <span className="badge badge-ghost">레벨 없음</span>
+                      )}
+                      {!trainer.working && (
+                        <span className="badge badge-error">휴무</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Contact Info */}
@@ -286,62 +262,28 @@ export default function TrainerDetailPage({ params }: { params: Params }) {
               <h3 className="card-title">정보 관리</h3>
 
               <div className="space-y-4">
-                {/* Trainer Level */}
+                {/* Trainer Level - Read Only */}
                 <div>
                   <label className="label">
                     <span className="label-text font-medium">
                       트레이너 레벨
                     </span>
                   </label>
-                  {isEditing ? (
-                    <>
-                      <select
-                        className="select select-bordered w-full"
-                        value={editLevel}
-                        onChange={(e) => setEditLevel(e.target.value)}
-                      >
-                        <option value="JUNIOR">주니어</option>
-                        <option value="ASSOCIATE">어소시에이트</option>
-                        <option value="SENIOR">시니어</option>
-                        <option value="MASTER">마스터</option>
-                      </select>
-                      {trainer.level !== editLevel && (
-                        <div className="alert alert-warning mt-2">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="stroke-current shrink-0 h-6 w-6"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                            />
-                          </svg>
-                          <div>
-                            <p className="text-sm font-semibold">
-                              레벨 변경 시 PT 상품 연결이 자동 조정됩니다
-                            </p>
-                            <p className="text-xs mt-1">
-                              {trainerLevelLabels[trainer.level]} →{" "}
-                              {trainerLevelLabels[editLevel]} 변경 시 관련
-                              상품이 자동으로 업데이트됩니다.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <span
-                        className={`badge ${trainerLevelColors[trainer.level]}`}
-                      >
-                        {trainerLevelLabels[trainer.level]}
+                  <div className="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                    {trainer.level ? (
+                      <span className="badge badge-info">
+                        {trainer.level.displayTitle}
                       </span>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="badge badge-ghost">레벨 없음</span>
+                    )}
+                    <Link
+                      href="/manager/trainers/level"
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      레벨 관리 페이지에서 수정
+                    </Link>
+                  </div>
                 </div>
 
                 {/* Fitness Center */}

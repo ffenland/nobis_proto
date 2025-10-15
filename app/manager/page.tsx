@@ -57,7 +57,13 @@ export default function ManagerDashboardPage() {
   }, [todayLessons, selectedCenterId]);
 
   // 로딩 상태
-  if (!todayLessons || !weeklyLessons || !ptStats || !managerCenters || !scheduleData) {
+  if (
+    !todayLessons ||
+    !weeklyLessons ||
+    !ptStats ||
+    !managerCenters ||
+    !scheduleData
+  ) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -86,7 +92,7 @@ export default function ManagerDashboardPage() {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full overflow-auto">
       {/* 헤더 */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold mb-2">매니저 대시보드</h1>
@@ -95,6 +101,37 @@ export default function ManagerDashboardPage() {
 
       {/* 대시보드 현황 카드 - 모바일 2열, 데스크탑 3열 */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-8">
+        {/* 총 PT 통계 카드 - 전체 너비 */}
+        <div className="col-span-2 md:col-span-3 card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
+          <div className="card-body p-3 md:p-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4">
+              <div>
+                <h3 className="text-sm md:text-base font-semibold text-indigo-800">
+                  현재 진행중인 총 PT
+                </h3>
+                <div className="text-2xl md:text-4xl font-bold text-indigo-600 mt-1">
+                  {ptStats.totalActivePts}건
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1 md:gap-2">
+                {Object.entries(ptStats.totalActivePtsByCenter).map(
+                  ([centerId, stats]) => (
+                    <div
+                      key={centerId}
+                      className="bg-white px-2 md:px-3 py-1 md:py-2 rounded-lg border border-indigo-200"
+                    >
+                      <p className="text-xs text-gray-600">{stats.title}</p>
+                      <p className="text-base md:text-lg font-bold text-indigo-600">
+                        {stats.count}건
+                      </p>
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="card bg-blue-50 border border-blue-200">
           <div className="card-body p-3 md:p-6">
             <h3 className="card-title text-xs md:text-base text-blue-800">
@@ -106,6 +143,12 @@ export default function ManagerDashboardPage() {
             <p className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">
               이번 달 신규 회원
             </p>
+            {/* 미결제 카운트 표시 */}
+            {ptStats.newPts.unpaidCount > 0 && (
+              <p className="text-xs md:text-sm text-red-600 font-semibold mt-1">
+                미결제: {ptStats.newPts.unpaidCount}건
+              </p>
+            )}
             {/* 모바일 이상에서 센터별 분류 표시 */}
             <div className="hidden md:block mt-2 space-y-1">
               {Object.entries(ptStats.newPts.centerStats).map(
@@ -130,6 +173,12 @@ export default function ManagerDashboardPage() {
             <p className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">
               이번 달 재등록
             </p>
+            {/* 미결제 카운트 표시 */}
+            {ptStats.reRegisteredPts.unpaidCount > 0 && (
+              <p className="text-xs md:text-sm text-red-600 font-semibold mt-1">
+                미결제: {ptStats.reRegisteredPts.unpaidCount}건
+              </p>
+            )}
             {/* 모바일 이상에서 센터별 분류 표시 */}
             <div className="hidden md:block mt-2 space-y-1">
               {Object.entries(ptStats.reRegisteredPts.centerStats).map(
@@ -154,6 +203,12 @@ export default function ManagerDashboardPage() {
             <p className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">
               곧 종료 또는 3회 이하
             </p>
+            {/* 미결제 카운트 표시 */}
+            {ptStats.endingSoonPts.unpaidCount > 0 && (
+              <p className="text-xs md:text-sm text-red-600 font-semibold mt-1">
+                미결제: {ptStats.endingSoonPts.unpaidCount}건
+              </p>
+            )}
             {/* 모바일 이상에서 센터별 분류 표시 */}
             <div className="hidden md:block mt-2 space-y-1">
               {Object.entries(ptStats.endingSoonPts.centerStats).map(
@@ -170,7 +225,7 @@ export default function ManagerDashboardPage() {
         {/* 트레이너 휴무 신청 현황 카드 */}
         <div
           className="card bg-purple-50 border border-purple-200 cursor-pointer hover:bg-purple-100 transition-colors"
-          onClick={() => window.location.href = "/manager/trainers/off"}
+          onClick={() => (window.location.href = "/manager/trainers/off")}
         >
           <div className="card-body p-3 md:p-6">
             <h3 className="card-title text-xs md:text-base text-purple-800">
@@ -188,7 +243,9 @@ export default function ManagerDashboardPage() {
         {/* 취소된 레슨 확인 현황 카드 */}
         <div
           className="card bg-orange-50 border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors"
-          onClick={() => window.location.href = "/manager/audit/lesson-cancel"}
+          onClick={() =>
+            (window.location.href = "/manager/audit/lesson-cancel")
+          }
         >
           <div className="card-body p-3 md:p-6">
             <h3 className="card-title text-xs md:text-base text-orange-800">

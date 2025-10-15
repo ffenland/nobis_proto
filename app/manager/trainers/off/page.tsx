@@ -176,11 +176,14 @@ export default function TrainerOffManagementPage() {
   }
 
   return (
-    <div className="w-full">
+    <div className="h-full w-full">
       {/* 헤더 */}
       <div className="mb-8">
         <div className="flex items-center gap-4 mb-4">
-          <Link href="/manager" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <Link
+            href="/manager/trainers"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-2xl font-bold">트레이너 휴무 관리</h1>

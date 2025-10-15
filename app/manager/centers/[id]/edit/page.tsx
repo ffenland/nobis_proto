@@ -18,7 +18,7 @@ export default async function CenterEditPage({ params }: CenterEditPageProps) {
     }
 
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="h-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">센터 정보 수정</h1>

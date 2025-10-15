@@ -34,7 +34,8 @@ export default function CenterMachinesPage({ params }: { params: Params }) {
     fetcher
   );
 
-  if (isLoading) {
+  // centerId가 없거나 데이터를 아직 받지 못한 경우 로딩 표시
+  if (!centerId || isLoading || (!machines && !error)) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center h-64">
@@ -65,7 +66,7 @@ export default function CenterMachinesPage({ params }: { params: Params }) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="h-full container mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
@@ -97,7 +98,15 @@ export default function CenterMachinesPage({ params }: { params: Params }) {
       {machines && machines.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {machines.map((machine) => (
-            <div key={machine.id} className="card bg-base-100 shadow-xl">
+            <button
+              key={machine.id}
+              className="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer text-left"
+              onClick={() => {
+                router.push(
+                  `/manager/centers/${centerId}/machines/${machine.id}`
+                );
+              }}
+            >
               <figure className="px-6 pt-6">
                 {machine.imageUrl ? (
                   <div className="relative h-52 w-full">
@@ -122,50 +131,23 @@ export default function CenterMachinesPage({ params }: { params: Params }) {
                 <h2 className="card-title text-lg">{machine.name}</h2>
 
                 {/* Machine Settings Info */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">설정 항목:</span>
-                    <span className="font-medium">
-                      {machine.settings.length}개
-                    </span>
-                  </div>
-
-                  {machine.settings.length > 0 && (
-                    <div className="text-sm">
-                      <p className="text-gray-600 mb-1">설정 목록:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {machine.settings.slice(0, 3).map((setting) => (
-                          <span
-                            key={setting.id}
-                            className="badge badge-outline badge-sm"
-                          >
-                            {setting.name}
-                          </span>
-                        ))}
-                        {machine.settings.length > 3 && (
-                          <span className="badge badge-outline badge-sm">
-                            +{machine.settings.length - 3}개
-                          </span>
-                        )}
-                      </div>
+                {machine.settings.length > 0 && (
+                  <div className="text-sm">
+                    <p className="text-gray-600 mb-1">설정 목록:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {machine.settings.map((setting) => (
+                        <span
+                          key={setting.id}
+                          className="badge badge-outline badge-sm"
+                        >
+                          {setting.name}
+                        </span>
+                      ))}
                     </div>
-                  )}
-                </div>
-
-                <div className="card-actions justify-end mt-4">
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => {
-                      router.push(
-                        `/manager/centers/${centerId}/machines/${machine.id}`
-                      );
-                    }}
-                  >
-                    상세보기
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       ) : (

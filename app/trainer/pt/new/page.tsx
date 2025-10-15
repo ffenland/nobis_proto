@@ -69,10 +69,9 @@ const NewPtPage = () => {
       // ACCEPTING 상태 PT 생성 완료, pending 페이지로 이동
       router.push(`/trainer/pt/pending/${result.pt.id}`);
     } catch (error) {
+      setIsLoading(false);
       console.error("PT 생성 오류:", error);
       alert("PT 생성 중 오류가 발생했습니다.");
-    } finally {
-      setIsLoading(false);
     }
   };
 

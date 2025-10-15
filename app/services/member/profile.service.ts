@@ -3,6 +3,7 @@ import prisma from "@/app/lib/prisma";
 // Member Profile 수정용
 export interface UpdateMemberProfileInput {
   username?: string;
+  realname?: string;
   mobile?: string;
 }
 
@@ -13,6 +14,7 @@ export async function getMemberProfile(userId: string) {
     select: {
       id: true,
       username: true,
+      realname: true,
       email: true,
       naverId: true,
       kakaoId: true,
@@ -47,7 +49,13 @@ export async function getMemberProfile(userId: string) {
               expirationDate: true,
               description: true,
               goals: true,
-              paymentAmount: true,
+              payment: {
+                select: {
+                  amount: true,
+                  paidAt: true,
+                  method: true,
+                },
+              },
               ptProduct: {
                 select: {
                   id: true,
@@ -112,6 +120,7 @@ export async function getMemberProfile(userId: string) {
   return {
     id: user.id,
     username: user.username,
+    realname: user.realname,
     email: user.email,
     naverId: user.naverId,
     kakaoId: user.kakaoId,
@@ -131,7 +140,7 @@ export async function getMemberProfile(userId: string) {
         expirationDate: pt.expirationDate,
         description: pt.description,
         goals: pt.goals,
-        paymentAmount: pt.paymentAmount,
+        payment: pt.payment,
         ptProduct: pt.ptProduct,
         trainer: pt.trainer,
         completedLessons: pt.lessons.filter(
@@ -195,6 +204,10 @@ export async function updateMemberProfile(
     }
   }
 
+  if (data.realname !== undefined) {
+    updateData.realname = data.realname;
+  }
+
   if (data.mobile !== undefined) {
     updateData.mobile = data.mobile;
   }
@@ -206,6 +219,7 @@ export async function updateMemberProfile(
     select: {
       id: true,
       username: true,
+      realname: true,
       mobile: true,
       usernameChangeCount: true,
     },

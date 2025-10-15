@@ -22,7 +22,7 @@ import LoadingOverlay from "./LoadingOverlay";
 
 interface ConfirmationStepProps {
   selectedCenter: FitnessCentersForPtApply[number];
-  selectedPt: TrainersWithPtProgramsByCenter[number]["ptProduct"][number];
+  selectedPt: TrainersWithPtProgramsByCenter[number]["ptProducts"][number];
   selectedTrainer: TrainersWithPtProgramsByCenter[number];
   selectedStartDate: Date;
   message: string;

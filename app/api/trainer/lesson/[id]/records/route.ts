@@ -1,12 +1,12 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { getSessionOrReturn401 } from '@/app/lib/session';
-import { 
+import {
   addLessonRecordItem,
   updateLessonRecordItem,
   deleteLessonRecordItem,
   getLessonDetailRecords,
-  type CreateSingleRecordInput,
-  type UpdateSingleRecordInput
+  type CreateRecordInput,
+  type UpdateRecordInput
 } from '@/app/services/trainer/lesson.service';
 
 // Next.js 15 dynamic route params type
@@ -66,7 +66,7 @@ export async function POST(
     }
     
     // 요청 본문 파싱
-    const record: CreateSingleRecordInput = await request.json();
+    const record: CreateRecordInput = await request.json();
     
     // 서비스 함수 호출
     const result = await addLessonRecordItem(
@@ -101,7 +101,7 @@ export async function PUT(
     }
     
     // 요청 본문 파싱
-    const { recordId, ...updateData }: UpdateSingleRecordInput & { recordId: string } = await request.json();
+    const { recordId, ...updateData }: UpdateRecordInput & { recordId: string } = await request.json();
     
     // 서비스 함수 호출
     const result = await updateLessonRecordItem(

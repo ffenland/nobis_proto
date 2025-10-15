@@ -34,9 +34,10 @@ model User {
   id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
-  username                 String
+  username                 String                  @unique
+  realname                 String?
+  realnameConfirmed        Boolean                 @default(false)
   email                    String                  @unique
-  password                 String?
   naverId                  String?                 @unique
   kakaoId                  String?                 @unique
   mobile                   String?                 @unique
@@ -68,6 +69,9 @@ model User {
   isPremiumUser      Boolean       @default(false)
   subscriptionExpiry DateTime?
   messageRead        MessageRead[]
+
+  // 에러 로그 관계
+  systemErrors SystemError[]
 }
 
 model UserData {
@@ -76,6 +80,13 @@ model UserData {
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: NoAction)
   userId    String   @unique @db.Uuid
+}
+
+enum MemberLevel {
+  BRONZE
+  SILVER
+  GOLD
+  INACTIVE
 }
 
 model Member {
@@ -90,6 +101,7 @@ model Member {
   fitnessCenterId   String?            @db.Uuid
   active            Boolean            @default(true)
   ptSurveyResponses PtSurveyResponse[]
+  memberLevel       MemberLevel        @default(BRONZE)
 }
 
 model WorkingHour {
@@ -105,11 +117,32 @@ model WorkingHour {
   @@unique([dayOfWeek, openTime, closeTime])
 }
 
-enum TrainerLevel {
-  JUNIOR
-  ASSOCIATE
-  SENIOR
-  MASTER
+model TrainerLevel {
+  id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String                  @unique
+  displayTitle String                  @unique
+  trainers     Trainer[]
+  ptProducts   PtProductTrainerLevel[] // 중간 테이블
+}
+
+model PtProductTrainerLevel {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  ptProductId String @db.Uuid
+  ptProduct   PtProduct @relation(fields: [ptProductId], references: [id], onDelete: Cascade)
+
+  trainerLevelId String @db.Uuid
+  trainerLevel   TrainerLevel @relation(fields: [trainerLevelId], references: [id], onDelete: Cascade)
+
+  // 추가 필드 (선택사항)
+  incentiveRate Float? @default(0) // 인센티브 비율
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ptProductId, trainerLevelId])
+  @@index([ptProductId])
+  @@index([trainerLevelId])
 }
 
 model Trainer {
@@ -119,11 +152,11 @@ model Trainer {
   user              User               @relation(fields: [userId], references: [id])
   userId            String             @unique @db.Uuid
   introduce         String             @default("안녕하세요")
-  level             TrainerLevel       @default(JUNIOR)
+  level             TrainerLevel?      @relation(fields: [levelId], references: [id])
+  levelId           String?            @db.Uuid
   group             Group?             @relation(fields: [groupId], references: [id])
   groupId           String?            @db.Uuid
   pt                Pt[]
-  ptProduct         PtProduct[]
   fitnessCenter     FitnessCenter?     @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId   String?            @db.Uuid
   trainerOff        TrainerOff[]
@@ -166,21 +199,20 @@ model ConfigurationValue {
 }
 
 model PtProduct {
-  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
   title             String
   price             Int
   expiration_period Int // 일(day)개념. 첫 수업일을 포함하여 수업이 가능한 날짜 수
   incentivePercent  Int
   description       String
   totalCount        Int
-  time              Int            @default(60) // minute
-  onSale            Boolean        @default(true)
-  trainer           Trainer[]
-  trainerLevel      TrainerLevel[]
-  openedAt          DateTime       @default(now())
-  closedAt          DateTime       @default(dbgenerated("TIMESTAMP '2199-12-31 23:59:59'"))
+  time              Int                     @default(60) // minute
+  onSale            Boolean                 @default(true)
+  trainerLevels     PtProductTrainerLevel[]
+  openedAt          DateTime                @default(now())
+  closedAt          DateTime                @default(dbgenerated("TIMESTAMP '2199-12-31 23:59:59'"))
   pt                Pt[]
 }
 
@@ -189,16 +221,22 @@ enum PtState {
   CONFIRMED
   REJECTED
   FINISHED
+  REFUNDED
   ACCEPTING
+  PAUSED
+  WITHDRAWN
 }
 
-model PtRejectInfo {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime @default(now())
-  pt        Pt       @relation(fields: [ptId], references: [id])
-  ptId      String   @unique @db.Uuid
+// 거절, 일시정지 등에 대한 정보를 포괄로 관리하는 모델
+model PtChangeInfo {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime  @default(now())
+  pt        Pt        @relation(fields: [ptId], references: [id])
+  ptId      String    @unique @db.Uuid
+  type      String // "PAUSE, REJECT, REFUND 등등"
   reason    String
-  schedule  String
+  changeAt  DateTime
+  endAt     DateTime?
 }
 
 model Pt {
@@ -216,11 +254,52 @@ model Pt {
   description    String        @default("")
   goals          String        @default("") // PT 목표 (쉼표로 구분된 문자열)
   expirationDate DateTime?
+  extraDays      Int           @default(0) // 일(date) 단위이다. 최종 종료일을 계산할때 expirationDate에 추가해서 계산된다.
   lessons        Lesson[]
-  paymentAmount  Int           @default(0)
+  payment        PtPayment?
   startDate      DateTime
-  rejectInfo     PtRejectInfo?
+  changeInfo     PtChangeInfo?
   contractImage  Image[]
+  pauseCount     Int           @default(0)
+  pause          PtPause[]
+}
+
+model PtPause {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  pt         Pt        @relation(fields: [ptId], references: [id])
+  ptId       String    @db.Uuid
+  startDate  DateTime // 일시정지 시작일
+  endDate    DateTime // 일시정지 종료일
+  reason     String // 사유
+  days       Int // 계산된 일수 (캐싱용)
+  isActive   Boolean   @default(true) // 활성 상태 (취소하면 false)
+  canceledAt DateTime? // 취소 시각
+
+  @@index([ptId, isActive]) // 조회 최적화
+}
+
+model PtPayment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // PtPayment가 Pt를 필수로 소유 (1:1 관계)
+  pt        Pt       @relation(fields: [ptId], references: [id])
+  ptId      String   @unique @db.Uuid
+
+  // 결제 관련 필드들
+  amount        Int       @default(0)
+  discount      Int       @default(0)
+  deduction     Int       @default(0)
+  method        String // "CARD", "TRANSFER", "CASH" 등
+  state         String    @default("PENDING") // "PENDING", "COMPLETED", "FAILED", "REFUNDED"
+  transactionId String? // 외부 결제 시스템 거래 ID
+  paidAt        DateTime?
+  refundedAt    DateTime?
+  refundAmount  Int?
+
+  notes String @default("")
 }
 
 model Lesson {
@@ -331,13 +410,33 @@ enum AuditAction {
   UPDATE_RECORD
 }
 
+model MachineBrand {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String    @unique
+  machines  Machine[]
+  createdAt DateTime  @default(now())
+
+  @@index([name])
+}
+
 model Machine {
   id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title           String
+  brandId         String           @db.Uuid
+  brand           MachineBrand     @relation(fields: [brandId], references: [id])
+  model           String?
+  description     String
+  spec            String?
+  musclesUsed     String?
   machineSetting  MachineSetting[]
   fitnessCenter   FitnessCenter?   @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId String?          @db.Uuid
   images          Image[]
+  videos          Video[]
+  isActive        Boolean          @default(true)
+  deactivatedAt   DateTime?
+
+  @@index([brandId])
 }
 
 model MachineSetting {
@@ -367,84 +466,38 @@ model MachineSetRecord {
   lessonRecordId String                @db.Uuid
 }
 
-// 운동기구 그룹 모델 (덤벨, 바벨, 케틀벨 등)
-model EquipmentGroup {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  name        String // 그룹 이름 (예: "덤벨", "바벨", "케틀벨", "고무밴드")
-  description String? // 그룹 설명
-
-  // 관계
-  equipment Equipment[]
-
-  @@unique([name]) // 중복 방지
-}
-
-// 운동기구 브랜드 모델
-model EquipmentBrand {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  name String // 브랜드 이름 (예: "Nike", "Adidas", "PowerTech")
-
-  // 관계
-  equipment Equipment[]
-
-  @@unique([name]) // 중복 방지
-}
-
-// 운동기구 통합 모델 (재설계)
+// 단순화된 운동기구 모델
 model Equipment {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // 그룹 정보 (필수) - "덤벨", "바벨", "케틀벨" 등
-  group   EquipmentGroup @relation(fields: [groupId], references: [id])
-  groupId String         @db.Uuid
+  title String @unique // "덤벨", "바벨", "케틀벨", "밴드", "머신" 등
+  unit  String @default("kg") // "kg", "lbs", "개", "세트" 등
 
-  // 브랜드 정보 (선택)
-  brand   EquipmentBrand? @relation(fields: [brandId], references: [id])
-  brandId String?         @db.Uuid
-
-  // 수치 정보
-  primaryValue   String? // 주요 값 (무게, 탄성도 등) - String으로 변경하여 "상/중/하" 같은 값도 지원
-  primaryUnit    String? // 주요 단위 (kg, lbs, level 등)
-  secondaryValue String? // 부차 값 (길이, 지름 등) - String으로 변경
-  secondaryUnit  String? // 부차 단위 (cm, inch 등)
-
-  // 부가 정보
-  model       String? // 모델명
-  description String? // 설명
-
-  // 관계
+  // 센터별 관리 (선택사항)
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id], onDelete: SetNull)
   fitnessCenterId String?        @db.Uuid
 
-  // 운동 기록 연결
-  freeSetRecords           FreeSetRecord[]
-  stretchingExerciseRecord StretchingExerciseRecord[]
+  // 중간 테이블과의 관계
+  freeSetEquipments    FreeSetEquipment[]
+  stretchingEquipments StretchingEquipment[]
 
   // 미디어 (사진)
   images Image[]
 
-  // 현재 사용여부
-  disabledAt DateTime?
-
-  @@index([fitnessCenterId, groupId])
-  @@index([groupId])
-  @@index([brandId])
+  // 중복 방지
+  @@unique([title, unit, fitnessCenterId])
+  @@index([fitnessCenterId])
 }
 
 model FreeExercise {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt      DateTime        @default(now())
-  title          String
+  title          String          @unique
   description    String?
   images         Image[]
+  videos         Video[]
   freeSetRecords FreeSetRecord[]
 }
 
@@ -453,7 +506,10 @@ model FreeSetRecord {
   createdAt      DateTime     @default(now())
   freeExercise   FreeExercise @relation(fields: [freeExerciseId], references: [id])
   freeExerciseId String       @db.Uuid
-  equipments     Equipment[]
+
+  // 중간 테이블과의 관계 (기존 다대다 관계 대체)
+  freeSetEquipments FreeSetEquipment[]
+
   reps           Int // 횟수
   set            Int // 몇번째 세트인지
   lessonRecord   LessonRecord @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
@@ -463,9 +519,10 @@ model FreeSetRecord {
 model StretchingExercise {
   id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt                DateTime                   @default(now())
-  title                    String
+  title                    String                     @unique
   description              String
   images                   Image[]
+  videos                   Video[]
   stretchingExerciseRecord StretchingExerciseRecord[]
 }
 
@@ -474,10 +531,54 @@ model StretchingExerciseRecord {
   createdAt            DateTime           @default(now())
   stretchingExercise   StretchingExercise @relation(fields: [stretchingExerciseId], references: [id])
   stretchingExerciseId String             @db.Uuid
-  equipments           Equipment[]
-  description          String?
-  lessonRecord         LessonRecord       @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
-  lessonRecordId       String             @db.Uuid
+
+  // 중간 테이블과의 관계 (기존 다대다 관계 대체)
+  stretchingEquipments StretchingEquipment[]
+
+  description    String?
+  lessonRecord   LessonRecord @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
+  lessonRecordId String       @db.Uuid
+}
+
+// ========= FreeSetRecord와 Equipment 연결 테이블 =========
+model FreeSetEquipment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+
+  freeSetRecordId String @db.Uuid
+  equipmentId     String @db.Uuid
+
+  // 실제 사용한 값 (무게, 개수 등)
+  value String? // "15", "20", "빨간색", "중간강도" 등
+  notes String? // 추가 메모 (예: "양손 각각", "오른손만")
+  order Int     @default(0) // 여러 장비 사용 시 순서
+
+  freeSetRecord FreeSetRecord @relation(fields: [freeSetRecordId], references: [id], onDelete: Cascade)
+  equipment     Equipment     @relation(fields: [equipmentId], references: [id])
+
+  @@unique([freeSetRecordId, equipmentId, value]) // 같은 세트에서 같은 장비의 같은 값은 중복 방지
+  @@index([freeSetRecordId])
+  @@index([equipmentId])
+}
+
+// ========= StretchingExerciseRecord와 Equipment 연결 테이블 =========
+model StretchingEquipment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+
+  stretchingExerciseRecordId String @db.Uuid
+  equipmentId                String @db.Uuid
+
+  // 스트레칭용 장비 정보
+  value String? // "빨간색", "중간강도", "1.5m" 등
+  notes String? // 추가 메모
+
+  stretchingExerciseRecord StretchingExerciseRecord @relation(fields: [stretchingExerciseRecordId], references: [id], onDelete: Cascade)
+  equipment                Equipment                @relation(fields: [equipmentId], references: [id])
+
+  @@unique([stretchingExerciseRecordId, equipmentId])
+  @@index([stretchingExerciseRecordId])
+  @@index([equipmentId])
 }
 
 enum ScheduleState {
@@ -543,6 +644,8 @@ model FitnessCenter {
   id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title               String
   address             String
+  addressDetail       String
+  postCode            String
   phone               String
   description         String
   openingHours        OpeningHour[]
@@ -640,14 +743,17 @@ model Image {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
 
-  // Cloudflare Images ID (custom ID)                                  
+  // Cloudflare Images ID (custom ID)
   cloudflareId String @unique
 
-  // 이미지 타입                                                       
+  // 이미지 타입
   type ImageType
 
-  // 상태                                                              
+  // 상태
   status ImageStatus @default(ACTIVE)
+
+  // 대표 이미지 여부
+  isPrimary Boolean @default(false)
 
   // 핵심 관계: 누가 업로드했는지 (필수)
   uploadedBy   User   @relation(fields: [uploadedById], references: [id])
@@ -686,7 +792,7 @@ model Image {
   // PT 설문지 서명 이미지로 사용되는 경우
   surveySignatures PtSurveyResponse[] @relation("SurveySignature")
 
-  // 메타데이터                                                           
+  // 메타데이터
   metadata Json?
 
   // 불필요한 user 관계 제거됨!
@@ -695,6 +801,12 @@ model Image {
   @@index([type])
   @@index([status])
   @@index([cloudflareId])
+  @@index([machineId, isPrimary])
+  @@index([fitnessCenterId, isPrimary])
+  @@index([lessonId, isPrimary])
+  @@index([equipmentId, isPrimary])
+  @@index([freeExerciseId, isPrimary])
+  @@index([stretchingExerciseId, isPrimary])
 }
 
 enum ImageType {
@@ -727,10 +839,6 @@ model Video {
   // Cloudflare Stream ID                                                 
   streamId String @unique
 
-  // 비디오 정보                                                          
-  duration   Int // 초 단위                                           
-  resolution String? // "1920x1080"                                       
-
   // 비디오 타입                                                          
   type VideoType
 
@@ -745,6 +853,15 @@ model Video {
   lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   lessonId String? @db.Uuid
 
+  machine   Machine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  machineId String?  @db.Uuid
+
+  stretching   StretchingExercise? @relation(fields: [stretchingId], references: [id], onDelete: SetNull)
+  stretchingId String?             @db.Uuid
+
+  freeExercise   FreeExercise? @relation(fields: [freeExerciseId], references: [id], onDelete: SetNull)
+  freeExerciseId String?       @db.Uuid
+
   // 메타데이터                                                           
   metadata Json?
 
@@ -755,11 +872,14 @@ model Video {
 }
 
 enum VideoType {
+  MACHINE
   EXERCISE_DEMO
   LESSON
   FORM_CHECK
   PROGRESS
   INSTRUCTION
+  FREE_EXERCISE
+  STRETCHING
 }
 
 enum VideoStatus {
@@ -899,4 +1019,112 @@ model PtSurveyQuestionResponse {
 
   @@index([responseId])
   @@index([questionId])
+}
+
+// ========== 에러 로깅 시스템 ==========
+
+enum ErrorLevel {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum ErrorStatus {
+  NEW // 새로 발생한 에러
+  INVESTIGATING // 조사 중
+  IN_PROGRESS // 처리 중
+  RESOLVED // 해결됨
+  IGNORED // 무시됨 (의도된 에러 등)
+}
+
+enum ErrorEnvironment {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+model SystemError {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 에러 기본 정보
+  level       ErrorLevel       @default(ERROR)
+  status      ErrorStatus      @default(NEW)
+  environment ErrorEnvironment
+
+  // 에러 내용
+  message    String // 에러 메시지
+  errorCode  String? // 앱에서 정의한 에러 코드 (예: "PT_001", "AUTH_002")
+  errorType  String? // 에러 타입 (예: "ValidationError", "DatabaseError")
+  stackTrace String? @db.Text // 스택 트레이스 (긴 내용이므로 Text)
+
+  // 컨텍스트 정보
+  userId    String? @db.Uuid // 에러 발생 시 로그인한 사용자
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userAgent String? // 브라우저 정보
+  ipAddress String? // IP 주소
+
+  // 요청 정보
+  method   String? // HTTP 메서드 (GET, POST 등)
+  url      String? // 요청 URL
+  endpoint String? // API 엔드포인트
+
+  // 추가 메타데이터 (JSON 형태로 유연하게 저장)
+  metadata Json? // 추가 디버깅 정보, 요청 body, 파라미터 등
+  tags     String[] // 검색/필터링용 태그 (예: ["auth", "payment", "critical"])
+
+  // 처리 관련
+  assignedTo String? // 처리 담당자 (개발자 이름이나 ID)
+  resolution String?   @db.Text // 해결 방법이나 처리 내용
+  resolvedAt DateTime? // 해결 시간
+
+  // 발생 빈도 추적
+  occurrenceCount Int      @default(1) // 동일한 에러가 몇 번 발생했는지
+  lastOccurredAt  DateTime @default(now()) // 마지막 발생 시간
+  fingerprint     String? // 에러를 구분하는 고유 지문 (해시값)
+
+  @@index([level, status])
+  @@index([createdAt])
+  @@index([userId])
+  @@index([environment])
+  @@index([fingerprint])
+  @@index([tags])
+}
+
+// ========== 감사 로그 시스템 ==========
+// 통합 감사 로그 - 모든 데이터 변경 이력 관리
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+
+  // 변경 대상
+  tableName String // 테이블명 (예: "Pt", "PtPayment", "Lesson" 등)
+  recordId  String // 대상 레코드 ID
+  action    String // 액션 타입: "CREATE", "UPDATE", "DELETE", "SOFT_DELETE"
+
+  // 변경 데이터
+  previousData  Json? // 이전 데이터 (UPDATE, DELETE 시)
+  newData       Json? // 새 데이터 (CREATE, UPDATE 시)
+  changedFields String[] // 변경된 필드 목록 (UPDATE 시)
+
+  // 변경자 정보
+  changedBy     String // User ID
+  changedByRole String // 변경자 역할: "MANAGER", "TRAINER", "MEMBER", "SYSTEM"
+  changedByName String? // 변경자 이름 (캐시용)
+
+  // 변경 상황
+  reason   String? // 변경 사유 (예: "결제 확인", "할인 적용", "오류 수정" 등)
+  metadata Json? // 추가 메타데이터 (IP, User-Agent, API endpoint 등)
+
+  // 검색/필터링
+  tags String[] // 태그 (예: ["payment", "critical", "manual-update"])
+
+  @@index([tableName, recordId])
+  @@index([changedBy])
+  @@index([createdAt])
+  @@index([tableName, createdAt])
+  @@index([tags])
 }

@@ -31,7 +31,10 @@ import LessonMediaViewer from "./LessonMediaViewer";
 import type {
   GetLessonDetailResult,
   LessonDetailRecord,
-  CreateSingleRecordInput,
+  CreateRecordInput,
+  CreateMachineRecordInput,
+  CreateFreeRecordInput,
+  CreateStretchingRecordInput,
 } from "@/app/services/trainer/lesson.service";
 import type {
   GetFreeExercisesResult,
@@ -59,48 +62,11 @@ interface TempRecordState {
   saveStatus: "saving" | "error";
 }
 
-// Form에서 반환하는 데이터 타입들
-interface FormDataBase {
-  type: "MACHINE" | "FREE" | "STRETCHING";
-  title: string;
-  description?: string;
-}
-
-interface MachineFormData extends FormDataBase {
-  type: "MACHINE";
-  exerciseId: string; // Machine ID
-  sets: Array<{
-    reps: number;
-    settings: Array<{
-      settingId: string;
-      valueId: string;
-    }>;
-  }>;
-}
-
-interface FreeFormData extends FormDataBase {
-  type: "FREE";
-  isCustomExercise: boolean;
-  freeExerciseId?: string;
-  customExerciseName?: string;
-  customExerciseDescription?: string;
-  sets: Array<{
-    reps: number;
-    equipmentIds: string[];
-  }>;
-}
-
-interface StretchingFormData extends FormDataBase {
-  type: "STRETCHING";
-  isCustomExercise: boolean;
-  stretchingExerciseId?: string;
-  customExerciseName?: string;
-  customExerciseDescription?: string;
-  stretchingDescription?: string;
-  equipmentIds: string[];
-}
-
-type ExerciseFormData = MachineFormData | FreeFormData | StretchingFormData;
+// Form에서 반환하는 데이터 타입 (서비스 레이어 타입에서 entry, tempId 제외)
+type ExerciseFormData =
+  | Omit<CreateMachineRecordInput, "entry" | "tempId">
+  | Omit<CreateFreeRecordInput, "entry" | "tempId">
+  | Omit<CreateStretchingRecordInput, "entry" | "tempId">;
 
 export default function NewRecordPage({ params }: PageProps) {
   const { id } = use(params);
@@ -160,11 +126,13 @@ export default function NewRecordPage({ params }: PageProps) {
     mutate: mutateStretchingExercises,
   } = useSWR<GetStretchingExercisesResult>("/api/exercises/stretching");
 
-  const { data: preloadedEquipments } = useSWR<GetCenterEquipmentsResult>(
+  const { data: equipmentsData } = useSWR<GetCenterEquipmentsResult>(
     lesson?.centerId
       ? `/api/fitness-center/${lesson.centerId}/equipments`
       : null
   );
+
+  const preloadedEquipments = equipmentsData?.equipments ?? [];
 
   const { data: preloadedMachines } = useSWR<IMachinesByFitnessCenter[]>(
     lesson?.centerId ? `/api/fitness-center/${lesson.centerId}/machines` : null
@@ -226,59 +194,41 @@ export default function NewRecordPage({ params }: PageProps) {
     // 서버에 저장
     startTransition(async () => {
       try {
-        // formData를 CreateSingleRecordInput 형식으로 변환
-        const createRecordInput: CreateSingleRecordInput = {
-          type: formData.type,
-          title: formData.title,
-          entry: nextEntry,
-          description: formData.description,
-          tempId,
-        };
+        // formData를 CreateRecordInput 형식으로 변환
+        let createRecordInput: CreateRecordInput;
 
-        // 운동 타입별로 데이터 변환
+        // 운동 타입별로 데이터 구성
         if (formData.type === "MACHINE") {
-          const machineData = formData as MachineFormData;
-          createRecordInput.machineId = machineData.exerciseId;
-          createRecordInput.machineSetRecords = machineData.sets.map(
-            (set, index) => ({
-              set: index + 1,
-              reps: set.reps,
-              settingValueIds: set.settings.map((s) => s.valueId),
-            })
-          );
+          const machineData = formData as Omit<
+            CreateMachineRecordInput,
+            "entry" | "tempId"
+          >;
+          createRecordInput = {
+            ...machineData,
+            entry: nextEntry,
+            tempId,
+          } as CreateMachineRecordInput;
         } else if (formData.type === "FREE") {
-          const freeData = formData as FreeFormData;
-          if (freeData.isCustomExercise) {
-            createRecordInput.isCustomExercise = true;
-            createRecordInput.customExerciseName = freeData.customExerciseName;
-            createRecordInput.customExerciseDescription =
-              freeData.customExerciseDescription;
-          } else {
-            createRecordInput.freeExerciseId = freeData.freeExerciseId;
-            createRecordInput.isCustomExercise = false;
-          }
-          createRecordInput.freeSetRecords = freeData.sets.map(
-            (set, index) => ({
-              set: index + 1,
-              reps: set.reps,
-              equipmentIds: set.equipmentIds,
-            })
-          );
-        } else if (formData.type === "STRETCHING") {
-          const stretchingData = formData as StretchingFormData;
-          if (stretchingData.isCustomExercise) {
-            createRecordInput.customStretchingName =
-              stretchingData.customExerciseName;
-            createRecordInput.customStretchingDescription =
-              stretchingData.customExerciseDescription;
-          } else {
-            createRecordInput.stretchingExerciseId =
-              stretchingData.stretchingExerciseId;
-          }
-          createRecordInput.stretchingDescription =
-            stretchingData.stretchingDescription;
-          createRecordInput.stretchingEquipmentIds =
-            stretchingData.equipmentIds;
+          const freeData = formData as Omit<
+            CreateFreeRecordInput,
+            "entry" | "tempId"
+          >;
+          createRecordInput = {
+            ...freeData,
+            entry: nextEntry,
+            tempId,
+          } as CreateFreeRecordInput;
+        } else {
+          // STRETCHING
+          const stretchingData = formData as Omit<
+            CreateStretchingRecordInput,
+            "entry" | "tempId"
+          >;
+          createRecordInput = {
+            ...stretchingData,
+            entry: nextEntry,
+            tempId,
+          } as CreateStretchingRecordInput;
         }
 
         const response = await fetch(`/api/trainer/lesson/${id}/records`, {
@@ -368,7 +318,7 @@ export default function NewRecordPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-0 flex flex-col bg-gray-50">
       {/* 헤더 */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 py-4">

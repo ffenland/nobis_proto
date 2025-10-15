@@ -9,16 +9,11 @@ import type {
   CreateImageUploadUrlResult,
   CreateVideoUploadUrlResult,
 } from "./cloudflare.service";
+import type { ValidatedSession } from "@/app/lib/session";
 
 // ===== 타입 정의 =====
 
 export { ImageType, VideoType };
-
-export interface UserSession {
-  id: string;
-  role: "TRAINER" | "MEMBER" | "MANAGER";
-  roleId: string;
-}
 
 // 클라이언트에서 이미지 업로드 URL 요청 시 전달할 데이터
 export interface ImageUploadRequest {
@@ -32,6 +27,7 @@ export interface ImageConfirmRequest {
   cloudflareId: string;
   entityType: ImageType;
   entityId?: string;
+  isPrimary?: true;
 }
 
 // 클라이언트에서 비디오 업로드 URL 요청 시 전달할 데이터
@@ -44,7 +40,7 @@ export interface VideoUploadRequest {
 
 // 클라이언트에서 비디오 업로드 확인 시 전달할 데이터
 export interface VideoConfirmRequest {
-  cloudflareId: string;
+  streamId: string;
   entityType: VideoType;
   entityId?: string;
 }
@@ -57,9 +53,9 @@ export interface VideoConfirmRequest {
 export async function requestImageUpload(
   entityType: ImageType,
   entityId: string | null,
-  session: UserSession,
+  session: ValidatedSession,
   metadata?: Record<string, unknown>
-): Promise<CreateImageUploadUrlResult & { expiresAt: string }> {
+) {
   // 권한 검증
   validateImageUploadPermission(entityType, session);
 
@@ -89,7 +85,8 @@ export async function confirmImageUpload(
   cloudflareId: string,
   entityType: ImageType,
   entityId: string | null,
-  session: UserSession
+  session: ValidatedSession,
+  isPrimary?: true
 ) {
   // Cloudflare에서 실제 업로드 확인
   const imageInfo = await cloudflare.getImageInfo(cloudflareId);
@@ -112,7 +109,90 @@ export async function confirmImageUpload(
     // 필요시 추가 검증 로직 (예: 관리자만 허용, 생성일 확인 등)
   }
 
-  // DB에 저장
+  // isPrimary가 true인 경우: 트랜잭션으로 기존 이미지 isPrimary 초기화 후 생성
+  if (isPrimary === true && entityId) {
+    // entityIdField 결정
+    let entityIdField: string;
+
+    switch (entityType) {
+      case "MACHINE":
+        entityIdField = "machineId";
+        break;
+      case "CENTER":
+        entityIdField = "fitnessCenterId";
+        break;
+      case "LESSON":
+      case "CONDITION":
+        entityIdField = "lessonId";
+        break;
+      case "EQUIPMENT":
+        entityIdField = "equipmentId";
+        break;
+      case "FREE_EXERCISE":
+        entityIdField = "freeExerciseId";
+        break;
+      case "STRETCHING":
+        entityIdField = "stretchingExerciseId";
+        break;
+      case "CONTRACT":
+        entityIdField = "ptId";
+        break;
+      default:
+        // PROFILE, ETC 등 entityId가 없는 타입은 isPrimary 설정 불가
+        throw new Error(
+          `Cannot set primary image for type ${entityType} - no entity relationship`
+        );
+    }
+
+    // 트랜잭션으로 원자적 업데이트
+    const image = await prisma.$transaction(async (tx) => {
+      // 1. 동일 entityId를 가진 모든 이미지의 isPrimary를 false로
+      await tx.image.updateMany({
+        where: {
+          type: entityType,
+          [entityIdField]: entityId,
+        },
+        data: {
+          isPrimary: false,
+        },
+      });
+
+      // 2. 새 이미지를 isPrimary: true로 생성
+      return await tx.image.create({
+        data: {
+          cloudflareId,
+          uploadedById: session.id,
+          type: entityType,
+          metadata: imageInfo.meta || {},
+          isPrimary: true,
+          // 엔티티별 연결
+          ...(entityType === "MACHINE" ? { machineId: entityId } : {}),
+          ...(entityType === "CENTER" ? { fitnessCenterId: entityId } : {}),
+          ...(entityType === "FREE_EXERCISE"
+            ? { freeExerciseId: entityId }
+            : {}),
+          ...(entityType === "STRETCHING"
+            ? { stretchingExerciseId: entityId }
+            : {}),
+          ...(entityType === "LESSON" ? { lessonId: entityId } : {}),
+          ...(entityType === "CONDITION" ? { lessonId: entityId } : {}),
+          ...(entityType === "EQUIPMENT" ? { equipmentId: entityId } : {}),
+          ...(entityType === "CONTRACT" ? { ptId: entityId } : {}),
+        },
+        select: {
+          id: true,
+          cloudflareId: true,
+          type: true,
+          isPrimary: true,
+          createdAt: true,
+        },
+      });
+    });
+
+    return image;
+  }
+
+  // isPrimary가 undefined인 경우: 기존 로직 (일반 생성)
   const image = await prisma.image.create({
     data: {
       cloudflareId,
@@ -151,7 +231,7 @@ export async function confirmImageUpload(
 /**
  * 이미지 삭제
  */
-export async function deleteImage(imageId: string, session: UserSession) {
+export async function deleteImage(imageId: string, session: ValidatedSession) {
   // DB에서 이미지 정보 조회
   const image = await prisma.image.findUnique({
     where: { id: imageId },
@@ -187,6 +267,115 @@ export async function deleteImage(imageId: string, session: UserSession) {
   return { success: true, message: "Image deleted successfully" };
 }
 
+/**
+ * 대표 이미지 설정
+ * 동일한 entityId를 가진 이미지들 중 하나만 isPrimary=true로 설정
+ */
+export async function setImagePrimary(imageId: string, session: ValidatedSession) {
+  // 1. 이미지 조회 (존재 확인 + 메타 정보 획득)
+  const image = await prisma.image.findUnique({
+    where: { id: imageId },
+    select: {
+      id: true,
+      type: true,
+      uploadedById: true,
+      machineId: true,
+      fitnessCenterId: true,
+      lessonId: true,
+      equipmentId: true,
+      freeExerciseId: true,
+      stretchingExerciseId: true,
+      lessonConditionId: true,
+      ptId: true,
+    },
+  });
+
+  if (!image) {
+    throw new Error("Image not found");
+  }
+
+  // 2. 권한 확인 (업로더 본인 또는 관리자만)
+  if (image.uploadedById !== session.id && session.role !== "MANAGER") {
+    throw new Error("Unauthorized to update this image");
+  }
+
+  // 3. entityId 필드 결정 (ImageType에 따라)
+  let entityIdField: string;
+  let entityIdValue: string | null;
+
+  switch (image.type) {
+    case "MACHINE":
+      entityIdField = "machineId";
+      entityIdValue = image.machineId;
+      break;
+    case "CENTER":
+      entityIdField = "fitnessCenterId";
+      entityIdValue = image.fitnessCenterId;
+      break;
+    case "LESSON":
+    case "CONDITION":
+      entityIdField = "lessonId";
+      entityIdValue = image.lessonId;
+      break;
+    case "EQUIPMENT":
+      entityIdField = "equipmentId";
+      entityIdValue = image.equipmentId;
+      break;
+    case "FREE_EXERCISE":
+      entityIdField = "freeExerciseId";
+      entityIdValue = image.freeExerciseId;
+      break;
+    case "STRETCHING":
+      entityIdField = "stretchingExerciseId";
+      entityIdValue = image.stretchingExerciseId;
+      break;
+    case "CONTRACT":
+      entityIdField = "ptId";
+      entityIdValue = image.ptId;
+      break;
+    default:
+      // PROFILE, ETC 등 entityId가 없는 타입은 isPrimary 설정 불가
+      throw new Error(
+        `Cannot set primary image for type ${image.type} - no entity relationship`
+      );
+  }
+
+  if (!entityIdValue) {
+    throw new Error("Image has no entity ID - cannot set as primary");
+  }
+
+  // 4. Transaction으로 원자적 업데이트
+  const updatedImage = await prisma.$transaction(async (tx) => {
+    // 4-a. 동일 entityId를 가진 모든 이미지의 isPrimary를 false로
+    await tx.image.updateMany({
+      where: {
+        type: image.type,
+        [entityIdField]: entityIdValue,
+      },
+      data: {
+        isPrimary: false,
+      },
+    });
+
+    // 4-b. 요청한 이미지의 isPrimary를 true로
+    return await tx.image.update({
+      where: { id: imageId },
+      data: {
+        isPrimary: true,
+      },
+      select: {
+        id: true,
+        cloudflareId: true,
+        type: true,
+        isPrimary: true,
+        createdAt: true,
+      },
+    });
+  });
+
+  return updatedImage;
+}
+
 // ===== 비디오 서비스 =====
 
 /**
@@ -195,7 +384,7 @@ export async function deleteImage(imageId: string, session: UserSession) {
 export async function requestVideoUpload(
   entityType: VideoType,
   entityId: string | null,
-  session: UserSession,
+  session: ValidatedSession,
   metadata?: Record<string, unknown>
 ): Promise<CreateVideoUploadUrlResult & { expiresAt: string }> {
   // 권한 검증
@@ -223,13 +412,13 @@ export async function requestVideoUpload(
  * 비디오 업로드 확인 및 DB 저장
  */
 export async function confirmVideoUpload(
-  cloudflareId: string,
+  streamId: string,
   entityType: VideoType,
   entityId: string | null,
-  session: UserSession
+  session: ValidatedSession
 ) {
   // Cloudflare에서 실제 업로드 확인
-  const videoInfo = await cloudflare.getVideoInfo(cloudflareId);
+  const videoInfo = await cloudflare.getVideoInfo(streamId);
   if (!videoInfo) {
     throw new Error("Video not found in Cloudflare");
   }
@@ -244,7 +433,7 @@ export async function confirmVideoUpload(
   } else {
     // userId 메타데이터가 없는 경우 - 레거시 업로드이거나 시스템 비디오
     console.warn(
-      `Video ${cloudflareId} has no userId metadata - allowing access for session ${session.id}`
+      `Video ${streamId} has no userId metadata - allowing access for session ${session.id}`
     );
     // 필요시 추가 검증 로직 (예: 관리자만 허용, 생성일 확인 등)
   }
@@ -252,22 +441,27 @@ export async function confirmVideoUpload(
   // DB에 저장
   const video = await prisma.video.create({
     data: {
-      streamId: cloudflareId,
+      streamId: streamId,
       uploadedById: session.id,
-      duration: videoInfo.duration || 0,
       type: entityType,
       metadata: videoInfo.meta || {},
       // 엔티티별 연결 (VideoType에 따른)
+      ...(entityType === "MACHINE" && entityId ? { machineId: entityId } : {}),
       ...(entityType === "LESSON" && entityId ? { lessonId: entityId } : {}),
       ...(entityType === "FORM_CHECK" && entityId
         ? { lessonId: entityId }
+        : {}),
+      ...(entityType === "FREE_EXERCISE" && entityId
+        ? { freeExerciseId: entityId }
+        : {}),
+      ...(entityType === "STRETCHING" && entityId
+        ? { stretchingId: entityId }
         : {}),
     },
     select: {
       id: true,
       streamId: true,
       type: true,
-      duration: true,
       createdAt: true,
     },
   });
@@ -278,7 +472,7 @@ export async function confirmVideoUpload(
 /**
  * 비디오 삭제
  */
-export async function deleteVideo(videoId: string, session: UserSession) {
+export async function deleteVideo(videoId: string, session: ValidatedSession) {
   // DB에서 비디오 정보 조회
   const video = await prisma.video.findUnique({
     where: { id: videoId },
@@ -317,27 +511,12 @@ export async function deleteVideo(videoId: string, session: UserSession) {
 // ===== 공통 유틸리티 =====
 
 /**
- * 미디어 URL 생성
- */
-export function getMediaUrl(
-  cloudflareId: string,
-  type: "image" | "video",
-  variant?: string
-) {
-  if (type === "image") {
-    return getImageUrl(cloudflareId, variant);
-  } else {
-    return cloudflare.getVideoUrl(cloudflareId);
-  }
-}
-
-/**
  * Cloudflare Stream 비디오 URL 생성 (HLS 스트리밍용)
  */
 export function getCloudflareStreamVideoUrl(streamId: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_DELEVERY_URL;
   if (!baseUrl) {
-    throw new Error('CLOUDFLARE_STREAM_DELIVERY_URL not configured');
+    throw new Error("CLOUDFLARE_STREAM_DELIVERY_URL not configured");
   }
   return `${baseUrl}/${streamId}/manifest/video.m3u8`;
 }
@@ -348,7 +527,7 @@ export function getCloudflareStreamVideoUrl(streamId: string): string {
 export function getCloudflareStreamThumbnailUrl(streamId: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_DELEVERY_URL;
   if (!baseUrl) {
-    throw new Error('CLOUDFLARE_STREAM_DELIVERY_URL not configured');
+    throw new Error("CLOUDFLARE_STREAM_DELIVERY_URL not configured");
   }
   // 1초부터 4초간, 높이 64px, 8fps로 GIF 생성
   return `${baseUrl}/${streamId}/thumbnails/thumbnail.gif?time=1s&height=64&duration=4s&fps=8`;
@@ -406,12 +585,16 @@ export async function listVideosByEntity(
   const videos = await prisma.video.findMany({
     where: {
       type: entityType,
-      lessonId: entityId, // 현재 모든 비디오는 lessonId로 연결
+      // VideoType에 따라 올바른 필드로 조회
+      ...(entityType === "MACHINE" ? { machineId: entityId } : {}),
+      ...(entityType === "LESSON" ? { lessonId: entityId } : {}),
+      ...(entityType === "FORM_CHECK" ? { lessonId: entityId } : {}),
+      ...(entityType === "FREE_EXERCISE" ? { freeExerciseId: entityId } : {}),
+      ...(entityType === "STRETCHING" ? { stretchingId: entityId } : {}),
     },
     select: {
       id: true,
       streamId: true,
-      duration: true,
       createdAt: true,
       uploadedBy: {
         select: {
@@ -437,7 +620,7 @@ export async function listVideosByEntity(
  */
 function validateImageUploadPermission(
   entityType: ImageType,
-  session: UserSession
+  session: ValidatedSession
 ) {
   const restrictions: Partial<Record<ImageType, string[]>> = {
     MACHINE: ["MANAGER"],
@@ -462,7 +645,7 @@ function validateImageUploadPermission(
  */
 function validateVideoUploadPermission(
   entityType: VideoType,
-  session: UserSession
+  session: ValidatedSession
 ) {
   // VideoType에 따른 권한 검증
   const trainerOnlyTypes: VideoType[] = ["LESSON", "FORM_CHECK", "INSTRUCTION"];
@@ -506,6 +689,7 @@ export type RequestImageUploadResult = Awaited<
 export type ConfirmImageUploadResult = Awaited<
   ReturnType<typeof confirmImageUpload>
 >;
+export type SetImagePrimaryResult = Awaited<ReturnType<typeof setImagePrimary>>;
 export type RequestVideoUploadResult = Awaited<
   ReturnType<typeof requestVideoUpload>
 >;

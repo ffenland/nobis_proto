@@ -5,11 +5,9 @@ const TabLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="flex flex-1 w-full flex-col overflow-hidden">
       {/* 메인 콘텐츠 영역 - 반응형 너비 제한 */}
-      <div className="flex-1 overflow-auto">
-        <div className="w-full max-w-7xl mx-auto py-3">{children}</div>
-      </div>
-      {/* TabBar - 모바일/태블릿에서만 표시 */}
-      <div className="lg:hidden">
+      <div className="flex-1 overflow-auto">{children}</div>
+      {/* TabBar */}
+      <div className="">
         <TrainerTabBar />
       </div>
     </div>

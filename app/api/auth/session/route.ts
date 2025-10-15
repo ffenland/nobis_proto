@@ -1,12 +1,13 @@
 // app/api/auth/session/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentIronSession } from "@/app/lib/session";
 import {
   getSessionUserInfo,
   type SessionResponse,
 } from "@/app/services/auth/auth.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getCurrentIronSession();
 
@@ -33,7 +34,14 @@ export async function GET() {
       return NextResponse.json(response);
     }
   } catch (error) {
-    console.error("세션 조회 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "AUTH_001",
+      metadata: {
+        action: "getSession",
+      },
+      tags: ["auth", "session"],
+    });
+
     return NextResponse.json({ error: "세션 조회 실패" }, { status: 500 });
   }
 }

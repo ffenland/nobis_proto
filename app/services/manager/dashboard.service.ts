@@ -209,6 +209,11 @@ export async function getPtStats(managerId: string) {
             },
           },
         },
+        payment: {
+          select: {
+            paidAt: true,
+          },
+        },
         trainerId: true,
         trainer: {
           select: {
@@ -316,6 +321,7 @@ export async function getPtStats(managerId: string) {
     const formatPtList = (pts: typeof allPts) =>
       pts.map((pt) => ({
         id: pt.id,
+        isPaied: Boolean(pt.payment?.paidAt),
         trainerId: pt.trainer?.id,
         trainerName: pt.trainer?.user.username,
         memberName: pt.member?.user.username,
@@ -327,12 +333,13 @@ export async function getPtStats(managerId: string) {
 
     // 센터별 통계 계산 함수
     const calculateCenterStats = (pts: typeof allPts) => {
-      const centerStats: { [key: string]: { title: string; count: number } } = {};
-      
+      const centerStats: { [key: string]: { title: string; count: number } } =
+        {};
+
       pts.forEach((pt) => {
         const centerId = pt.trainer?.fitnessCenter?.id;
         const centerTitle = pt.trainer?.fitnessCenter?.title;
-        
+
         if (centerId && centerTitle) {
           if (!centerStats[centerId]) {
             centerStats[centerId] = { title: centerTitle, count: 0 };
@@ -340,23 +347,32 @@ export async function getPtStats(managerId: string) {
           centerStats[centerId].count++;
         }
       });
-      
+
       return centerStats;
     };
 
+    // 미결제 카운트 계산 함수
+    const calculateUnpaidCount = (pts: typeof allPts) =>
+      pts.filter((pt) => !pt.payment?.paidAt).length;
+
     return {
+      totalActivePts: allPts.length,
+      totalActivePtsByCenter: calculateCenterStats(allPts),
       endingSoonPts: {
         count: endingSoonPts.length,
+        unpaidCount: calculateUnpaidCount(endingSoonPts),
         pts: formatPtList(endingSoonPts),
         centerStats: calculateCenterStats(endingSoonPts),
       },
       newPts: {
         count: newPts.length,
+        unpaidCount: calculateUnpaidCount(newPts),
         pts: formatPtList(newPts),
         centerStats: calculateCenterStats(newPts),
       },
       reRegisteredPts: {
         count: reRegisteredPts.length,
+        unpaidCount: calculateUnpaidCount(reRegisteredPts),
         pts: formatPtList(reRegisteredPts),
         centerStats: calculateCenterStats(reRegisteredPts),
       },
@@ -453,7 +469,9 @@ export type GetWeeklyLessonsCountResult = Awaited<
   ReturnType<typeof getWeeklyLessonsCount>
 >;
 export type GetPtStatsResult = Awaited<ReturnType<typeof getPtStats>>;
-export type GetManagerCentersResult = Awaited<ReturnType<typeof getManagerCenters>>;
+export type GetManagerCentersResult = Awaited<
+  ReturnType<typeof getManagerCenters>
+>;
 export type GetPendingTrainerOffCountResult = Awaited<
   ReturnType<typeof getPendingTrainerOffCount>
 >;

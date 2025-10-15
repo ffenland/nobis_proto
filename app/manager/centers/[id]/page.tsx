@@ -93,7 +93,7 @@ export default async function CenterDetailPage({
     }
 
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
         <div className="flex flex-col mb-2">
           <div className="flex justify-between items-start">
@@ -217,7 +217,7 @@ export default async function CenterDetailPage({
           {/* 센터 소개 */}
           {center.description && (
             <InfoCard title="센터 소개">
-              <p className="text-gray-700 leading-relaxed">
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">
                 {center.description}
               </p>
             </InfoCard>
@@ -260,7 +260,10 @@ export default async function CenterDetailPage({
                       {trainer.user.avatarImage?.cloudflareId ? (
                         <div className="relative w-10 h-10 rounded-full overflow-hidden">
                           <Image
-                            src={getOptimizedImageUrl(trainer.user.avatarImage.cloudflareId, "avatar")}
+                            src={getOptimizedImageUrl(
+                              trainer.user.avatarImage.cloudflareId,
+                              "avatar"
+                            )}
                             alt={trainer.user.username}
                             fill
                             className="object-cover"
@@ -320,7 +323,10 @@ export default async function CenterDetailPage({
                       {member.user.avatarImage?.cloudflareId ? (
                         <div className="relative w-10 h-10 rounded-full overflow-hidden">
                           <Image
-                            src={getOptimizedImageUrl(member.user.avatarImage.cloudflareId, "avatar")}
+                            src={getOptimizedImageUrl(
+                              member.user.avatarImage.cloudflareId,
+                              "avatar"
+                            )}
                             alt={member.user.username}
                             fill
                             className="object-cover"
@@ -440,7 +446,10 @@ export default async function CenterDetailPage({
                     {manager.user.avatarImage?.cloudflareId ? (
                       <div className="relative w-10 h-10 rounded-full overflow-hidden">
                         <Image
-                          src={getOptimizedImageUrl(manager.user.avatarImage.cloudflareId, "avatar")}
+                          src={getOptimizedImageUrl(
+                            manager.user.avatarImage.cloudflareId,
+                            "avatar"
+                          )}
                           alt={manager.user.username}
                           fill
                           className="object-cover"

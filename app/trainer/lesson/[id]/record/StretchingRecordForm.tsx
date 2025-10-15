@@ -2,25 +2,18 @@
 "use client";
 
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import type { StretchingExercise } from "@/app/services/exercise/exercise.service";
 import type { Equipment } from "@/app/services/fitness-center/equipment.service";
-import { getEquipmentDisplayTitle, sortEquipmentByCategory } from "@/app/lib/utils/equipment.utils";
-
-// Form 데이터 타입 - page.tsx의 StretchingFormData와 일치
-interface StretchingFormData {
-  type: "STRETCHING";
-  title: string;
-  description?: string;
-  isCustomExercise: boolean;
-  stretchingExerciseId?: string;
-  customExerciseName?: string;
-  customExerciseDescription?: string;
-  stretchingDescription?: string;
-  equipmentIds: string[];
-}
+import type {
+  EquipmentInfo,
+  CreateStretchingRecordInput,
+} from "@/app/services/trainer/lesson.service";
 
 interface StretchingRecordFormProps {
-  onComplete: (data: StretchingFormData) => void;
+  onComplete: (
+    data: Omit<CreateStretchingRecordInput, "entry" | "tempId">
+  ) => void;
   onCancel: () => void;
   nextEntry: number;
   preloadedExercises?: StretchingExercise[]; // 프리로딩된 운동 데이터
@@ -42,40 +35,49 @@ export default function StretchingRecordForm({
   const [customStretchingName, setCustomStretchingName] = useState<string>("");
   const [customStretchingDescription, setCustomStretchingDescription] = useState<string>("");
   const [useCustomStretching, setUseCustomStretching] = useState(false);
-  const [selectedEquipments, setSelectedEquipments] = useState<Equipment[]>([]);
+  const [selectedEquipments, setSelectedEquipments] = useState<EquipmentInfo[]>([]);
   const [duration, setDuration] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [description, setDescription] = useState<string>("");
 
-  // 그룹별 장비 그룹화 (새로운 구조)
-  const groupEquipmentsByGroup = (equipments: Equipment[]) => {
-    const grouped = {} as Record<string, Equipment[]>;
-    equipments.forEach((equipment) => {
-      const groupName = equipment.group.name;
-      if (!grouped[groupName]) grouped[groupName] = [];
-      grouped[groupName].push(equipment);
-    });
-    
-    // 각 그룹 내에서 정렬
-    Object.keys(grouped).forEach((groupName) => {
-      grouped[groupName] = sortEquipmentByCategory(grouped[groupName]);
-    });
-    
-    return grouped;
-  };
-
   // 장비 추가 (중복 방지)
   const addEquipment = (equipment: Equipment) => {
-    // 중복 체크 후 무시 (아무 반응 없음)
-    if (selectedEquipments.find((eq) => eq.id === equipment.id)) {
+    // 중복 체크
+    if (selectedEquipments.find((eq) => eq.equipmentId === equipment.id)) {
       return;
     }
-    setSelectedEquipments((prev) => [...prev, equipment]);
+    setSelectedEquipments((prev) => [
+      ...prev,
+      { equipmentId: equipment.id, value: "", notes: "" },
+    ]);
   };
 
   // 장비 제거
   const removeEquipment = (equipmentId: string) => {
-    setSelectedEquipments((prev) => prev.filter((eq) => eq.id !== equipmentId));
+    setSelectedEquipments((prev) => prev.filter((eq) => eq.equipmentId !== equipmentId));
+  };
+
+  // 장비 value 업데이트
+  const updateEquipmentValue = (equipmentId: string, value: string) => {
+    setSelectedEquipments((prev) =>
+      prev.map((eq) => (eq.equipmentId === equipmentId ? { ...eq, value } : eq))
+    );
+  };
+
+  // 장비 notes 업데이트
+  const updateEquipmentNotes = (equipmentId: string, notes: string) => {
+    setSelectedEquipments((prev) =>
+      prev.map((eq) => (eq.equipmentId === equipmentId ? { ...eq, notes } : eq))
+    );
+  };
+
+  // 장비 객체 가져오기
+  const getEquipmentInfo = (equipmentInfo: EquipmentInfo): (EquipmentInfo & { equipment: Equipment }) | null => {
+    const equipment = preloadedEquipments.find((eq) => eq.id === equipmentInfo.equipmentId);
+    if (equipment) {
+      return { ...equipmentInfo, equipment };
+    }
+    return null;
   };
 
 
@@ -100,17 +102,21 @@ export default function StretchingRecordForm({
     const stretching = preloadedExercises.find((s) => s.id === selectedStretching);
     const stretchingTitle = useCustomStretching ? customStretchingName : (stretching?.title || "");
 
-    // StretchingFormData 구조로 생성
-    const formData: StretchingFormData = {
+    // CreateStretchingRecordInput 구조로 생성 (entry, tempId 제외)
+    const formData: Omit<CreateStretchingRecordInput, "entry" | "tempId"> = {
       type: "STRETCHING",
       title: stretchingTitle,
       description: description || undefined,
       isCustomExercise: useCustomStretching,
       stretchingExerciseId: useCustomStretching ? undefined : selectedStretching,
-      customExerciseName: useCustomStretching ? customStretchingName : undefined,
-      customExerciseDescription: useCustomStretching ? customStretchingDescription : undefined,
+      customStretchingName: useCustomStretching
+        ? customStretchingName
+        : undefined,
+      customStretchingDescription: useCustomStretching
+        ? customStretchingDescription
+        : undefined,
       stretchingDescription: notes || undefined,
-      equipmentIds: selectedEquipments.map((eq) => eq.id),
+      stretchingEquipments: selectedEquipments,
     };
 
     onComplete(formData);
@@ -209,32 +215,77 @@ export default function StretchingRecordForm({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               사용 장비
             </label>
-            {/* 선택된 장비 Badge 표시 */}
-            <div className="mb-3">
-              <div className="flex flex-wrap gap-2 min-h-[2.5rem] p-2 border border-gray-300 rounded-lg bg-gray-50">
-                {selectedEquipments.map((equipment) => (
-                  <span
-                    key={equipment.id}
-                    className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
+
+            {/* 선택된 장비 목록 및 value/notes 입력 */}
+            <div className="mb-3 space-y-2">
+              {selectedEquipments.map((eqInfo) => {
+                const equipInfo = getEquipmentInfo(eqInfo);
+                if (!equipInfo) return null;
+
+                return (
+                  <div
+                    key={eqInfo.equipmentId}
+                    className="p-3 border border-gray-300 rounded-lg bg-white"
                   >
-                    {getEquipmentDisplayTitle(equipment)}
-                    <button
-                      type="button"
-                      onClick={() => removeEquipment(equipment.id)}
-                      className="ml-1 text-purple-600 hover:text-purple-800 font-bold"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                {selectedEquipments.length === 0 && (
-                  <span className="text-sm text-gray-500 flex items-center">
+                    {/* 장비 이름과 삭제 버튼 */}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">
+                        {equipInfo.equipment.title}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeEquipment(eqInfo.equipmentId)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* value 및 notes 입력 */}
+                    <div className={`grid gap-2 ${equipInfo.equipment.unit !== "none" ? "grid-cols-2" : "grid-cols-1"}`}>
+                      {equipInfo.equipment.unit !== "none" && (
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">
+                            값 ({equipInfo.equipment.unit})
+                          </label>
+                          <input
+                            type="text"
+                            value={eqInfo.value || ""}
+                            onChange={(e) =>
+                              updateEquipmentValue(eqInfo.equipmentId, e.target.value)
+                            }
+                            placeholder={`${equipInfo.equipment.unit} 입력`}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">
+                          메모 (선택)
+                        </label>
+                        <input
+                          type="text"
+                          value={eqInfo.notes || ""}
+                          onChange={(e) =>
+                            updateEquipmentNotes(eqInfo.equipmentId, e.target.value)
+                          }
+                          placeholder="메모 입력"
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-purple-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {selectedEquipments.length === 0 && (
+                <div className="p-3 border border-gray-300 rounded-lg bg-gray-50 text-center">
+                  <span className="text-sm text-gray-500">
                     장비를 추가해주세요
                   </span>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-            
+
             {/* 장비 추가 드롭다운 */}
             <select
               value=""
@@ -252,25 +303,13 @@ export default function StretchingRecordForm({
                 {isEquipmentsLoading ? "로딩중..." : "장비 추가..."}
               </option>
               {!isEquipmentsLoading &&
-                (() => {
-                  // 이미 선택된 장비는 제외
-                  const availableEquipments = preloadedEquipments.filter(
-                    (eq) => !selectedEquipments.find((selected) => selected.id === eq.id)
-                  );
-                  const groupedEquipments = groupEquipmentsByGroup(availableEquipments);
-
-                  return Object.entries(groupedEquipments).map(
-                    ([groupName, equipments]) => (
-                      <optgroup key={groupName} label={groupName}>
-                        {equipments.map((equip) => (
-                          <option key={equip.id} value={equip.id}>
-                            {getEquipmentDisplayTitle(equip)}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )
-                  );
-                })()}
+                preloadedEquipments
+                  .filter((eq) => !selectedEquipments.some((e) => e.equipmentId === eq.id))
+                  .map((equip) => (
+                    <option key={equip.id} value={equip.id}>
+                      {equip.title}
+                    </option>
+                  ))}
             </select>
           </div>
 

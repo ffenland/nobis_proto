@@ -1,12 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSession, getCurrentIronSession } from "@/app/lib/session";
 import { switchUserRole } from "@/app/services/auth/auth.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  let session;
   try {
     // 현재 세션 확인
-    const session = await getSession();
-    
+    session = await getSession();
+
     if (!session || !session.id || !session.role || !session.roleId) {
       return NextResponse.json(
         { error: "인증이 필요합니다" },
@@ -51,7 +53,16 @@ export async function POST() {
     });
 
   } catch (error) {
-    console.error("Role switch API error:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "AUTH_004",
+      userId: session?.id,
+      metadata: {
+        action: "roleSwitch",
+        currentRole: session?.role,
+      },
+      tags: ["auth", "role-switch"],
+    });
+
     return NextResponse.json(
       { error: "역할 전환 중 오류가 발생했습니다" },
       { status: 500 }

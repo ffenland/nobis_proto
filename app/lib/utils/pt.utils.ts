@@ -164,3 +164,49 @@ export function calculatePtStatus(
     return { text: "알 수 없음", variant: "default" as const };
   }
 }
+
+// Lesson 상태 타입 정의
+export type LessonState = "scheduled" | "in-progress" | "completed" | "absence";
+
+/**
+ * Lesson의 상태를 계산하는 함수
+ *
+ * @param scheduledAt - lesson.scheduledAt (수업 시작 시간)
+ * @param endAt - lesson.endAt (수업 종료 시간)
+ * @param validRecordsCount - lessonRecord.deletedAt이 null인 레코드의 개수
+ * @param targetDate - 상태를 체크하는 시점의 Date (기본값: new Date())
+ * @returns LessonState - "scheduled" | "in-progress" | "completed" | "absence"
+ */
+export function calculateLessonState(
+  scheduledAt: Date | string,
+  endAt: Date | string,
+  validRecordsCount: number,
+  targetDate?: Date
+): LessonState {
+  const target = targetDate ?? new Date();
+  const scheduled = new Date(scheduledAt);
+  const end = new Date(endAt);
+
+  // 1. 수업이 진행 중인 경우
+  if (scheduled <= target && target <= end) {
+    return "in-progress";
+  }
+
+  // 2. 수업이 아직 시작되지 않은 경우
+  if (target < scheduled) {
+    return "scheduled";
+  }
+
+  // 3. 수업이 종료된 경우
+  if (end < target) {
+    // 3-1. 기록이 없으면 불참
+    if (validRecordsCount === 0) {
+      return "absence";
+    }
+    // 3-2. 기록이 있으면 완료
+    return "completed";
+  }
+
+  // 논리적으로 도달할 수 없지만 타입 안전성을 위해
+  return "scheduled";
+}

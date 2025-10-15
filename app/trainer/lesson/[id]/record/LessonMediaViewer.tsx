@@ -2,16 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import {
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Trash2,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
@@ -41,8 +32,6 @@ export default function LessonMediaViewer({
   onDelete,
 }: LessonMediaViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // 이미지와 비디오를 하나의 배열로 결합 (이미지 먼저, 비디오 나중에)
@@ -65,27 +54,16 @@ export default function LessonMediaViewer({
   // useCallback 함수들을 먼저 선언
   const goToPrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : allMediaItems.length - 1));
-    setIsVideoPlaying(false);
   }, [allMediaItems.length]);
 
   const goToNext = useCallback(() => {
     setCurrentIndex((prev) => (prev < allMediaItems.length - 1 ? prev + 1 : 0));
-    setIsVideoPlaying(false);
   }, [allMediaItems.length]);
-
-  const toggleVideoPlayback = useCallback(() => {
-    setIsVideoPlaying(!isVideoPlaying);
-  }, [isVideoPlaying]);
-
-  const toggleMute = useCallback(() => {
-    setIsMuted(!isMuted);
-  }, [isMuted]);
 
   // 인덱스 초기화
   useEffect(() => {
     if (isOpen) {
       setCurrentIndex(initialIndex);
-      setIsVideoPlaying(false);
     }
   }, [isOpen, initialIndex]);
 
@@ -134,34 +112,21 @@ export default function LessonMediaViewer({
         case "ArrowRight":
           goToNext();
           break;
-        case " ":
-          e.preventDefault();
-          if (isVideoItem(currentMedia)) {
-            toggleVideoPlayback();
-          }
-          break;
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [
-    isOpen,
-    currentMedia,
-    onClose,
-    goToPrevious,
-    goToNext,
-    toggleVideoPlayback,
-  ]);
+  }, [isOpen, currentMedia, onClose, goToPrevious, goToNext]);
 
   if (!isOpen || !allMediaItems.length || !currentMedia) return null;
 
   return (
     <>
       {/* 모달 오버레이 */}
-      <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center">
         {/* 헤더 */}
-        <div className="absolute top-0 left-0 right-0 z-[60] bg-black bg-opacity-50 p-4">
+        <div className="  z-[60] w-full bg-black bg-opacity-50 p-4">
           <div className="flex items-center justify-between text-white">
             <div className="flex items-center gap-4">
               <button
@@ -176,44 +141,10 @@ export default function LessonMediaViewer({
                 </div>
                 <div className="text-gray-300">
                   {currentIndex + 1} / {allMediaItems.length}
-                  {isVideoItem(currentMedia) && (
-                    <span>
-                      {" "}
-                      • {Math.floor(currentMedia.duration / 60)}:
-                      {String(Math.floor(currentMedia.duration % 60)).padStart(
-                        2,
-                        "0"
-                      )}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {isVideoItem(currentMedia) && (
-                <>
-                  <button
-                    onClick={toggleMute}
-                    className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-                  >
-                    {isMuted ? (
-                      <VolumeX className="w-5 h-5" />
-                    ) : (
-                      <Volume2 className="w-5 h-5" />
-                    )}
-                  </button>
-                  <button
-                    onClick={toggleVideoPlayback}
-                    className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-                  >
-                    {isVideoPlaying ? (
-                      <Pause className="w-5 h-5" />
-                    ) : (
-                      <Play className="w-5 h-5" />
-                    )}
-                  </button>
-                </>
-              )}
               {onDelete && (
                 <Button
                   onClick={handleDelete}
@@ -234,17 +165,13 @@ export default function LessonMediaViewer({
         </div>
 
         {/* 메인 컨텐츠 */}
-        <div className="relative w-full h-full flex items-start justify-center p-4 pt-20">
+        <div className="relative w-full flex-1 flex-col min-h-0 flex items-start justify-center ">
           {isVideoItem(currentMedia) ? (
             // 비디오 표시 - Cloudflare Stream Player 사용
-            <div className="max-w-4xl h-4/5 w-full px-5">
+            <div className="w-full flex-1 px-2 ">
               <CloudflareVideoPlayer
                 streamId={currentMedia.streamId}
-                autoplay={isVideoPlaying}
-                muted={isMuted}
                 controls={true}
-                onPlay={() => setIsVideoPlaying(true)}
-                onPause={() => setIsVideoPlaying(false)}
                 onError={(e) => {
                   console.error("비디오 로드 실패:", e);
                 }}
@@ -291,7 +218,7 @@ export default function LessonMediaViewer({
 
         {/* 하단 썸네일 네비게이션 */}
         {allMediaItems.length > 1 && (
-          <div className="absolute bottom-0 left-0 right-0 z-[60] bg-black bg-opacity-50 p-4">
+          <div className="w-full z-[60] bg-black bg-opacity-50 p-4">
             <div className="flex gap-2 justify-center overflow-x-auto max-w-full">
               {allMediaItems.map((media, index) => (
                 <button

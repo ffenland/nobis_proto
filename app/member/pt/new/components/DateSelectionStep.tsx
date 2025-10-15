@@ -6,14 +6,16 @@ import { format, addDays, startOfToday } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Button } from "@/app/components/ui/Button";
 import { CalendarDays, AlertCircle } from "lucide-react";
-import type { 
+import type {
   FitnessCentersForPtApply,
-  TrainersWithPtProgramsByCenter 
+  TrainersWithPtProgramsByCenter,
 } from "@/app/services/member/pt/pt.service";
 
 interface DateSelectionStepProps {
   selectedCenter: FitnessCentersForPtApply[number] | null;
-  selectedPt: TrainersWithPtProgramsByCenter[number]["ptProduct"][number] | null;
+  selectedPt:
+    | TrainersWithPtProgramsByCenter[number]["ptProducts"][number]
+    | null;
   selectedTrainer: TrainersWithPtProgramsByCenter[number] | null;
   onNext: (startDate: Date) => void;
 }
@@ -57,7 +59,6 @@ export default function DateSelectionStep({
 
   return (
     <div className="space-y-6">
-
       {/* 시작일 선택 안내 */}
       <div className="space-y-2">
         <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -65,7 +66,8 @@ export default function DateSelectionStep({
           PT 시작일 선택
         </h3>
         <p className="text-sm text-gray-600">
-          PT를 시작하실 날짜를 선택해주세요. 오늘부터 30일 이내의 날짜를 선택할 수 있습니다.
+          PT를 시작하실 날짜를 선택해주세요. 오늘부터 30일 이내의 날짜를 선택할
+          수 있습니다.
         </p>
       </div>
 
@@ -76,7 +78,7 @@ export default function DateSelectionStep({
             mode="single"
             selected={selectedDate}
             onSelect={(date) => {
-              console.log('날짜 선택됨:', date);
+              console.log("날짜 선택됨:", date);
               setSelectedDate(date);
             }}
             disabled={isDateDisabled}
@@ -86,10 +88,12 @@ export default function DateSelectionStep({
               root: `${defaultClassNames.root} w-full relative`,
               months: "w-full",
               month: "w-full space-y-4",
-              month_caption: "flex justify-center relative items-center mb-4 px-20",
+              month_caption:
+                "flex justify-center relative items-center mb-4 px-20",
               caption_label: "text-lg font-semibold text-gray-900",
-              nav: "flex justify-between w-full absolute top-0 left-0 right-0",
-              nav_button: "w-1/4 py-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center",
+              nav: "z-10 flex justify-between w-full absolute top-0 left-0 right-0",
+              nav_button:
+                "w-1/4 py-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center",
               nav_button_previous: "absolute left-0 top-0",
               nav_button_next: "absolute right-0 top-0",
               month_grid: "w-full",
@@ -98,11 +102,14 @@ export default function DateSelectionStep({
               weeks: "w-full",
               week: "grid grid-cols-7 w-full",
               day: "relative p-0 w-full aspect-square flex items-center justify-center",
-              day_button: "w-full h-full rounded-lg border-2 border-transparent hover:bg-gray-100 transition-colors flex items-center justify-center text-base font-medium cursor-pointer",
-              selected: "bg-blue-500 text-white hover:bg-blue-600 font-semibold",
+              day_button:
+                "w-full h-full rounded-lg border-2 border-transparent hover:bg-gray-100 transition-colors flex items-center justify-center text-base font-medium cursor-pointer",
+              selected:
+                "bg-blue-500 text-white hover:bg-blue-600 font-semibold",
               today: "bg-gray-100 font-bold text-gray-900",
               outside: "text-gray-400 opacity-50",
-              disabled: "text-gray-300 opacity-50 cursor-not-allowed hover:bg-transparent",
+              disabled:
+                "text-gray-300 opacity-50 cursor-not-allowed hover:bg-transparent",
               hidden: "invisible",
               range_start: "bg-blue-500 text-white rounded-l-lg",
               range_end: "bg-blue-500 text-white rounded-r-lg",
@@ -123,7 +130,11 @@ export default function DateSelectionStep({
                 {format(selectedDate, "yyyy년 M월 d일 (EEEE)", { locale: ko })}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                유효기간: {format(selectedDate, "yyyy년 M월 d일")} ~ {format(addDays(selectedDate, selectedPt?.expiration_period || 0), "yyyy년 M월 d일")}
+                유효기간: {format(selectedDate, "yyyy년 M월 d일")} ~{" "}
+                {format(
+                  addDays(selectedDate, selectedPt?.expiration_period || 0),
+                  "yyyy년 M월 d일"
+                )}
               </p>
             </div>
           </div>
@@ -140,7 +151,10 @@ export default function DateSelectionStep({
             </p>
             <ul className="text-xs text-yellow-700 space-y-1">
               <li>• 선택하신 날짜부터 PT가 시작됩니다.</li>
-              <li>• 시작일부터 {selectedPt?.expiration_period}일 이내에 모든 수업을 완료해야 합니다.</li>
+              <li>
+                • 시작일부터 {selectedPt?.expiration_period}일 이내에 모든
+                수업을 완료해야 합니다.
+              </li>
               <li>• 구체적인 수업 일정은 트레이너님과 협의하여 결정됩니다.</li>
             </ul>
           </div>

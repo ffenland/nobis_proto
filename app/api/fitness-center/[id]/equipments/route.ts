@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { 
+import {
   getCenterEquipments,
-  createEquipments,
-  type CreateEquipmentInput 
+  createEquipment,
+  type CreateEquipmentInput,
 } from "@/app/services/fitness-center/equipment.service";
 
 type Params = Promise<{ id: string }>;
@@ -51,26 +51,20 @@ export async function POST(
 
     // 권한 확인 - MANAGER만 Equipment 생성 가능
     if (sessionOrResponse.role !== "MANAGER") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body: CreateEquipmentInput = await request.json();
 
-    // 입력 검증
-    if (!body.groupId || !body.primaryValues || body.primaryValues.length === 0) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+    // 입력 검증 - title만 필수
+    if (!body.title || !body.title.trim()) {
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
     // Equipment 생성
-    const createdEquipments = await createEquipments(centerId, body);
-    
-    return NextResponse.json(createdEquipments, { status: 201 });
+    const createdEquipment = await createEquipment(centerId, body);
+
+    return NextResponse.json(createdEquipment, { status: 201 });
   } catch (error) {
     console.error("Equipment 생성 실패:", error);
     return NextResponse.json(

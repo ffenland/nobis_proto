@@ -1,5 +1,6 @@
 import prisma from "@/app/lib/prisma";
 import { PtState } from "@prisma/client";
+import { calculateLessonState } from "@/app/lib/utils/pt.utils";
 
 // === PT List 관련 서비스 ===
 
@@ -195,8 +196,7 @@ export async function getTrainerPtList(trainerId: string) {
 
   // 통계 계산
   const stats = {
-    total: allPts.length,
-    active: confirmedPtsData.filter((pt) => pt.status === "active").length,
+    active: confirmedPtsData.length, // 진행 중인 PT 전체 (종료임박 포함)
     closingSoon: confirmedPtsData.filter((pt) => pt.status === "closing_soon")
       .length,
     completed: finishedPtsData.length,
@@ -213,6 +213,61 @@ export type GetTrainerPtListResult = Awaited<
   ReturnType<typeof getTrainerPtList>
 >;
 
+// === 종료된 PT 목록 조회 (월별) ===
+export async function getTrainerClosedPtList(
+  trainerId: string,
+  yMonth: string
+) {
+  // yMonth(YYYYMM)에서 년, 월 추출
+  const year = parseInt(yMonth.substring(0, 4));
+  const month = parseInt(yMonth.substring(4, 6));
+
+  // 해당 월의 시작일과 종료일 계산
+  const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+  const closedPts = await prisma.pt.findMany({
+    where: {
+      trainerId,
+      state: {
+        in: [PtState.FINISHED, PtState.REFUNDED, PtState.REJECTED],
+      },
+      stateUpdatedAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    select: {
+      id: true,
+      state: true,
+      stateUpdatedAt: true,
+      member: {
+        select: {
+          user: {
+            select: {
+              username: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      stateUpdatedAt: "desc",
+    },
+  });
+
+  return closedPts.map((pt) => ({
+    id: pt.id,
+    state: pt.state,
+    stateUpdatedAt: pt.stateUpdatedAt,
+    memberName: pt.member?.user.username || "탈퇴한 사용자",
+  }));
+}
+
+export type GetTrainerClosedPtListResult = Awaited<
+  ReturnType<typeof getTrainerClosedPtList>
+>;
+
 // ===== PT 상세 관련 함수 =====
 
 // PT 상세 조회 서비스 함수
@@ -227,7 +282,17 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
       id: true,
       state: true,
       startDate: true,
-      paymentAmount: true,
+      expirationDate: true,
+      payment: {
+        select: {
+          amount: true,
+          discount: true,
+          paidAt: true,
+          state: true,
+          refundedAt: true,
+          method: true,
+        },
+      },
       description: true,
       goals: true, // PT 목표 가져오기
       member: {
@@ -280,26 +345,52 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
   }
 
   // 현재 날짜
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now = new Date();
 
-  // 완료된 레슨과 불참 레슨 계산
-  const completedLessons = pt.lessons.filter((l) => l.records.length > 0);
-  const pastLessons = pt.lessons.filter((l) => {
-    const lessonDate = new Date(l.scheduledAt);
-    return lessonDate < today;
-  });
-  const absentLessons = pastLessons.filter((l) => l.records.length === 0);
+  // 취소되지 않은 레슨들의 상태 계산
+  const nonCanceledLessons = pt.lessons.filter((l) => !l.isCanceled);
+  const lessonStates = nonCanceledLessons.map((lesson) =>
+    calculateLessonState(
+      lesson.scheduledAt,
+      lesson.endAt,
+      lesson.records.length,
+      now
+    )
+  );
 
-  // 현재 레슨 번호 (완료된 레슨 수)
-  const currentLesson = completedLessons.length;
+  // 상태별 레슨 카운트
+  const completedCount = lessonStates.filter((s) => s === "completed").length;
+  const absentCount = lessonStates.filter((s) => s === "absence").length;
+  const scheduledCount = lessonStates.filter((s) => s === "scheduled").length;
+  const inProgressCount = lessonStates.filter(
+    (s) => s === "in-progress"
+  ).length;
+
+  // 현재 진행된 레슨 번호 = 완료 + 불참 (취소 제외한 모든 과거 레슨)
+  const currentLesson = completedCount + absentCount;
+
+  // 남은 레슨 횟수 = 전체 - 진행된 레슨
   const remainingLessons = pt.ptProduct.totalCount - currentLesson;
+
+  // 실질적 완료 여부 체크
+  const hasNoFutureLessons = scheduledCount === 0 && inProgressCount === 0;
+  const allLessonsAccountedFor =
+    nonCanceledLessons.length >= pt.ptProduct.totalCount;
+  const isActuallyCompleted = hasNoFutureLessons && allLessonsAccountedFor;
 
   // PT 상태 결정
   let status: "active" | "closing_soon" | "completed" | "paused";
-  if (pt.state === PtState.FINISHED || remainingLessons === 0) {
+  let needsStateUpdate = false; // DB 상태 업데이트 필요 여부
+
+  if (isActuallyCompleted) {
     status = "completed";
-  } else if (remainingLessons <= 3) {
+    // pt.state가 FINISHED가 아니면 업데이트 필요
+    if (pt.state !== PtState.FINISHED) {
+      needsStateUpdate = true;
+    }
+  } else if (pt.state === PtState.FINISHED) {
+    status = "completed";
+  } else if (remainingLessons <= 3 && remainingLessons > 0) {
     status = "closing_soon";
   } else if (pt.state === PtState.REJECTED) {
     status = "paused";
@@ -307,19 +398,20 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
     status = "active";
   }
 
-  // 만료일 계산 (시작일 + 3개월)
-  const expiryDate = new Date(pt.startDate);
-  expiryDate.setMonth(expiryDate.getMonth() + 3);
+  // 다음 레슨 찾기 (예정된 레슨 중 가장 빠른 것)
+  const scheduledLessonsWithIndex = nonCanceledLessons
+    .map((lesson, index) => ({
+      lesson,
+      state: lessonStates[index],
+    }))
+    .filter((item) => item.state === "scheduled")
+    .sort(
+      (a, b) =>
+        new Date(a.lesson.scheduledAt).getTime() -
+        new Date(b.lesson.scheduledAt).getTime()
+    );
 
-  // 다음 레슨 찾기
-  const futureLessons = pt.lessons.filter((l) => {
-    const lessonDate = new Date(l.scheduledAt);
-    return lessonDate >= today && l.records.length === 0;
-  });
-  const nextLessonData = futureLessons.sort(
-    (a, b) =>
-      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-  )[0];
+  const nextLessonData = scheduledLessonsWithIndex[0]?.lesson;
 
   const nextLesson = nextLessonData
     ? (() => {
@@ -336,21 +428,18 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
 
   // 레슨 데이터 변환
   const lessons = pt.lessons.map((lesson, index) => {
-    const hasRecords = lesson.records.length > 0;
-    const lessonDate = new Date(lesson.scheduledAt);
-    const isPast = lessonDate < today;
-
-    // 레슨 상태 결정
-    let lessonStatus: "completed" | "absent" | "scheduled" | "cancelled";
-    if (hasRecords) {
-      lessonStatus = "completed";
-    } else if (isPast) {
-      lessonStatus = "absent";
-    } else {
-      lessonStatus = "scheduled";
-    }
+    // 취소된 레슨은 상태를 "cancelled"로 설정
+    const lessonStatus = lesson.isCanceled
+      ? ("cancelled" as const)
+      : calculateLessonState(
+          lesson.scheduledAt,
+          lesson.endAt,
+          lesson.records.length,
+          now
+        );
 
     // 시간 계산
+    const lessonDate = new Date(lesson.scheduledAt);
     const startHours = lessonDate.getHours();
     const startMinutes = lessonDate.getMinutes();
     const startTime = startHours * 100 + startMinutes; // HHMM 형식의 number
@@ -369,17 +458,38 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
       status: lessonStatus,
       memo: lesson.memo || null,
       recordCount: lesson.records.length,
-      isCanceled: lesson.isCanceled,
       managerCheckedAt: lesson.managerCheckedAt,
     };
   });
 
+  // 24시간 이내 수업 임박 계산 (이미 계산된 lessonStates 사용)
+  const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const upcomingLessons = nonCanceledLessons.filter((lesson, index) => {
+    const lessonDate = new Date(lesson.scheduledAt);
+    const state = lessonStates[index];
+    return (
+      state === "scheduled" &&
+      lessonDate > now &&
+      lessonDate <= twentyFourHoursFromNow
+    );
+  });
+  const scheduledLessonsForStats = nonCanceledLessons.filter(
+    (lesson, index) => {
+      const lessonDate = new Date(lesson.scheduledAt);
+      const state = lessonStates[index];
+      return state === "scheduled" && lessonDate > twentyFourHoursFromNow;
+    }
+  );
+
   // 통계 계산
-  const totalCompleted = completedLessons.length;
-  const totalAbsent = absentLessons.length;
+  const totalCompleted = completedCount;
+  const totalAbsent = absentCount;
+  const totalUpcoming = upcomingLessons.length;
+  const totalScheduled = scheduledLessonsForStats.length;
+  const totalPastLessons = completedCount + absentCount;
   const attendanceRate =
-    pastLessons.length > 0
-      ? Math.round((totalCompleted / pastLessons.length) * 100)
+    totalPastLessons > 0
+      ? Math.round((totalCompleted / totalPastLessons) * 100)
       : 100;
 
   // 평균 레코드 수 계산
@@ -408,6 +518,16 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
   // 최근 InBody 데이터 (실제로는 별도 테이블에서 조회)
   const latestInbody = null; // TODO: InBody 테이블 구현 후 연동
 
+  // 결제 정보
+  const payment = {
+    method: pt.payment?.method ?? "NONE",
+    discount: pt.payment?.discount ?? 0,
+    amount: pt.payment?.amount ?? 0,
+    state: pt.payment?.state ?? "PENDING",
+    paidAt: pt.payment?.paidAt ?? null,
+    refundedAt: pt.payment?.refundedAt ?? null,
+  };
+
   return {
     id: pt.id,
     memberName: pt.member?.user.username || "탈퇴한 회원",
@@ -421,22 +541,27 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
       sessionTime: pt.ptProduct.time, // time을 sessionTime으로 매핑
       price: pt.ptProduct.price,
     },
-    status,
-    startDate: new Date(pt.startDate).toISOString().split("T")[0],
+    state: pt.state, // DB의 실제 PT 상태 (PENDING, CONFIRMED, FINISHED, REJECTED, REFUNDED)
+    status, // 계산된 UI 표시용 상태 (active, closing_soon, completed, paused)
+    needsStateUpdate, // DB 상태 업데이트 필요 여부
+    startDate: pt.startDate,
     currentLesson,
     remainingLessons,
-    expiryDate: expiryDate.toISOString().split("T")[0],
+    expiryDate: pt.expirationDate,
     nextLesson,
     lessons,
     stats: {
       totalCompleted,
       totalAbsent,
+      totalUpcoming,
+      totalScheduled,
       attendanceRate,
       averageRecords,
     },
     memberGoals,
     trainerNotes,
     latestInbody,
+    payment,
   };
 }
 
@@ -496,19 +621,6 @@ export async function rejectPt(
   trainerId: string,
   reason: string
 ) {
-  // KST 시간 생성 (한국 시간 기준)
-  const now = new Date();
-  const kstTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-
-  // "2025년 01월 15일 14시 30분" 형식으로 변환
-  const year = kstTime.getFullYear();
-  const month = String(kstTime.getMonth() + 1).padStart(2, "0");
-  const day = String(kstTime.getDate()).padStart(2, "0");
-  const hours = String(kstTime.getHours()).padStart(2, "0");
-  const minutes = String(kstTime.getMinutes()).padStart(2, "0");
-
-  const schedule = `${year}년 ${month}월 ${day}일 ${hours}시 ${minutes}분`;
-
   // 트랜잭션으로 PT 상태 변경과 거절 정보 생성을 동시에 처리
   const result = await prisma.$transaction(async (tx) => {
     // PT 상태를 REJECTED로 변경
@@ -537,11 +649,12 @@ export async function rejectPt(
     });
 
     // PtRejectInfo 생성
-    const rejectInfo = await tx.ptRejectInfo.create({
+    const rejectInfo = await tx.ptChangeInfo.create({
       data: {
         ptId,
         reason,
-        schedule,
+        type: "REJECT",
+        changeAt: new Date(),
       },
     });
 
@@ -717,9 +830,11 @@ export async function createLessonWithPtApproval(
       }
 
       // 2. PT 승인 (PENDING → CONFIRMED)
-      const expirationDate = new Date();
-      expirationDate.setDate(
-        expirationDate.getDate() + pt.ptProduct.expiration_period
+      const lessonStartDate = new Date(scheduledAt);
+      lessonStartDate.setHours(0, 0, 0, 0);
+      const expirationDate = new Date(
+        lessonStartDate.getTime() +
+          pt.ptProduct.expiration_period * 24 * 60 * 60 * 1000
       );
       const approvedPt = await tx.pt.update({
         where: { id: ptId },
@@ -840,19 +955,26 @@ export async function getSurveyQuestions() {
 }
 
 // PT 생성용 Member 목록 조회 (최근 50명 + 검색)
-export async function getMembersForPtCreation(
-  trainerId: string,
-  searchQuery?: string
-) {
+export async function getMembersForPtCreation(searchQuery?: string) {
   // 검색 조건 설정
   const whereCondition = {
     active: true,
     ...(searchQuery && {
       user: {
-        username: {
-          contains: searchQuery,
-          mode: "insensitive" as const,
-        },
+        OR: [
+          {
+            username: {
+              contains: searchQuery.trim(),
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            realname: {
+              contains: searchQuery.trim(),
+              mode: "insensitive" as const,
+            },
+          },
+        ],
       },
     }),
   };
@@ -866,6 +988,7 @@ export async function getMembersForPtCreation(
         select: {
           id: true,
           username: true,
+          realname: true,
           email: true,
           mobile: true,
           avatarImageId: true,
@@ -899,6 +1022,7 @@ export async function getMemberDetailsForPtCreation(memberId: string) {
         select: {
           id: true,
           username: true,
+          realname: true,
           email: true,
           mobile: true,
           createdAt: true,
@@ -943,14 +1067,14 @@ export async function getMemberDetailsForPtCreation(memberId: string) {
   }
 
   // CONFIRMED 상태의 PT는 상세 정보와 함께
-  const confirmedPts = member.pt.filter(pt => pt.state === 'CONFIRMED');
+  const confirmedPts = member.pt.filter((pt) => pt.state === "CONFIRMED");
 
   // 다른 상태들은 count만
   const stateCounts = {
-    PENDING: member.pt.filter(pt => pt.state === 'PENDING').length,
-    REJECTED: member.pt.filter(pt => pt.state === 'REJECTED').length,
-    FINISHED: member.pt.filter(pt => pt.state === 'FINISHED').length,
-    ACCEPTING: member.pt.filter(pt => pt.state === 'ACCEPTING').length,
+    PENDING: member.pt.filter((pt) => pt.state === "PENDING").length,
+    REJECTED: member.pt.filter((pt) => pt.state === "REJECTED").length,
+    FINISHED: member.pt.filter((pt) => pt.state === "FINISHED").length,
+    ACCEPTING: member.pt.filter((pt) => pt.state === "ACCEPTING").length,
   };
 
   return {
@@ -965,12 +1089,17 @@ export async function getPtProductsForTrainer(trainerId: string) {
   const trainer = await prisma.trainer.findUnique({
     where: { id: trainerId },
     select: {
-      level: true,
+      levelId: true,
     },
   });
 
   if (!trainer) {
     throw new Error("트레이너를 찾을 수 없습니다.");
+  }
+
+  // 트레이너 레벨이 없는 경우 빈 배열 반환
+  if (!trainer.levelId) {
+    return [];
   }
 
   const ptProducts = await prisma.ptProduct.findMany({
@@ -979,9 +1108,9 @@ export async function getPtProductsForTrainer(trainerId: string) {
       closedAt: {
         gt: new Date(),
       },
-      trainer: {
+      trainerLevels: {
         some: {
-          id: trainerId,
+          trainerLevelId: trainer.levelId,
         },
       },
     },
@@ -1111,7 +1240,6 @@ export async function createDirectPt(
           expirationDate,
           description: data.description,
           goals: data.goals,
-          paymentAmount: ptProduct.price,
           stateUpdatedAt: new Date(),
         },
         select: {
@@ -1225,7 +1353,6 @@ export async function createPendingPt(
         startDate: new Date(), // 임시 시작일 (나중에 업데이트)
         description: data.description,
         goals: data.goals,
-        paymentAmount: ptProduct.price,
         stateUpdatedAt: new Date(),
       },
       select: {
@@ -1453,6 +1580,8 @@ export interface UpdatePendingPtInput {
   description?: string;
   goals?: string;
   contractImageIds?: string[]; // 계약서 이미지 ID 배열
+  memberUserId?: string; // member의 user.id
+  memberRealname?: string; // member의 실명
 }
 
 // 첫 레슨 생성용 타입
@@ -1514,7 +1643,6 @@ export async function createTrainerPt(input: CreateTrainerPtInput) {
         expirationDate: new Date(
           Date.now() + ptProduct.expiration_period * 24 * 60 * 60 * 1000
         ),
-        paymentAmount: ptProduct.price,
         stateUpdatedAt: new Date(),
       },
       select: {
@@ -1624,7 +1752,9 @@ export async function getPendingPtDetail(ptId: string, trainerId: string) {
         select: {
           user: {
             select: {
+              id: true,
               username: true,
+              realname: true,
               email: true,
               mobile: true,
               avatarImageId: true,
@@ -1639,6 +1769,17 @@ export async function getPendingPtDetail(ptId: string, trainerId: string) {
           totalCount: true,
           time: true,
           description: true,
+        },
+      },
+      payment: {
+        select: {
+          amount: true,
+          discount: true,
+          method: true,
+          id: true,
+          notes: true,
+          paidAt: true,
+          state: true,
         },
       },
     },
@@ -1835,6 +1976,101 @@ export async function confirmPtWithFirstLesson(
   }
 }
 
+// === PT Payment 관련 서비스 ===
+
+// PtPayment 생성
+export async function createPtPayment(data: {
+  ptId: string;
+  method: string;
+  amount: number;
+  discount: number;
+  state: string;
+  paidAt?: Date | string;
+  notes: string;
+}) {
+  const { ptId, method, amount, discount, state, paidAt, notes } = data;
+
+  // PT 존재 확인
+  const pt = await prisma.pt.findUnique({
+    where: { id: ptId },
+    select: {
+      id: true,
+      state: true,
+      payment: true, // 이미 결제 정보가 있는지 확인
+    },
+  });
+
+  if (!pt) {
+    throw new Error("PT를 찾을 수 없습니다");
+  }
+
+  // 이미 결제 정보가 있는지 확인
+  if (pt.payment) {
+    throw new Error("이미 결제 정보가 존재합니다");
+  }
+
+  // 결제 정보 생성
+  const payment = await prisma.ptPayment.create({
+    data: {
+      ptId,
+      method,
+      amount,
+      discount,
+      state,
+      paidAt: state === "COMPLETED" && paidAt ? new Date(paidAt) : undefined,
+      notes,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return payment;
+}
+
+// PtPayment 업데이트
+export async function updatePtPayment(
+  paymentId: string,
+  data: {
+    method: string;
+    amount: number;
+    discount: number;
+    state: string;
+    paidAt?: Date | string;
+    notes: string;
+  }
+) {
+  const { method, amount, discount, state, paidAt, notes } = data;
+
+  // 결제 정보 존재 확인
+  const existingPayment = await prisma.ptPayment.findUnique({
+    where: { id: paymentId },
+    select: { id: true },
+  });
+
+  if (!existingPayment) {
+    throw new Error("결제 정보를 찾을 수 없습니다");
+  }
+
+  // 결제 정보 업데이트
+  const payment = await prisma.ptPayment.update({
+    where: { id: paymentId },
+    data: {
+      method,
+      amount,
+      discount,
+      state,
+      paidAt: state === "COMPLETED" && paidAt ? new Date(paidAt) : undefined,
+      notes,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return payment;
+}
+
 // 새로운 타입 정의들
 export type CreateTrainerPtResult = Awaited<ReturnType<typeof createTrainerPt>>;
 export type GetTrainerAcceptingPendingPtsResult = Awaited<
@@ -1850,3 +2086,459 @@ export type ConfirmPtWithFirstLessonResult = Awaited<
 export type GetMemberDetailsForPtCreationResult = Awaited<
   ReturnType<typeof getMemberDetailsForPtCreation>
 >;
+export type CreatePtPaymentResult = Awaited<ReturnType<typeof createPtPayment>>;
+export type UpdatePtPaymentResult = Awaited<ReturnType<typeof updatePtPayment>>;
+
+// === PT 결제 수정 관련 ===
+export async function getPtPaymentForEdit(ptId: string, trainerId: string) {
+  const payment = await prisma.ptPayment.findFirst({
+    where: {
+      ptId,
+      pt: {
+        trainerId,
+      },
+    },
+    select: {
+      id: true,
+      amount: true,
+      deduction: true,
+      refundAmount: true,
+      discount: true,
+      method: true,
+      state: true,
+      paidAt: true,
+      refundedAt: true,
+      notes: true,
+      pt: {
+        select: {
+          id: true,
+          state: true,
+          ptProduct: {
+            select: {
+              title: true,
+              price: true,
+            },
+          },
+          member: {
+            select: {
+              user: {
+                select: {
+                  username: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    throw new Error("결제 정보를 찾을 수 없습니다");
+  }
+
+  return payment;
+}
+
+export async function updatePtPaymentWithAudit(params: {
+  paymentId: string;
+  trainerId: string;
+  trainerName: string;
+  updateData: {
+    amount?: number;
+    discount?: number;
+    deduction?: number;
+    refundAmount?: number;
+    method?: string;
+    state?: string;
+    paidAt?: Date | null;
+    refundedAt?: Date | null;
+    notes?: string;
+  };
+  reason: string;
+}) {
+  const { paymentId, trainerId, trainerName, updateData, reason } = params;
+
+  // 기존 데이터 조회
+  const existingPayment = await prisma.ptPayment.findFirst({
+    where: {
+      id: paymentId,
+      pt: {
+        trainerId,
+      },
+    },
+  });
+
+  if (!existingPayment) {
+    throw new Error("수정 권한이 없거나 결제 정보를 찾을 수 없습니다");
+  }
+
+  // 결제 정보 업데이트
+  const updatedPayment = await prisma.ptPayment.update({
+    where: { id: paymentId },
+    data: updateData,
+    select: {
+      id: true,
+      amount: true,
+      discount: true,
+      deduction: true,
+      refundAmount: true,
+      method: true,
+      state: true,
+      paidAt: true,
+      refundedAt: true,
+      notes: true,
+    },
+  });
+
+  // 감사 로그 생성
+  const { createAuditLog } = await import(
+    "@/app/services/audit/audit-log.service"
+  );
+
+  await createAuditLog({
+    tableName: "PtPayment",
+    recordId: paymentId,
+    action: "UPDATE",
+    previousData: existingPayment,
+    newData: updatedPayment,
+    changedBy: trainerId,
+    changedByRole: "TRAINER",
+    changedByName: trainerName,
+    reason,
+    tags: ["payment", "pt", "manual-update"],
+  });
+
+  return updatedPayment;
+}
+
+export type GetPtPaymentForEditResult = Awaited<
+  ReturnType<typeof getPtPaymentForEdit>
+>;
+export type UpdatePtPaymentWithAuditResult = Awaited<
+  ReturnType<typeof updatePtPaymentWithAudit>
+>;
+
+// === PT 상태 관리 관련 서비스 ===
+export async function getPtStateInfo(ptId: string, trainerId: string) {
+  const pt = await prisma.pt.findFirst({
+    where: {
+      id: ptId,
+      trainerId,
+    },
+    select: {
+      id: true,
+      state: true,
+      startDate: true,
+      member: {
+        select: {
+          user: {
+            select: {
+              username: true,
+            },
+          },
+        },
+      },
+      payment: {
+        select: {
+          refundAmount: true,
+          state: true,
+        },
+      },
+      ptProduct: {
+        select: {
+          totalCount: true,
+        },
+      },
+      _count: {
+        select: {
+          lessons: {
+            where: {
+              isCanceled: false,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!pt) {
+    throw new Error("PT 정보를 찾을 수 없습니다");
+  }
+
+  return {
+    id: pt.id,
+    state: pt.state,
+    startDate: pt.startDate,
+    memberName: pt.member?.user.username,
+    refundAmount: pt.payment?.refundAmount,
+    paymentState: pt.payment?.state,
+    isLessonCountFull: pt._count.lessons === pt.ptProduct.totalCount,
+  };
+}
+
+export type GetPtStateInfoResult = Awaited<ReturnType<typeof getPtStateInfo>>;
+
+// PT 일시정지 처리 (예약 가능)
+export async function pausePt(
+  ptId: string,
+  trainerId: string,
+  startDate: Date,
+  endDate: Date,
+  reason: string,
+  sessionId: string,
+  trainerUsername: string
+) {
+  // 날짜 차이 계산 (일 단위)
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  const diffTime = end.getTime() - start.getTime();
+  const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // 시작일 포함
+
+  // 트랜잭션으로 처리
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. PT 조회 및 권한 확인
+    const pt = await tx.pt.findFirst({
+      where: {
+        id: ptId,
+        trainerId,
+        state: PtState.CONFIRMED,
+      },
+      select: {
+        id: true,
+        extraDays: true,
+        pauseCount: true,
+      },
+    });
+
+    if (!pt) {
+      throw new Error("진행 중인 PT를 찾을 수 없습니다");
+    }
+
+    // 2. PtPause 레코드 생성 (PT state는 CONFIRMED 유지)
+    const ptPause = await tx.ptPause.create({
+      data: {
+        ptId,
+        startDate: start,
+        endDate: end,
+        reason,
+        days,
+        isActive: true,
+      },
+    });
+
+    // 3. PT의 extraDays, pauseCount 업데이트 (state는 변경하지 않음)
+    const updatedPt = await tx.pt.update({
+      where: { id: ptId },
+      data: {
+        extraDays: pt.extraDays + days,
+        pauseCount: pt.pauseCount + 1,
+      },
+      select: {
+        id: true,
+        state: true,
+        extraDays: true,
+        pauseCount: true,
+      },
+    });
+
+    // 4. AuditLog 생성 (매니저 보고용)
+    await tx.auditLog.create({
+      data: {
+        tableName: "PtPause",
+        recordId: ptPause.id,
+        action: "CREATE",
+        newData: {
+          ptId,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          reason,
+          days,
+        },
+        changedBy: sessionId,
+        changedByRole: "TRAINER",
+        changedByName: trainerUsername,
+        reason: "Pt 일시정지가 처리되었습니다",
+        tags: ["pt", "ptPause"],
+      },
+    });
+
+    return {
+      pt: updatedPt,
+      pause: ptPause,
+      pauseDays: days,
+    };
+  });
+
+  return result;
+}
+
+export type PausePtResult = Awaited<ReturnType<typeof pausePt>>;
+
+// PT 일시정지 정보 조회
+export async function getPtPauseInfo(ptId: string, trainerId: string) {
+  // 오늘 날짜 (시간 0으로 설정)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const pt = await prisma.pt.findFirst({
+    where: {
+      id: ptId,
+      trainerId,
+    },
+    select: {
+      id: true,
+      expirationDate: true,
+      extraDays: true,
+      pauseCount: true,
+      pause: {
+        where: {
+          endDate: {
+            gte: today,
+          },
+          isActive: true,
+        },
+        select: {
+          id: true,
+          startDate: true,
+          endDate: true,
+          reason: true,
+          days: true,
+        },
+        orderBy: {
+          startDate: "asc",
+        },
+      },
+    },
+  });
+
+  if (!pt) {
+    throw new Error("PT 정보를 찾을 수 없습니다");
+  }
+
+  return {
+    expirationDate: pt.expirationDate,
+    extraDays: pt.extraDays,
+    pauseCount: pt.pauseCount,
+    activePauses: pt.pause,
+  };
+}
+
+export type GetPtPauseInfoResult = Awaited<ReturnType<typeof getPtPauseInfo>>;
+
+// PT 상태를 FINISHED로 변경 (수동 완료처리)
+export async function updatePtStateToFinished(ptId: string, trainerId: string) {
+  // 1. PT 조회 및 권한 확인
+  const pt = await prisma.pt.findFirst({
+    where: {
+      id: ptId,
+      trainerId,
+    },
+    select: {
+      id: true,
+      state: true,
+      ptProduct: {
+        select: {
+          totalCount: true,
+        },
+      },
+      _count: {
+        select: {
+          lessons: {
+            where: {
+              isCanceled: false,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!pt) {
+    throw new Error("PT 정보를 찾을 수 없습니다");
+  }
+
+  // 2. 상태 검증
+  if (pt.state !== PtState.CONFIRMED) {
+    throw new Error("진행중인 PT만 완료 처리할 수 있습니다");
+  }
+
+  // 3. 레슨 횟수 검증
+  if (pt._count.lessons < pt.ptProduct.totalCount) {
+    throw new Error("모든 레슨이 등록되지 않았습니다");
+  }
+
+  // 4. PT 상태 변경
+  const updatedPt = await prisma.pt.update({
+    where: { id: ptId },
+    data: {
+      state: PtState.FINISHED,
+      stateUpdatedAt: new Date(),
+    },
+    select: {
+      id: true,
+      state: true,
+      stateUpdatedAt: true,
+    },
+  });
+
+  return updatedPt;
+}
+
+export type UpdatePtStateToFinishedResult = Awaited<
+  ReturnType<typeof updatePtStateToFinished>
+>;
+
+// PT 상태를 REFUNDED으로 변경 (환불 완료 후)
+export async function updatePtStateToRefunded(ptId: string, trainerId: string) {
+  // 1. PT 조회 및 권한 확인
+  const pt = await prisma.pt.findFirst({
+    where: {
+      id: ptId,
+      trainerId,
+    },
+    select: {
+      id: true,
+      state: true,
+      payment: {
+        select: {
+          refundedAt: true,
+          refundAmount: true,
+        },
+      },
+    },
+  });
+
+  if (!pt) {
+    throw new Error("PT 정보를 찾을 수 없습니다");
+  }
+
+  // 2. 상태 검증
+  if (pt.state !== PtState.CONFIRMED) {
+    throw new Error("진행중인 PT만 중도해지 처리할 수 있습니다");
+  }
+
+  // 3. 환불 정보 검증
+  if (!pt.payment?.refundedAt || !pt.payment?.refundAmount) {
+    throw new Error("환불 처리가 완료되지 않았습니다");
+  }
+
+  // 4. PT 상태 변경
+  const updatedPt = await prisma.pt.update({
+    where: { id: ptId },
+    data: {
+      state: PtState.REFUNDED,
+      stateUpdatedAt: new Date(),
+    },
+    select: {
+      id: true,
+      state: true,
+      stateUpdatedAt: true,
+    },
+  });
+
+  return updatedPt;
+}

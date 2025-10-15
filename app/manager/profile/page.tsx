@@ -121,7 +121,7 @@ const ManagerProfile = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="h-full container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

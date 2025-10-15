@@ -8,11 +8,23 @@ const ProductsPage = async () => {
   const { ptProducts, membershipProducts } = await getProductsOverviewService();
 
   return (
-    <>
+    <div className="h-full p-2">
       <PageHeader
         title="제품 관리"
         subtitle="PT 상품과 멤버십 상품을 관리합니다"
       />
+
+      {/* 운동 프로그램 관리 버튼 */}
+      <div className="mb-6 p-6 bg-gray-50 rounded-lg border border-gray-200">
+        <Link href="/manager/exercise">
+          <Button variant="outline" size="lg" className="w-full">
+            운동 프로그램 관리
+          </Button>
+        </Link>
+        <p className="text-sm text-gray-600 mt-3 text-center">
+          PT 수업에 필요한 웨이트운동, 스트레칭 운동에 대한 프리셋을 관리합니다
+        </p>
+      </div>
 
       <div className="grid grid-cols-1  gap-8">
         {/* PT 상품 섹션 */}
@@ -20,11 +32,13 @@ const ProductsPage = async () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">PT 상품</h2>
-              <Link href="/manager/product/new-pt">
-                <Button variant="primary" size="sm">
-                  새 PT 상품 추가
-                </Button>
-              </Link>
+              {ptProducts.length === 0 ? null : (
+                <Link href="/manager/product/new-pt">
+                  <Button variant="primary" size="sm">
+                    새 PT 상품 추가
+                  </Button>
+                </Link>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -32,7 +46,7 @@ const ProductsPage = async () => {
               <div className="text-center py-8">
                 <div className="text-4xl mb-4">🏋️‍♀️</div>
                 <p className="text-gray-600 mb-4">등록된 PT 상품이 없습니다</p>
-                <Link href="/manager/product/pt/new">
+                <Link href="/manager/product/new-pt">
                   <Button variant="outline">첫 PT 상품 만들기</Button>
                 </Link>
               </div>
@@ -71,9 +85,9 @@ const ProductsPage = async () => {
                           </div>
                         </div>
                         <div className="text-right text-sm text-gray-500">
-                          <div>담당 트레이너</div>
+                          <div>트레이너 레벨</div>
                           <div className="font-medium text-gray-900">
-                            {product.trainerCount}명
+                            {product.trainerLevelCount}개
                           </div>
                         </div>
                       </div>
@@ -160,7 +174,7 @@ const ProductsPage = async () => {
           </CardContent>
         </Card> */}
       </div>
-    </>
+    </div>
   );
 };
 

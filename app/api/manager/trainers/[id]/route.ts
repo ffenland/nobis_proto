@@ -60,18 +60,10 @@ export async function PUT(
     const { id } = params;
 
     const body = await request.json();
-    const { level, fitnessCenterId } = body;
+    const { fitnessCenterId } = body;
 
-    // 입력 검증
-    if (level && !["JUNIOR", "ASSOCIATE", "SENIOR", "MASTER"].includes(level)) {
-      return NextResponse.json(
-        { error: "Invalid trainer level" },
-        { status: 400 }
-      );
-    }
-
+    // 피트니스 센터만 업데이트 가능 (레벨은 레벨 관리 페이지에서만 수정)
     const updatedTrainer = await updateTrainer(id, {
-      level,
       fitnessCenterId: fitnessCenterId === "" ? null : fitnessCenterId,
     });
 

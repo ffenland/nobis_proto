@@ -18,6 +18,7 @@ import {
 import {
   SearchMembersResult,
   SearchMemberItem,
+  GetAllTrainerLevelsResult,
 } from "@/app/services/manager/manager-trainer.service";
 import ProfileImagePreview from "@/app/components/media/ProfileImagePreview";
 
@@ -36,20 +37,6 @@ const convertMutator = async (url: string, { arg }: { arg: any }) => {
   return response.json();
 };
 
-const trainerLevelLabels: Record<string, string> = {
-  JUNIOR: "주니어",
-  ASSOCIATE: "어소시에이트",
-  SENIOR: "시니어",
-  MASTER: "마스터",
-};
-
-const trainerLevelColors: Record<string, string> = {
-  JUNIOR: "bg-gray-100 text-gray-800",
-  ASSOCIATE: "bg-blue-100 text-blue-800",
-  SENIOR: "bg-green-100 text-green-800",
-  MASTER: "bg-purple-100 text-purple-800",
-};
-
 export default function NewTrainerPage() {
   const router = useRouter();
   const [inputValue, setInputValue] = useState("");
@@ -59,8 +46,9 @@ export default function NewTrainerPage() {
     null
   );
   const [formData, setFormData] = useState({
-    level: "JUNIOR" as "JUNIOR" | "ASSOCIATE" | "SENIOR" | "MASTER",
+    levelId: "",
     fitnessCenterId: "",
+    realname: "",
   });
 
   // 회원 검색
@@ -80,6 +68,10 @@ export default function NewTrainerPage() {
   // 센터 목록 조회
   const { data: centers = [] } = useSWR("/api/fitness-center", fetcher);
 
+  // 트레이너 레벨 목록 조회
+  const { data: levels = [], isLoading: levelsLoading } =
+    useSWR<GetAllTrainerLevelsResult>("/api/manager/trainers/level", fetcher);
+
   const handleSearch = () => {
     if (inputValue.trim()) {
       setIsSearching(true);
@@ -90,7 +82,7 @@ export default function NewTrainerPage() {
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSearch();
     }
   };
@@ -114,15 +106,21 @@ export default function NewTrainerPage() {
       return;
     }
 
+    if (!formData.realname.trim()) {
+      alert("실명을 입력해주세요.");
+      return;
+    }
+
     await convertToTrainer({
       userId: selectedMember.id,
-      level: formData.level,
+      realname: formData.realname.trim(),
+      levelId: formData.levelId || undefined,
       fitnessCenterId: formData.fitnessCenterId || undefined,
     });
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="h-full container mx-auto px-4 py-8 max-w-6xl">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
         <Link
@@ -149,14 +147,14 @@ export default function NewTrainerPage() {
                 <label className="label">
                   <span className="label-text">회원 이름으로 검색</span>
                 </label>
-                <div className="input-group flex items-center">
+                <div className="input-group flex items-center gap-2">
                   <input
                     type="text"
                     placeholder="회원 이름을 입력하세요"
                     className="input input-bordered flex-1"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                   />
                   <button
                     type="button"
@@ -201,7 +199,13 @@ export default function NewTrainerPage() {
                             ? "border-blue-500 bg-blue-50"
                             : "border-gray-200 hover:border-gray-300"
                         }`}
-                        onClick={() => setSelectedMember(member)}
+                        onClick={() => {
+                          setSelectedMember(member);
+                          setFormData({
+                            ...formData,
+                            realname: member.realname || "",
+                          });
+                        }}
                       >
                         <div className="flex items-center gap-3">
                           <div className="avatar placeholder">
@@ -233,6 +237,10 @@ export default function NewTrainerPage() {
                               )}
                             </div>
                             <div className="text-sm text-gray-600 flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              실명: {member.realname || "실명 미입력"}
+                            </div>
+                            <div className="text-sm text-gray-600 flex items-center gap-1">
                               <Mail className="w-3 h-3" />
                               {member.email}
                             </div>
@@ -260,7 +268,8 @@ export default function NewTrainerPage() {
 
                 {!actualSearchQuery.trim() && (
                   <div className="text-center py-8 text-gray-500">
-                    회원 이름을 입력하고 검색 버튼을 클릭하거나 Enter를 눌러주세요.
+                    회원 이름을 입력하고 검색 버튼을 클릭하거나 Enter를
+                    눌러주세요.
                   </div>
                 )}
               </div>
@@ -305,38 +314,89 @@ export default function NewTrainerPage() {
                           {selectedMember.username}
                         </div>
                         <div className="text-sm text-gray-600">
+                          실명: {selectedMember.realname || "실명 미입력"}
+                        </div>
+                        <div className="text-sm text-gray-600">
                           {selectedMember.email}
                         </div>
                       </div>
                     </div>
                   </div>
 
+                  {/* 실명 입력 */}
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text font-medium">실명 *</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="실명을 입력하세요"
+                      className="input input-bordered"
+                      value={formData.realname}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          realname: e.target.value,
+                        })
+                      }
+                      required
+                      minLength={2}
+                    />
+                    <label className="label">
+                      <span className="label-text-alt text-gray-500">
+                        트레이너로 전환 시 실명이 필요합니다.
+                      </span>
+                    </label>
+                  </div>
+
                   {/* 트레이너 레벨 */}
                   <div className="form-control">
                     <label className="label">
                       <span className="label-text font-medium">
-                        트레이너 레벨 *
+                        트레이너 레벨
                       </span>
                     </label>
-                    <select
-                      className="select select-bordered"
-                      value={formData.level}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          level: e.target.value as typeof formData.level,
-                        })
-                      }
-                      required
-                    >
-                      {Object.entries(trainerLevelLabels).map(
-                        ([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        )
-                      )}
-                    </select>
+                    {levelsLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <span className="loading loading-spinner loading-sm"></span>
+                        <span className="ml-2 text-sm text-gray-500">
+                          레벨 목록 로딩 중...
+                        </span>
+                      </div>
+                    ) : levels.length === 0 ? (
+                      <div className="alert alert-info">
+                        <span>
+                          등록된 트레이너 레벨이 없습니다. 레벨 없이 트레이너로
+                          전환됩니다.
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          className="select select-bordered"
+                          value={formData.levelId}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              levelId: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="">레벨 선택 (선택사항)</option>
+                          {levels.map((level) => (
+                            <option key={level.id} value={level.id}>
+                              {level.displayTitle}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="label">
+                          <span className="label-text-alt text-gray-500">
+                            레벨을 선택하지 않으면 레벨 없이 트레이너로
+                            전환됩니다.
+                          </span>
+                        </label>
+                      </>
+                    )}
                   </div>
 
                   {/* 피트니스 센터 */}
@@ -373,13 +433,18 @@ export default function NewTrainerPage() {
                         <User className="w-4 h-4" />
                         <span>이름: {selectedMember.username}</span>
                       </div>
+                      {formData.realname && (
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          <span>실명: {formData.realname}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            trainerLevelColors[formData.level]
-                          }`}
-                        >
-                          {trainerLevelLabels[formData.level]}
+                        <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                          {formData.levelId
+                            ? levels.find((l) => l.id === formData.levelId)
+                                ?.displayTitle || ""
+                            : "레벨 없음"}
                         </span>
                       </div>
                       {formData.fitnessCenterId && (

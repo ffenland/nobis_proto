@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
 import { getManagerCenters } from "@/app/services/manager/dashboard.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -8,22 +9,23 @@ export async function GET(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // 1. 세션 확인
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 2. 역할별 권한 확인
+  if (sessionOrResponse.role !== "MANAGER") {
+    return NextResponse.json(
+      { error: "매니저 권한이 필요합니다." },
+      { status: 403 }
+    );
+  }
+
+  // 3. 비즈니스 로직
   try {
-    // 세션 확인
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    // 매니저 권한 확인
-    if (sessionOrResponse.role !== "MANAGER") {
-      return NextResponse.json(
-        { error: "매니저 권한이 필요합니다." },
-        { status: 403 }
-      );
-    }
-
     const params = await segmentData.params;
     const { id: centerId } = params;
 
@@ -47,7 +49,16 @@ export async function GET(
       inOperation: center.inOperation,
     });
   } catch (error) {
-    console.error("Get manager center API error:", error);
+    // 4. 에러 로깅
+    await logApiError(request, error as Error, {
+      errorCode: "MANAGER_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getManagerCenter",
+      },
+      tags: ["manager", "centers"],
+    });
+
     return NextResponse.json(
       { error: "센터 정보를 불러오는 중 오류가 발생했습니다." },
       { status: 500 }

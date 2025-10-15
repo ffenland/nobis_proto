@@ -1,20 +1,24 @@
 "use client";
 
-import { useState, useEffect, KeyboardEvent } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 import { X, Plus } from "lucide-react";
 import Image from "next/image";
-import AddGroupModal from "./AddGroupModal";
-import AddBrandModal from "./AddBrandModal";
 
 type Params = Promise<{ id: string }>;
 
-// Fetcher functions
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+// Equipment 생성 데이터 타입
+interface CreateEquipmentData {
+  title: string;
+  unit?: string;
+}
 
-const createEquipmentFetcher = async (url: string, { arg }: { arg: any }) => {
+// Create equipment fetcher
+const createEquipmentFetcher = async (
+  url: string,
+  { arg }: { arg: CreateEquipmentData }
+) => {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -34,63 +38,25 @@ export default function NewEquipmentPage({ params }: { params: Params }) {
   const [centerId, setCenterId] = useState<string>("");
 
   // Form state
-  const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [selectedBrandId, setSelectedBrandId] = useState("");
-  const [primaryUnit, setPrimaryUnit] = useState("kg");
-  const [secondaryValue, setSecondaryValue] = useState("");
-  const [secondaryUnit, setSecondaryUnit] = useState("");
-  const [description, setDescription] = useState("");
-  const [model, setModel] = useState("");
+  const [title, setTitle] = useState("");
+  const [unit, setUnit] = useState("kg");
 
-  // Tag input state for primaryValues
-  const [primaryValueInput, setPrimaryValueInput] = useState("");
-  const [primaryValues, setPrimaryValues] = useState<string[]>([]);
-
-  // 이미지 상태 - simplified system
+  // 이미지 상태
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-
-  // Modal state
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
 
   // Get centerId from params
   useEffect(() => {
     params.then((p) => setCenterId(p.id));
   }, [params]);
 
-  // Fetch groups and brands
-  const { data: groups, mutate: mutateGroups } = useSWR("/api/equipments/group", fetcher);
-
-  const { data: brands, mutate: mutateBrands } = useSWR("/api/equipments/brand", fetcher);
-
   // Create equipment mutation
-  const { trigger: createEquipments } = useSWRMutation(
+  const { trigger: createEquipment } = useSWRMutation(
     centerId ? `/api/fitness-center/${centerId}/equipments` : null,
     createEquipmentFetcher
   );
-
-  // Handle tag input
-  const handleAddPrimaryValue = () => {
-    const value = primaryValueInput.trim();
-    if (value && !primaryValues.includes(value)) {
-      setPrimaryValues([...primaryValues, value]);
-      setPrimaryValueInput("");
-    }
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handleAddPrimaryValue();
-    }
-  };
-
-  const handleRemovePrimaryValue = (valueToRemove: string) => {
-    setPrimaryValues(primaryValues.filter((v) => v !== valueToRemove));
-  };
 
   // Handle adding image to selected files (preview only)
   const handleAddImage = (file: File) => {
@@ -118,93 +84,88 @@ export default function NewEquipmentPage({ params }: { params: Params }) {
     setFilePreviews((prev: string[]) => prev.filter((_, i) => i !== index));
   };
 
-
-  // Handle form submission - integrated equipment creation + image upload
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedGroupId || primaryValues.length === 0) {
-      alert("그룹과 최소 하나의 값을 입력해주세요.");
+    if (!title.trim()) {
+      alert("장비명을 입력해주세요.");
       return;
     }
 
-    // if (selectedFiles.length === 0) {
-    //   alert("장비 이미지를 선택해주세요.");
-    //   return;
-    // }
+    const confirmMessage = selectedFiles.length > 0
+      ? `${selectedFiles.length}개의 이미지와 함께 장비를 생성하시겠습니까?`
+      : `"${title}" 장비를 생성하시겠습니까?`;
 
-    const confirmCreate = window.confirm(
-      `장비를 생성하시겠습니까?`
-    );
+    const confirmCreate = window.confirm(confirmMessage);
     if (!confirmCreate) return;
 
     setIsUploading(true);
 
     try {
-      // 1. Equipment 생성 단계 (이미지 없이)
+      // 1. 장비 생성 단계 (이미지 없이)
       setUploadProgress(20);
 
       const equipmentData = {
-        groupId: selectedGroupId,
-        brandId: selectedBrandId || undefined,
-        primaryValues,
-        primaryUnit,
-        secondaryValue: secondaryValue || undefined,
-        secondaryUnit: secondaryUnit || undefined,
-        description: description || undefined,
-        model: model || undefined,
+        title: title.trim(),
+        unit: unit.trim() || undefined, // 비어있으면 undefined로 전달
       };
 
-      const equipmentResult = await createEquipments(equipmentData);
+      const equipmentResult = await createEquipment(equipmentData);
+      const equipmentId = equipmentResult.id;
+
+      setUploadProgress(40);
+
+      // 2. 이미지 업로드 및 연결 단계 (이미지가 있을 때만)
+      if (selectedFiles.length > 0) {
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const file = selectedFiles[i];
+          setUploadProgress(40 + ((i + 1) / selectedFiles.length) * 40); // 40%~80%
+
+          // Upload URL 요청
+          const uploadUrlResponse = await fetch("/api/media/images/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              entityType: "EQUIPMENT",
+              entityId: equipmentId, // 생성된 equipmentId 사용
+            }),
+          });
+          if (!uploadUrlResponse.ok) {
+            throw new Error("업로드 URL 생성에 실패했습니다.");
+          }
+          const { uploadURL, id } = await uploadUrlResponse.json();
+
+          // Cloudflare 직접 업로드
+          const formData = new FormData();
+          formData.append("file", file);
+          const uploadResponse = await fetch(uploadURL, {
+            method: "POST",
+            body: formData,
+          });
+          if (!uploadResponse.ok) {
+            throw new Error("이미지 업로드에 실패했습니다.");
+          }
+
+          // 업로드 확인 및 DB 저장 (equipmentId와 연결)
+          const confirmResponse = await fetch("/api/media/images/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              cloudflareId: id,
+              entityType: "EQUIPMENT",
+              entityId: equipmentId, // 생성된 equipmentId 사용
+            }),
+          });
+          if (!confirmResponse.ok) {
+            throw new Error("업로드 확인에 실패했습니다.");
+          }
+
+          // 이미지가 성공적으로 연결됨
+        }
+      }
 
       setUploadProgress(100);
-
-      // 2. 이미지 업로드 및 연결 단계 - 임시 주석 처리
-      // for (let i = 0; i < selectedFiles.length; i++) {
-      //   const file = selectedFiles[i];
-      //   setUploadProgress(40 + ((i + 1) / selectedFiles.length) * 40); // 40%~80%
-
-      //   // Upload URL 요청
-      //   const uploadUrlResponse = await fetch("/api/media/images/upload", {
-      //     method: "POST",
-      //     headers: { "Content-Type": "application/json" },
-      //     body: JSON.stringify({
-      //       entityType: "EQUIPMENT",
-      //       entityId: equipmentId, // 생성된 equipmentId 사용
-      //     }),
-      //   });
-      //   if (!uploadUrlResponse.ok) {
-      //     throw new Error("업로드 URL 생성에 실패했습니다.");
-      //   }
-      //   const { uploadURL, id } = await uploadUrlResponse.json();
-
-      //   // Cloudflare 직접 업로드
-      //   const formData = new FormData();
-      //   formData.append("file", file);
-      //   const uploadResponse = await fetch(uploadURL, {
-      //     method: "POST",
-      //     body: formData,
-      //   });
-      //   if (!uploadResponse.ok) {
-      //     throw new Error("이미지 업로드에 실패했습니다.");
-      //   }
-
-      //   // 업로드 확인 및 DB 저장 (equipmentId와 연결)
-      //   const confirmResponse = await fetch("/api/media/images/confirm", {
-      //     method: "POST",
-      //     headers: { "Content-Type": "application/json" },
-      //     body: JSON.stringify({
-      //       cloudflareId: id,
-      //       entityType: "EQUIPMENT",
-      //       entityId: equipmentId, // 생성된 equipmentId 사용
-      //     }),
-      //   });
-      //   if (!confirmResponse.ok) {
-      //     throw new Error("업로드 확인에 실패했습니다.");
-      //   }
-
-      //   // 이미지가 성공적으로 연결됨
-      // }
       alert("장비가 성공적으로 생성되었습니다!");
       router.push(`/manager/centers/${centerId}/equipments`);
     } catch (error) {
@@ -249,189 +210,70 @@ export default function NewEquipmentPage({ params }: { params: Params }) {
         </div>
       )}
 
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <div className="h-full container mx-auto px-4 py-8 max-w-2xl">
         <h1 className="text-2xl font-bold mb-6">새 장비 등록</h1>
 
+      {/* 사용자 안내 */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <h3 className="font-semibold text-blue-800 mb-2">장비 등록 안내</h3>
+        <div className="text-sm text-blue-700 space-y-1">
+          <p>운동에 사용되는 기구를 등록합니다. 세부적으로 등록하지 않으며 일종의 카테고리의 개념으로 등록합니다.</p>
+          <p className="font-medium">예시:</p>
+          <ul className="list-disc list-inside ml-2 space-y-1">
+            <li>덤벨의 경우: <strong>장비명 &quot;덤벨&quot;</strong>, <strong>단위 &quot;kg&quot;</strong> 또는 <strong>&quot;lb&quot;</strong></li>
+            <li>고무밴드의 경우: <strong>장비명 &quot;고무밴드&quot;</strong>, <strong>단위 비워두기</strong></li>
+          </ul>
+          <p className="text-xs mt-2 text-blue-600">
+            💡 추후 운동을 기록할 때 무게값은 직접 입력하실 수 있습니다.
+          </p>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Equipment Group */}
+        {/* Equipment Title */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text">장비 그룹 *</span>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              onClick={() => setIsGroupModalOpen(true)}
-            >
-              그룹 추가
-            </button>
-          </label>
-          <select
-            className="select select-bordered w-full"
-            value={selectedGroupId}
-            onChange={(e) => setSelectedGroupId(e.target.value)}
-            required
-          >
-            <option value="">그룹을 선택하세요</option>
-            {groups?.map((group: any) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-                {group.description && ` - ${group.description}`}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Equipment Brand */}
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text">브랜드</span>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              onClick={() => setIsBrandModalOpen(true)}
-            >
-              브랜드 추가
-            </button>
-          </label>
-          <select
-            className="select select-bordered w-full"
-            value={selectedBrandId}
-            onChange={(e) => setSelectedBrandId(e.target.value)}
-          >
-            <option value="">브랜드 선택 (선택사항)</option>
-            {brands?.map((brand: any) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Primary Values - Tag Input */}
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text">
-              값 입력 (입력후 Enter 또는 Space를 누르면 추가됩니다.)
-            </span>
-          </label>
-          <div className="flex gap-2 mb-2">
-            <input
-              type="text"
-              className="input input-bordered flex-1"
-              value={primaryValueInput}
-              onChange={(e) => setPrimaryValueInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="값을 입력하고 Enter 또는 Space를 누르세요"
-            />
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleAddPrimaryValue}
-            >
-              <Plus className="w-4 h-4" />
-              추가
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {primaryValues.map((value) => (
-              <div key={value} className="badge badge-lg gap-2">
-                <span>{value}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemovePrimaryValue(value)}
-                  className="text-error"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Primary Unit */}
-        <div className="form-control">
-          <label className="label">
-            <span className="label-text">단위 *</span>
+            <span className="label-text">장비명 *</span>
           </label>
           <input
             type="text"
             className="input input-bordered w-full"
-            value={primaryUnit}
-            onChange={(e) => setPrimaryUnit(e.target.value)}
-            placeholder="예: kg, lbs, 개"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="예: 덤벨, 순수 원판 10kg"
             required
           />
         </div>
 
-        {/* Secondary Value & Unit */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="form-control">
-            <label className="label">
-              <span className="label-text">부가 값</span>
-            </label>
-            <input
-              type="text"
-              className="input input-bordered w-full"
-              value={secondaryValue}
-              onChange={(e) => setSecondaryValue(e.target.value)}
-              placeholder="예: 30"
-            />
-          </div>
-          <div className="form-control">
-            <label className="label">
-              <span className="label-text">부가 단위</span>
-            </label>
-            <input
-              type="text"
-              className="input input-bordered w-full"
-              value={secondaryUnit}
-              onChange={(e) => setSecondaryUnit(e.target.value)}
-              placeholder="예: cm, inch"
-            />
-          </div>
-        </div>
-
-        {/* Model */}
+        {/* Equipment Unit */}
         <div className="form-control">
           <label className="label">
-            <span className="label-text">모델명</span>
+            <span className="label-text">단위</span>
+            <span className="label-text-alt text-gray-500">선택사항</span>
           </label>
           <input
             type="text"
             className="input input-bordered w-full"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="모델명 (선택사항)"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            placeholder="예: kg, lbs, 개, 대 (고무밴드처럼 단위가 없으면 비워두세요)"
           />
         </div>
 
-        {/* Description */}
+        {/* 이미지 선택 */}
         <div className="form-control">
-          <label className="label">
-            <span className="label-text">설명</span>
-          </label>
-          <textarea
-            className="textarea textarea-bordered w-full"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="장비에 대한 설명 (선택사항)"
-            rows={3}
-          />
-        </div>
-
-        {/* 이미지 선택 - 임시 주석 처리 */}
-        {/* <div className="form-control">
           <div className="flex items-center justify-between mb-2">
             <label className="label">
               <span className="label-text">
                 이미지 ({selectedFiles.length}/3)
               </span>
+              <span className="label-text-alt text-gray-500">선택사항</span>
             </label>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             {/* Selected images (preview only) */}
-            {/* {selectedFiles.map((_, index) => (
+            {selectedFiles.map((_, index) => (
               <div key={`selected-${index}`} className="relative">
                 <Image
                   src={filePreviews[index]}
@@ -454,10 +296,10 @@ export default function NewEquipmentPage({ params }: { params: Params }) {
                   </div>
                 </div>
               </div>
-            ))} */}
+            ))}
 
             {/* Add new image button */}
-            {/* {selectedFiles.length < 3 && (
+            {selectedFiles.length < 3 && (
               <div className="border-2 border-dashed border-gray-300 rounded-lg h-32">
                 <label className="cursor-pointer w-full h-full flex items-center justify-center">
                   <input
@@ -479,9 +321,9 @@ export default function NewEquipmentPage({ params }: { params: Params }) {
                   </div>
                 </label>
               </div>
-            )} */}
-          {/* </div>
-        </div> */}
+            )}
+          </div>
+        </div>
 
         {/* Submit Buttons */}
         <div className="flex gap-4">
@@ -506,24 +348,7 @@ export default function NewEquipmentPage({ params }: { params: Params }) {
           </button>
         </div>
       </form>
-
-      {/* Modals */}
-      <AddGroupModal
-        isOpen={isGroupModalOpen}
-        onClose={() => setIsGroupModalOpen(false)}
-        onSuccess={() => {
-          mutateGroups(); // 그룹 목록 새로고침
-        }}
-      />
-      
-      <AddBrandModal
-        isOpen={isBrandModalOpen}
-        onClose={() => setIsBrandModalOpen(false)}
-        onSuccess={() => {
-          mutateBrands(); // 브랜드 목록 새로고침
-        }}
-      />
-    </div>
+      </div>
     </>
   );
 }

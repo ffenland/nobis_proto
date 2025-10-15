@@ -1,5 +1,4 @@
 import prisma from "@/app/lib/prisma";
-import { TrainerLevel } from "@prisma/client";
 
 // 신규 PtProduct 생성 Input 타입
 export interface CreatePtProductInput {
@@ -10,7 +9,7 @@ export interface CreatePtProductInput {
   description: string;
   totalCount: number;
   time: number;
-  trainerLevels: TrainerLevel[];
+  trainerLevelIds: string[];
   managerId: string;
   openedAt?: Date;
   closedAt?: Date;
@@ -38,41 +37,6 @@ export async function validateManagerAccess(managerId: string) {
   return manager;
 }
 
-// 매니저가 관리하는 센터의 특정 레벨 트레이너들 조회
-export async function getTrainersByLevelsForManager(
-  managerId: string,
-  trainerLevels: TrainerLevel[]
-) {
-  // 매니저 권한 검증
-  await validateManagerAccess(managerId);
-
-  // 매니저가 관리하는 센터의 해당 레벨 트레이너들 조회
-  // 현재는 모든 센터의 트레이너에게 적용되게 함
-  const trainers = await prisma.trainer.findMany({
-    where: {
-      level: { in: trainerLevels },
-      working: true, // 활성 상태인 트레이너만
-      // fitnessCenter: {
-      //   managers: {
-      //     some: { id: managerId },
-      //   },
-      // },
-    },
-    select: {
-      id: true,
-      level: true,
-      user: {
-        select: {
-          username: true,
-        },
-      },
-    },
-    orderBy: [{ level: "asc" }, { user: { username: "asc" } }],
-  });
-
-  return trainers;
-}
-
 // 신규 PtProduct 생성
 export async function createPtProduct(input: CreatePtProductInput) {
   const {
@@ -83,7 +47,7 @@ export async function createPtProduct(input: CreatePtProductInput) {
     description,
     totalCount,
     time,
-    trainerLevels,
+    trainerLevelIds,
     managerId,
     openedAt,
     closedAt,
@@ -114,23 +78,24 @@ export async function createPtProduct(input: CreatePtProductInput) {
     throw new Error("레슨 시간은 0보다 커야 합니다.");
   }
 
+  if (trainerLevelIds.length === 0) {
+    throw new Error("최소 하나의 트레이너 레벨을 선택해주세요.");
+  }
+
   // 매니저 권한 검증
   await validateManagerAccess(managerId);
 
-  // TrainerLevel이 선택된 경우, 해당 트레이너들 조회
-  let targetTrainers: { id: string }[] = [];
+  // TrainerLevel ID 검증
+  const validLevels = await prisma.trainerLevel.findMany({
+    where: { id: { in: trainerLevelIds } },
+    select: { id: true },
+  });
 
-  if (trainerLevels.length > 0) {
-    const trainers = await getTrainersByLevelsForManager(
-      managerId,
-      trainerLevels
-    );
-    targetTrainers = trainers.map((trainer) => ({ id: trainer.id }));
-
-    // 트레이너가 없어도 PT 상품 생성 허용 (나중에 트레이너 레벨 조정 가능)
+  if (validLevels.length !== trainerLevelIds.length) {
+    throw new Error("유효하지 않은 트레이너 레벨이 포함되어 있습니다.");
   }
 
-  // PtProduct 생성
+  // PtProduct 생성 + PtProductTrainerLevel 중간 테이블 레코드 생성
   const ptProduct = await prisma.ptProduct.create({
     data: {
       title,
@@ -140,13 +105,15 @@ export async function createPtProduct(input: CreatePtProductInput) {
       description,
       totalCount,
       time,
-      trainerLevel: trainerLevels,
       openedAt: openedAt || new Date(),
       closedAt: closedAt || new Date("2199-12-31T23:59:59Z"),
       onSale: true,
-      // 트레이너와 관계 설정
-      trainer: {
-        connect: targetTrainers,
+      // 중간 테이블 레코드 생성
+      trainerLevels: {
+        create: trainerLevelIds.map((levelId) => ({
+          trainerLevelId: levelId,
+          incentiveRate: incentivePercent,
+        })),
       },
     },
     select: {
@@ -158,23 +125,20 @@ export async function createPtProduct(input: CreatePtProductInput) {
       description: true,
       totalCount: true,
       time: true,
-      trainerLevel: true,
       openedAt: true,
       closedAt: true,
       onSale: true,
       createdAt: true,
-      trainer: {
+      // 중간 테이블을 통해 연결된 TrainerLevel 정보 가져오기
+      trainerLevels: {
         select: {
           id: true,
-          level: true,
-          user: {
+          incentiveRate: true,
+          trainerLevel: {
             select: {
-              username: true,
-            },
-          },
-          fitnessCenter: {
-            select: {
+              id: true,
               title: true,
+              displayTitle: true,
             },
           },
         },
@@ -190,35 +154,38 @@ export async function getTrainerLevelStats(managerId: string) {
   // 매니저 권한 검증
   await validateManagerAccess(managerId);
 
-  // 각 트레이너 레벨별 트레이너 수 조회
-  const trainerStats = await prisma.trainer.groupBy({
-    by: ["level"],
-    where: {
-      working: true,
-      fitnessCenter: {
-        managers: {
-          some: { id: managerId },
+  // 모든 트레이너 레벨 조회
+  const allLevels = await prisma.trainerLevel.findMany({
+    select: {
+      id: true,
+      title: true,
+      displayTitle: true,
+    },
+  });
+
+  // 각 레벨별 트레이너 수 계산
+  const levelStats = await Promise.all(
+    allLevels.map(async (level) => {
+      const count = await prisma.trainer.count({
+        where: {
+          levelId: level.id,
+          working: true,
+          fitnessCenter: {
+            managers: {
+              some: { id: managerId },
+            },
+          },
         },
-      },
-    },
-    _count: {
-      level: true,
-    },
-    orderBy: {
-      level: "asc",
-    },
-  });
+      });
 
-  // 모든 TrainerLevel에 대해 통계 생성 (0개인 레벨도 포함)
-  const allLevels: TrainerLevel[] = ["JUNIOR", "ASSOCIATE", "SENIOR", "MASTER"];
-
-  const levelStats = allLevels.map((level) => {
-    const stat = trainerStats.find((s) => s.level === level);
-    return {
-      level,
-      count: stat?._count.level || 0,
-    };
-  });
+      return {
+        levelId: level.id,
+        title: level.title,
+        displayTitle: level.displayTitle,
+        count,
+      };
+    })
+  );
 
   return levelStats;
 }
@@ -240,21 +207,25 @@ export async function getPtProductDetail(productId: string, managerId: string) {
       totalCount: true,
       time: true,
       onSale: true,
-      trainerLevel: true,
       openedAt: true,
       closedAt: true,
       createdAt: true,
       updatedAt: true,
-      trainer: {
+      // 중간 테이블을 통해 연결된 TrainerLevel 정보
+      trainerLevels: {
         select: {
           id: true,
-          user: {
+          incentiveRate: true,
+          trainerLevel: {
             select: {
-              username: true,
+              id: true,
+              title: true,
+              displayTitle: true,
             },
           },
         },
       },
+      // 확정된 PT 수 계산용
       pt: {
         where: {
           state: "CONFIRMED",
@@ -270,11 +241,105 @@ export async function getPtProductDetail(productId: string, managerId: string) {
     throw new Error("PT 상품을 찾을 수 없습니다.");
   }
 
-  return {
-    ...product,
-    confirmedPtCount: product.pt.length,
-    pt: undefined, // Remove raw pt data from response
-  };
+  return product;
+}
+
+// PtProduct Description 업데이트
+export async function updatePtProductDescription(
+  productId: string,
+  description: string,
+  managerId: string
+) {
+  // 매니저 권한 검증
+  await validateManagerAccess(managerId);
+
+  // 제품 존재 여부 확인
+  const product = await prisma.ptProduct.findUnique({
+    where: { id: productId },
+    select: {
+      id: true,
+      onSale: true,
+    },
+  });
+
+  if (!product) {
+    throw new Error("PT 상품을 찾을 수 없습니다.");
+  }
+
+  if (!product.onSale) {
+    throw new Error("판매 중지된 상품은 수정할 수 없습니다.");
+  }
+
+  // Description 업데이트
+  await prisma.ptProduct.update({
+    where: { id: productId },
+    data: { description },
+  });
+
+  // 업데이트된 제품 정보 반환
+  return await getPtProductDetail(productId, managerId);
+}
+
+// PtProduct TrainerLevel 업데이트
+export async function updatePtProductTrainerLevels(
+  productId: string,
+  trainerLevelIds: string[],
+  managerId: string
+) {
+  // 매니저 권한 검증
+  await validateManagerAccess(managerId);
+
+  // 입력 검증
+  if (trainerLevelIds.length === 0) {
+    throw new Error("최소 하나의 트레이너 레벨을 선택해주세요.");
+  }
+
+  // 제품 존재 여부 확인
+  const product = await prisma.ptProduct.findUnique({
+    where: { id: productId },
+    select: {
+      id: true,
+      onSale: true,
+      incentivePercent: true,
+    },
+  });
+
+  if (!product) {
+    throw new Error("PT 상품을 찾을 수 없습니다.");
+  }
+
+  if (!product.onSale) {
+    throw new Error("판매 중지된 상품은 수정할 수 없습니다.");
+  }
+
+  // TrainerLevel ID 검증
+  const validLevels = await prisma.trainerLevel.findMany({
+    where: { id: { in: trainerLevelIds } },
+    select: { id: true },
+  });
+
+  if (validLevels.length !== trainerLevelIds.length) {
+    throw new Error("유효하지 않은 트레이너 레벨이 포함되어 있습니다.");
+  }
+
+  // 기존 연결 삭제 및 새로운 연결 생성 (트랜잭션)
+  await prisma.$transaction([
+    // 기존 연결 삭제
+    prisma.ptProductTrainerLevel.deleteMany({
+      where: { ptProductId: productId },
+    }),
+    // 새로운 연결 생성
+    prisma.ptProductTrainerLevel.createMany({
+      data: trainerLevelIds.map((levelId) => ({
+        ptProductId: productId,
+        trainerLevelId: levelId,
+        incentiveRate: product.incentivePercent,
+      })),
+    }),
+  ]);
+
+  // 업데이트된 제품 정보 반환
+  return await getPtProductDetail(productId, managerId);
 }
 
 // PtProduct 판매 중지 또는 삭제
@@ -340,9 +405,6 @@ export async function stopOrDeletePtProduct(
 
 // 타입 추론
 export type CreatePtProductResult = Awaited<ReturnType<typeof createPtProduct>>;
-export type GetTrainersByLevelsResult = Awaited<
-  ReturnType<typeof getTrainersByLevelsForManager>
->;
 export type GetTrainerLevelStatsResult = Awaited<
   ReturnType<typeof getTrainerLevelStats>
 >;
@@ -351,6 +413,9 @@ export type ValidateManagerAccessResult = Awaited<
 >;
 export type GetPtProductDetailResult = Awaited<
   ReturnType<typeof getPtProductDetail>
+>;
+export type UpdatePtProductTrainerLevelsResult = Awaited<
+  ReturnType<typeof updatePtProductTrainerLevels>
 >;
 export type StopOrDeletePtProductResult = Awaited<
   ReturnType<typeof stopOrDeletePtProduct>

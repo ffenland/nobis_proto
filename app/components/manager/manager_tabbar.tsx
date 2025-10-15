@@ -47,11 +47,15 @@ const ManagerTabbar = () => {
         <span>트레이너</span>
       </Link>
       <Link
-        href={"/manager/members"}
+        href={"/manager/operations"}
         className="flex flex-col items-center gap-px"
       >
-        {pathname === "/manager/members" ? <FaNewspaper /> : <FaRegNewspaper />}
-        <span>회원관리</span>
+        {pathname === "/manager/operations" ? (
+          <FaNewspaper />
+        ) : (
+          <FaRegNewspaper />
+        )}
+        <span>운영관리</span>
       </Link>
       <Link
         href={"/manager/centers"}

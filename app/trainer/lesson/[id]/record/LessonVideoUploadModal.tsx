@@ -13,6 +13,7 @@ import {
   type VideoConfirmRequest,
   type ConfirmVideoUploadResult,
 } from "@/app/services/media/media.service";
+import { getVideoMetadata } from "@/app/lib/utils/media.utils";
 
 interface LessonVideoUploadModalProps {
   isOpen: boolean;
@@ -31,21 +32,6 @@ export default function LessonVideoUploadModal({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const [uploadedCount, setUploadedCount] = useState(0);
-
-  // 비디오 메타데이터 추출
-  const getVideoMetadata = (file: File): Promise<{ duration: number }> => {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement("video");
-      video.onloadedmetadata = () => {
-        resolve({ duration: video.duration });
-        URL.revokeObjectURL(video.src);
-      };
-      video.onerror = () => {
-        reject(new Error("비디오 메타데이터 로드 실패"));
-      };
-      video.src = URL.createObjectURL(file);
-    });
-  };
 
   // 모달 닫기
   const handleClose = useCallback(() => {
@@ -122,7 +108,7 @@ export default function LessonVideoUploadModal({
 
           // 3. DB에 비디오 정보 저장
           const confirmRequestBody: VideoConfirmRequest = {
-            cloudflareId: uid,
+            streamId: uid,
             entityType: "LESSON",
             entityId: lessonId,
           };
@@ -152,9 +138,6 @@ export default function LessonVideoUploadModal({
       let message = "";
       if (uploadedVideos.length > 0) {
         message = `${uploadedVideos.length}개의 영상이 업로드되었습니다.`;
-        if (uploadedVideos.some((v) => v.duration && v.duration > 0)) {
-          message += "\n영상은 처리 후 재생 가능합니다.";
-        }
       }
       if (failedUploads.length > 0) {
         message += `\n\n실패한 파일 (${

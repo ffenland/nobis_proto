@@ -59,35 +59,29 @@ const TrainerPtPage = () => {
           </div>
 
           {/* 통계 요약 */}
-          <div className="grid grid-cols-4 gap-2 mb-6">
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="p-3 text-center">
-                <p className="text-xs text-blue-600">전체</p>
-                <p className="text-lg font-bold text-blue-900">
-                  {data.stats.total}
-                </p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-3 gap-3 mb-6">
             <Card className="bg-green-50 border-green-200">
-              <CardContent className="p-3 text-center">
-                <p className="text-xs text-green-600">진행중</p>
-                <p className="text-lg font-bold text-green-900">
+              <CardContent className="p-4  text-center">
+                <div className=" flex items-center justify-center gap-2 mb-1">
+                  <p className=" text-sm text-green-600">진행중 PT</p>
+                </div>
+                <p className="text-2xl font-bold text-green-900">
                   {data.stats.active}
                 </p>
               </CardContent>
             </Card>
             <Card className="bg-amber-50 border-amber-200">
-              <CardContent className="p-3 text-center">
-                <p className="text-xs text-amber-600">종료임박</p>
-                <p className="text-lg font-bold text-amber-900">
+              <CardContent className="p-4 text-center">
+                <p className="text-sm text-amber-600 mb-1">종료임박</p>
+                <p className="text-2xl font-bold text-amber-900">
                   {data.stats.closingSoon}
                 </p>
               </CardContent>
             </Card>
             <Card className="bg-gray-50 border-gray-200">
-              <CardContent className="p-3 text-center">
-                <p className="text-xs text-gray-600">완료</p>
-                <p className="text-lg font-bold text-gray-900">
+              <CardContent className="p-4 text-center">
+                <p className="text-sm text-gray-600 mb-1">완료</p>
+                <p className="text-2xl font-bold text-gray-900">
                   {data.stats.completed}
                 </p>
               </CardContent>

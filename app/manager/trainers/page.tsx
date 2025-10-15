@@ -11,27 +11,13 @@ import {
   Users,
   Calendar,
   CheckCircle,
-  Clock,
   XCircle,
   Award,
+  UserX,
 } from "lucide-react";
 import { TrainerListItem } from "@/app/services/manager/manager-trainer.service";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
-const trainerLevelLabels: Record<string, string> = {
-  JUNIOR: "주니어",
-  ASSOCIATE: "어소시에이트",
-  SENIOR: "시니어",
-  MASTER: "마스터",
-};
-
-const trainerLevelColors: Record<string, string> = {
-  JUNIOR: "bg-gray-100 text-gray-800",
-  ASSOCIATE: "bg-blue-100 text-blue-800",
-  SENIOR: "bg-green-100 text-green-800",
-  MASTER: "bg-purple-100 text-purple-800",
-};
 
 export default function TrainersPage() {
   const [selectedCenter, setSelectedCenter] = useState<string>("");
@@ -105,60 +91,71 @@ export default function TrainersPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="h-full flex flex-col mx-auto px-4 py-8 max-w-7xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">트레이너 관리</h1>
-          <p className="text-gray-600 mt-1">
-            전체 {stats.total}명 · 활성 {stats.working}명
-          </p>
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold">트레이너 관리</h1>
+            <p className="text-gray-600 mt-1">
+              활성 트레이너 {stats.working}명
+            </p>
+          </div>
         </div>
-        <Link href="/manager/trainers/new" className="btn btn-primary">
-          <User className="w-4 h-4 mr-2" />
-          신규 트레이너 등록
-        </Link>
+        <div className="grid grid-cols-2 md:flex md:justify-end gap-2 md:gap-3">
+          <Link
+            href="/manager/trainers/off"
+            className="btn  md:btn-md btn-warning"
+          >
+            <UserX className="w-4 h-4" />
+            <span className="ml-1">휴무 관리</span>
+          </Link>
+          <Link
+            href="/manager/trainers/level"
+            className="btn  md:btn-md btn-info"
+          >
+            <Award className="w-4 h-4" />
+            <span className="ml-1">레벨 관리</span>
+          </Link>
+          <Link
+            href="/manager/trainers/new"
+            className="btn  md:btn-md btn-primary col-span-2 md:col-span-1"
+          >
+            <User className="w-4 h-4" />
+            <span className="ml-2">신규 트레이너 등록</span>
+          </Link>
+        </div>
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="stats shadow">
-          <div className="stat">
-            <div className="stat-figure text-primary">
-              <Users className="w-8 h-8" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-base-100 shadow-lg rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">전체 트레이너</p>
+              <p className="text-3xl font-bold text-primary">{stats.working}</p>
             </div>
-            <div className="stat-title">전체 트레이너</div>
-            <div className="stat-value text-primary">{stats.total}</div>
+            <Users className="w-8 h-8 text-primary flex-shrink-0" />
           </div>
         </div>
 
-        <div className="stats shadow">
-          <div className="stat">
-            <div className="stat-figure text-success">
-              <CheckCircle className="w-8 h-8" />
+        <div className="bg-base-100 shadow-lg rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">센터 소속</p>
+              <p className="text-3xl font-bold text-info">{stats.withCenter}</p>
             </div>
-            <div className="stat-title">활성 트레이너</div>
-            <div className="stat-value text-success">{stats.working}</div>
+            <Building className="w-8 h-8 text-info flex-shrink-0" />
           </div>
         </div>
 
-        <div className="stats shadow">
-          <div className="stat">
-            <div className="stat-figure text-info">
-              <Building className="w-8 h-8" />
+        <div className="bg-base-100 shadow-lg rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <p className="text-sm text-gray-500 mb-1">소속 없음</p>
+              <p className="text-3xl font-bold text-warning">{stats.withoutCenter}</p>
             </div>
-            <div className="stat-title">센터 소속</div>
-            <div className="stat-value text-info">{stats.withCenter}</div>
-          </div>
-        </div>
-
-        <div className="stats shadow">
-          <div className="stat">
-            <div className="stat-figure text-warning">
-              <XCircle className="w-8 h-8" />
-            </div>
-            <div className="stat-title">소속 없음</div>
-            <div className="stat-value text-warning">{stats.withoutCenter}</div>
+            <XCircle className="w-8 h-8 text-warning flex-shrink-0" />
           </div>
         </div>
       </div>
@@ -214,20 +211,27 @@ export default function TrainersPage() {
                     <div className="avatar placeholder">
                       <div className="bg-neutral-focus text-neutral-content rounded-full w-12 h-12">
                         <span className="text-lg font-medium">
-                          {trainer.username[0]}
+                          {trainer.realname?.[0] || trainer.username[0]}
                         </span>
                       </div>
                     </div>
                     <div>
-                      <h3 className="font-bold text-lg">{trainer.username}</h3>
+                      <h3 className="font-bold text-lg">
+                        {trainer.realname || "실명 미등록"}
+                      </h3>
                       <div className="flex items-center gap-2 mt-1">
-                        <span
-                          className={`badge badge-sm ${
-                            trainerLevelColors[trainer.level]
-                          }`}
-                        >
-                          {trainerLevelLabels[trainer.level]}
+                        <span className="text-xs text-gray-500">
+                          @{trainer.username}
                         </span>
+                        {trainer.level ? (
+                          <span className="badge badge-sm badge-info">
+                            {trainer.level.displayTitle}
+                          </span>
+                        ) : (
+                          <span className="badge badge-sm badge-ghost">
+                            레벨 없음
+                          </span>
+                        )}
                         {!trainer.working && (
                           <span className="badge badge-error badge-sm">
                             휴무

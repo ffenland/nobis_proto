@@ -17,6 +17,10 @@ export const POST = async (request: Request) => {
 
   try {
     const session = sessionOrResponse;
+    // TRAINER만 가능
+    if (session.role !== "TRAINER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const body = await request.json();
 
     // 새로운 간소화된 PT 생성 (ACCEPTING 상태)
@@ -83,10 +87,7 @@ export const POST = async (request: Request) => {
     const result = await createDirectPt(session.roleId, ptData);
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
     return NextResponse.json(result);
@@ -94,10 +95,7 @@ export const POST = async (request: Request) => {
     console.error("Error creating PT:", error);
 
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(

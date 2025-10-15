@@ -12,6 +12,7 @@ import { LoadingPage, ErrorMessage } from "@/app/components/ui/Loading";
 import { LoadingOverlay } from "@/app/components/ui/LoadingOverlay";
 import ProfileImagePreview from "@/app/components/media/ProfileImagePreview";
 import ContractUploadStep from "./components/ContractUploadStep";
+import Payment from "./components/Payment";
 import DateSelectionStep from "./components/DateSelectionStep";
 import type { GetPendingPtDetailResult } from "@/app/services/trainer/pt.service";
 import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
@@ -28,7 +29,13 @@ async function updatePtMutator(
   {
     arg,
   }: {
-    arg: { description: string; goals: string; contractImageIds?: string[] };
+    arg: {
+      description: string;
+      goals: string;
+      contractImageIds?: string[];
+      memberUserId?: string;
+      memberRealname?: string;
+    };
   }
 ) {
   const response = await fetch(url, {
@@ -93,7 +100,7 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const [ptId, setPtId] = useState<string>("");
-  const [currentStep, setCurrentStep] = useState(1); // 1: 정보입력, 2: 계약서, 3: 첫레슨일정
+  const [currentStep, setCurrentStep] = useState(1); // 1: 정보입력, 2: 계약서, 3: 결제정보, 4: 첫레슨일정
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   // PT 상태에 따른 문구 헬퍼 함수들
@@ -137,6 +144,7 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
   // 폼 상태
   const [description, setDescription] = useState("");
   const [goals, setGoals] = useState("");
+  const [memberRealname, setMemberRealname] = useState("");
   const [contractImageIds, setContractImageIds] = useState<string[]>([]);
 
   // 거절 모달 상태
@@ -233,10 +241,21 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
       return;
     }
 
+    // member의 realname이 없는 경우 필수 입력
+    const needsRealname = !ptDetail?.member?.user?.realname;
+    if (needsRealname && !memberRealname.trim()) {
+      alert("회원의 실명을 입력해주세요.");
+      return;
+    }
+
     await updatePt({
       description: description.trim(),
       goals: goals.trim(),
       contractImageIds,
+      ...(needsRealname && {
+        memberUserId: ptDetail?.member?.user?.id,
+        memberRealname: memberRealname.trim(),
+      }),
     });
   };
 
@@ -282,7 +301,12 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
     return null;
   }
 
-  const stepNames = ["목표 및 계획", "계약서 업로드", "첫 수업 일정"];
+  const stepNames = [
+    "목표 및 계획",
+    "계약서 업로드",
+    "결제 정보",
+    "첫 수업 일정",
+  ];
 
   return (
     <>
@@ -434,6 +458,46 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
                 목표 및 세부 계획 입력
               </h3>
               <form onSubmit={handleDescriptionSubmit} className="space-y-4">
+                {/* 회원 실명 입력 필드 - realname이 없는 경우만 표시 */}
+                {!ptDetail?.member?.user?.realname && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2 mb-3">
+                      <svg
+                        className="w-5 h-5 text-amber-600 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-800 mb-2">
+                          회원의 실명 정보가 필요합니다
+                        </p>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          회원 실명 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={memberRealname}
+                          onChange={(e) => setMemberRealname(e.target.value)}
+                          placeholder="회원의 실명을 입력해주세요"
+                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                        <p className="text-xs text-amber-700 mt-1">
+                          PT 계약을 위해 회원의 실명이 필요합니다.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     PT 목표 <span className="text-red-500">*</span>
@@ -491,13 +555,23 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
               if (contractImageIds && contractImageIds.length > 0) {
                 setContractImageIds(contractImageIds);
               }
-              setCurrentStep(3);
+              setCurrentStep(3); // Payment 스텝으로 이동
             }}
             onBack={() => setCurrentStep(1)}
           />
         )}
 
         {currentStep === 3 && (
+          <Payment
+            ptId={ptId}
+            price={ptDetail?.ptProduct?.price || 0}
+            initialPayment={ptDetail?.payment}
+            onNext={() => setCurrentStep(4)} // DateSelectionStep으로 이동
+            onBack={() => setCurrentStep(2)}
+          />
+        )}
+
+        {currentStep === 4 && (
           <DateSelectionStep
             selectedProduct={ptDetail.ptProduct}
             onNext={async (
@@ -512,7 +586,7 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
                 memo: memo,
               });
             }}
-            onBack={() => setCurrentStep(2)}
+            onBack={() => setCurrentStep(3)}
           />
         )}
       </div>

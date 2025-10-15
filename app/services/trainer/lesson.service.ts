@@ -163,12 +163,17 @@ export const getLessonDetailRecords = async ({
                     description: true,
                   },
                 },
-                equipments: {
+                freeSetEquipments: {
                   select: {
-                    id: true,
-                    group: true,
-                    primaryValue: true,
-                    primaryUnit: true,
+                    equipment: {
+                      select: {
+                        title: true,
+                        unit: true,
+                      },
+                    },
+                    value: true,
+                    notes: true,
+                    order: true,
                   },
                 },
               },
@@ -189,12 +194,16 @@ export const getLessonDetailRecords = async ({
                     description: true,
                   },
                 },
-                equipments: {
+                stretchingEquipments: {
                   select: {
-                    id: true,
-                    group: true,
-                    primaryValue: true,
-                    primaryUnit: true,
+                    equipment: {
+                      select: {
+                        title: true,
+                        unit: true,
+                      },
+                    },
+                    value: true,
+                    notes: true,
                   },
                 },
               },
@@ -295,23 +304,6 @@ export async function getLessonDetail({
             title: true,
           },
         },
-
-        // 레슨 미디어
-        images: {
-          select: {
-            id: true,
-            cloudflareId: true,
-            status: true,
-          },
-        },
-        videos: {
-          select: {
-            id: true,
-            streamId: true,
-            status: true,
-            duration: true,
-          },
-        },
       },
     });
 
@@ -371,10 +363,6 @@ export async function getLessonDetail({
       centerId: lesson.fitnessCenter?.id || "",
       centerName: lesson.fitnessCenter?.title || "센터 정보 없음",
 
-      // 미디어 정보
-      images: lesson.images,
-      videos: lesson.videos,
-
       // TODO 항목
       scheduleChangeRequest: [], // TODO: 스케줄 변경 요청 구현
     };
@@ -409,6 +397,17 @@ export async function createLesson(
             fitnessCenterId: true,
           },
         },
+        ptProduct: {
+          select: {
+            totalCount: true,
+          },
+        },
+        lessons: {
+          where: {
+            isCanceled: false,
+          },
+          select: { id: true },
+        },
       },
     });
 
@@ -423,6 +422,12 @@ export async function createLesson(
       return {
         success: false,
         message: "트레이너의 센터 정보가 없습니다.",
+      };
+    }
+    if (pt.lessons.length >= pt.ptProduct.totalCount) {
+      return {
+        success: false,
+        message: "이미 수업 횟수를 다 소진했습니다.",
       };
     }
 
@@ -530,51 +535,77 @@ export type CreateLessonServiceResult =
 
 // ===== 개별 운동 기록 CRUD =====
 
-// 단일 운동 기록 입력 타입
-export type CreateSingleRecordInput = {
-  type: "MACHINE" | "FREE" | "STRETCHING";
-  title: string;
+// Equipment 정보 타입 (FREE 및 STRETCHING 운동에서 사용)
+export type EquipmentInfo = {
+  equipmentId: string;
+  value?: string; // "15kg", "20", "빨간색" 등 (선택사항)
+  notes?: string; // 추가 메모 (선택사항)
+  order?: number; // 순서 (선택사항, 기본값 0)
+};
+
+// ========== 운동 타입별 입력 타입 ==========
+
+// 공통 필드
+type RecordInputBase = {
   entry: number;
+  title: string;
   description?: string;
   tempId?: string; // 클라이언트 임시 ID
+};
 
-  // 머신 운동
-  machineId?: string;
-  machineSetRecords?: Array<{
+// 머신 운동 기록 입력 타입
+export type CreateMachineRecordInput = RecordInputBase & {
+  type: "MACHINE";
+  machineId: string;
+  machineSetRecords: Array<{
     set: number;
     reps: number;
     settingValueIds: string[];
   }>;
-
-  // 프리 운동
-  freeExerciseId?: string;
-  isCustomExercise?: boolean; // 커스텀 운동 여부
-  customExerciseName?: string; // 커스텀 운동 이름
-  customExerciseDescription?: string; // 커스텀 운동 설명
-  freeSetRecords?: Array<{
-    set: number;
-    reps: number;
-    equipmentIds: string[];
-  }>;
-
-  // 스트레칭
-  stretchingExerciseId?: string;
-  stretchingDescription?: string;
-  stretchingEquipmentIds?: string[];
-
-  // 커스텀 스트레칭 (스트레칭에서만 사용)
-  customStretchingName?: string;
-  customStretchingDescription?: string;
 };
 
+// 프리 운동 기록 입력 타입
+export type CreateFreeRecordInput = RecordInputBase & {
+  type: "FREE";
+  isCustomExercise: boolean;
+  freeExerciseId?: string;
+  customExerciseName?: string;
+  customExerciseDescription?: string;
+  freeSetRecords: Array<{
+    set: number;
+    reps: number;
+    equipments: EquipmentInfo[];
+  }>;
+};
+
+// 스트레칭 운동 기록 입력 타입
+export type CreateStretchingRecordInput = RecordInputBase & {
+  type: "STRETCHING";
+  isCustomExercise: boolean;
+  stretchingExerciseId?: string;
+  customStretchingName?: string;
+  customStretchingDescription?: string;
+  stretchingDescription?: string;
+  stretchingEquipments: EquipmentInfo[];
+};
+
+// 통합 운동 기록 입력 타입 (유니온)
+export type CreateRecordInput =
+  | CreateMachineRecordInput
+  | CreateFreeRecordInput
+  | CreateStretchingRecordInput;
+
 // 단일 운동 기록 수정 타입
-export type UpdateSingleRecordInput = Partial<CreateSingleRecordInput>;
+export type UpdateRecordInput =
+  | Partial<CreateMachineRecordInput>
+  | Partial<CreateFreeRecordInput>
+  | Partial<CreateStretchingRecordInput>;
 
 // 개별 운동 기록 추가
 export async function addLessonRecordItem(
   trainerId: string,
   lessonId: string,
-  record: CreateSingleRecordInput
+  record: CreateRecordInput
 ) {
   try {
     // 권한 체크 - 레슨이 해당 트레이너의 것인지 확인
@@ -672,8 +703,14 @@ export async function addLessonRecordItem(
                 set: set.set,
                 reps: set.reps,
                 freeExerciseId: freeExerciseId!,
-                equipments: {
-                  connect: set.equipmentIds.map((id) => ({ id })),
+                freeSetEquipments: {
+                  create:
+                    set.equipments.map((eq, index) => ({
+                      equipmentId: eq.equipmentId,
+                      value: eq.value || null,
+                      notes: eq.notes || null,
+                      order: eq.order ?? index,
+                    })) || [],
                 },
               })) || [],
           },
@@ -724,15 +761,14 @@ export async function addLessonRecordItem(
             create: {
               stretchingExerciseId: stretchingExerciseId,
               description: record.stretchingDescription,
-              equipments:
-                record.stretchingEquipmentIds &&
-                record.stretchingEquipmentIds.length > 0
-                  ? {
-                      connect: record.stretchingEquipmentIds.map((id) => ({
-                        id,
-                      })),
-                    }
-                  : undefined,
+              stretchingEquipments: {
+                create:
+                  record.stretchingEquipments?.map((eq) => ({
+                    equipmentId: eq.equipmentId,
+                    value: eq.value || null,
+                    notes: eq.notes || null,
+                  })) || [],
+              },
             },
           },
         },
@@ -746,7 +782,7 @@ export async function addLessonRecordItem(
         },
       });
     } else {
-      throw new Error(`지원하지 않는 운동 타입입니다: ${record.type}`);
+      throw new Error(`지원하지 않는 운동 타입입니다`);
     }
 
     return {
@@ -764,7 +800,7 @@ export async function addLessonRecordItem(
 export async function updateLessonRecordItem(
   trainerId: string,
   recordId: string,
-  data: UpdateSingleRecordInput
+  data: UpdateRecordInput
 ) {
   try {
     // 권한 체크

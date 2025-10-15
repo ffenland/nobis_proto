@@ -18,6 +18,8 @@ export interface IServerActionResponse<T = unknown> {
 export interface ICenterFormData {
   title: string;
   address: string;
+  addressDetail: string;
+  postCode: string;
   phone: string;
   description: string;
   // 영업시간
@@ -49,6 +51,8 @@ export async function getCentersData() {
       id: true,
       title: true,
       address: true,
+      addressDetail: true,
+      postCode: true,
       phone: true,
       description: true,
       openingHours: {
@@ -95,6 +99,8 @@ export async function getCenterData(centerId: string) {
       id: true,
       title: true,
       address: true,
+      addressDetail: true,
+      postCode: true,
       phone: true,
       description: true,
       openingHours: {
@@ -198,6 +204,8 @@ function validateCenterForm(formData: FormData): {
   data?: {
     title: string;
     address: string;
+    addressDetail: string;
+    postCode: string;
     phone: string;
     description: string;
     openingHours: {
@@ -213,6 +221,8 @@ function validateCenterForm(formData: FormData): {
 
   const title = formData.get("title") as string;
   const address = formData.get("address") as string;
+  const addressDetail = formData.get("addressDetail") as string;
+  const postCode = formData.get("postCode") as string;
   const phone = formData.get("phone") as string;
   const description = formData.get("description") as string;
 
@@ -222,6 +232,9 @@ function validateCenterForm(formData: FormData): {
   }
   if (!address?.trim()) {
     errors.address = "주소를 입력해주세요.";
+  }
+  if (!postCode?.trim()) {
+    errors.postCode = "우편번호를 입력해주세요. 주소 검색을 사용해주세요.";
   }
   if (!phone?.trim()) {
     errors.phone = "전화번호를 입력해주세요.";
@@ -307,6 +320,8 @@ function validateCenterForm(formData: FormData): {
     data: {
       title: title.trim(),
       address: address.trim(),
+      addressDetail: addressDetail?.trim() || "",
+      postCode: postCode.trim(),
       phone: phone.trim(),
       description: description?.trim() || "",
       openingHours,
@@ -380,6 +395,8 @@ async function findOrCreateOpeningHours(openingHours: {
 async function createCenter(data: {
   title: string;
   address: string;
+  addressDetail: string;
+  postCode: string;
   phone: string;
   description: string;
   openingHours: {
@@ -399,6 +416,8 @@ async function createCenter(data: {
       data: {
         title: data.title,
         address: data.address,
+        addressDetail: data.addressDetail,
+        postCode: data.postCode,
         phone: data.phone,
         description: data.description,
         openingHours: {
@@ -421,6 +440,8 @@ async function updateCenter(
   data: {
     title?: string;
     address?: string;
+    addressDetail?: string;
+    postCode?: string;
     phone?: string;
     description?: string;
     openingHours?: {
@@ -441,6 +462,8 @@ async function updateCenter(
     interface IUpdateData {
       title?: string;
       address?: string;
+      addressDetail?: string;
+      postCode?: string;
       phone?: string;
       description?: string;
     }
@@ -450,6 +473,8 @@ async function updateCenter(
     // 기본 정보 업데이트
     if (data.title !== undefined) updateData.title = data.title;
     if (data.address !== undefined) updateData.address = data.address;
+    if (data.addressDetail !== undefined) updateData.addressDetail = data.addressDetail;
+    if (data.postCode !== undefined) updateData.postCode = data.postCode;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.description !== undefined)
       updateData.description = data.description;

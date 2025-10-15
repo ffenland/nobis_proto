@@ -3,12 +3,15 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
-import { TrainerLevel } from "@prisma/client";
 import {
   type CreatePtProductInput,
   type CreatePtProductResult
 } from "@/app/services/manager/product.service";
+import type { IAllTrainerLevelsSimple } from "@/app/services/manager/manager-trainer.service";
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 // Form data type
 interface PtProductFormData {
@@ -19,14 +22,21 @@ interface PtProductFormData {
   time: number;
   expiration_period: number;
   incentivePercent: number;
-  trainerLevels: TrainerLevel[];
+  trainerLevelIds: string[];
 }
 
 export default function NewPtProductPage() {
   const router = useRouter();
-  const [selectedTrainerLevels, setSelectedTrainerLevels] = useState<
-    TrainerLevel[]
+  const [selectedTrainerLevelIds, setSelectedTrainerLevelIds] = useState<
+    string[]
   >([]);
+
+  // Fetch TrainerLevels from API
+  const { data: trainerLevels, isLoading: levelsLoading } =
+    useSWR<IAllTrainerLevelsSimple>(
+      "/api/manager/trainers/level/simple",
+      fetcher
+    );
 
   // SWR Mutation for PT 상품 생성
   const { trigger: createProduct, isMutating } = useSWRMutation(
@@ -62,32 +72,20 @@ export default function NewPtProductPage() {
       time: 60,
       expiration_period: 30,
       incentivePercent: 0,
-      trainerLevels: [],
+      trainerLevelIds: [],
     },
   });
 
   // Form values watch
   const watchedValues = watch();
 
-  // TrainerLevel options
-  const trainerLevelOptions: {
-    value: TrainerLevel;
-    label: string;
-    description: string;
-  }[] = [
-    { value: "JUNIOR", label: "주니어", description: "신입 트레이너" },
-    { value: "ASSOCIATE", label: "어소시에이트", description: "경력 트레이너" },
-    { value: "SENIOR", label: "시니어", description: "숙련 트레이너" },
-    { value: "MASTER", label: "마스터", description: "전문 트레이너" },
-  ];
-
   // TrainerLevel selection handler
-  const handleTrainerLevelChange = (level: TrainerLevel) => {
-    setSelectedTrainerLevels((prev) => {
-      if (prev.includes(level)) {
-        return prev.filter((l) => l !== level);
+  const handleTrainerLevelChange = (levelId: string) => {
+    setSelectedTrainerLevelIds((prev) => {
+      if (prev.includes(levelId)) {
+        return prev.filter((id) => id !== levelId);
       } else {
-        return [...prev, level];
+        return [...prev, levelId];
       }
     });
   };
@@ -116,14 +114,14 @@ export default function NewPtProductPage() {
   // Form submit handler
   const onSubmit = async (data: PtProductFormData) => {
     try {
-      if (selectedTrainerLevels.length === 0) {
+      if (selectedTrainerLevelIds.length === 0) {
         alert("최소 하나의 트레이너 레벨을 선택해주세요.");
         return;
       }
 
       const createInput: CreatePtProductInput = {
         ...data,
-        trainerLevels: selectedTrainerLevels,
+        trainerLevelIds: selectedTrainerLevelIds,
         managerId: "", // This will be filled from session on server
       };
 
@@ -143,7 +141,7 @@ export default function NewPtProductPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="h-full max-w-4xl mx-auto px-4 py-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-2">새로운 PT 상품 생성</h1>
         <p className="text-gray-600">새로운 PT 상품을 생성하세요.</p>
@@ -380,30 +378,40 @@ export default function NewPtProductPage() {
                   이 상품을 담당할 수 있는 트레이너들의 레벨을 선택하세요.
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {trainerLevelOptions.map((option) => (
-                    <div key={option.value} className="form-control">
-                      <label className="label cursor-pointer justify-start gap-3">
-                        <input
-                          type="checkbox"
-                          className="checkbox checkbox-primary"
-                          checked={selectedTrainerLevels.includes(option.value)}
-                          onChange={() =>
-                            handleTrainerLevelChange(option.value)
-                          }
-                        />
-                        <div>
-                          <div className="font-medium">{option.label}</div>
-                          <div className="text-xs text-gray-500">
-                            {option.description}
+                {levelsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <span className="loading loading-spinner loading-md"></span>
+                  </div>
+                ) : !trainerLevels || trainerLevels.length === 0 ? (
+                  <div className="alert alert-info">
+                    <span>등록된 트레이너 레벨이 없습니다.</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {trainerLevels.map((level) => (
+                      <div key={level.id} className="form-control">
+                        <label className="label cursor-pointer justify-start gap-3">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-primary"
+                            checked={selectedTrainerLevelIds.includes(level.id)}
+                            onChange={() => handleTrainerLevelChange(level.id)}
+                          />
+                          <div>
+                            <div className="font-medium">
+                              {level.displayTitle}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {level.title}
+                            </div>
                           </div>
-                        </div>
-                      </label>
-                    </div>
-                  ))}
-                </div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                {selectedTrainerLevels.length === 0 && (
+                {selectedTrainerLevelIds.length === 0 && !levelsLoading && (
                   <div className="alert alert-warning mt-4">
                     <span>최소 하나의 트레이너 레벨을 선택해주세요.</span>
                   </div>
@@ -424,7 +432,7 @@ export default function NewPtProductPage() {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={isMutating || selectedTrainerLevels.length === 0}
+                disabled={isMutating || selectedTrainerLevelIds.length === 0}
               >
                 {isMutating && (
                   <span className="loading loading-spinner loading-sm"></span>
@@ -467,15 +475,16 @@ export default function NewPtProductPage() {
           <div className="card bg-base-100 shadow">
             <div className="card-body">
               <h3 className="card-title text-lg">선택된 레벨</h3>
-              {selectedTrainerLevels.length > 0 ? (
+              {selectedTrainerLevelIds.length > 0 && trainerLevels ? (
                 <div className="space-y-2">
-                  {selectedTrainerLevels.map((level) => {
-                    const option = trainerLevelOptions.find(
-                      (opt) => opt.value === level
-                    );
+                  {selectedTrainerLevelIds.map((levelId) => {
+                    const level = trainerLevels.find((l) => l.id === levelId);
                     return (
-                      <div key={level} className="badge badge-primary badge-lg">
-                        {option?.label}
+                      <div
+                        key={levelId}
+                        className="badge badge-primary badge-lg"
+                      >
+                        {level?.displayTitle}
                       </div>
                     );
                   })}

@@ -39,6 +39,7 @@ const updateFetcher = async (url: string, { arg }: { arg: any }) => {
 
 interface ProfileFormData {
   username: string;
+  realname: string;
   mobile: string;
 }
 
@@ -86,6 +87,7 @@ const MemberProfile = () => {
     if (profile) {
       reset({
         username: profile.username || "",
+        realname: profile.realname || "",
         mobile: profile.mobile || "",
       });
       setIsEditing(true);
@@ -185,7 +187,9 @@ const MemberProfile = () => {
               {/* Basic Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <h2 className="text-xl font-bold text-gray-900">{profile.username}</h2>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {profile.username}
+                  </h2>
                   {!profile.memberProfile.active && (
                     <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
                       비활성
@@ -207,7 +211,10 @@ const MemberProfile = () => {
                   )}
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    <span>가입일: {new Date(profile.createdAt).toLocaleDateString("ko-KR")}</span>
+                    <span>
+                      가입일:{" "}
+                      {new Date(profile.createdAt).toLocaleDateString("ko-KR")}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -253,6 +260,36 @@ const MemberProfile = () => {
                   )}
                 </div>
 
+                {/* Realname */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    실명
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="홍길동"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors.realname ? "border-red-500" : "border-gray-300"
+                    }`}
+                    {...register("realname", {
+                      minLength: {
+                        value: 2,
+                        message: "실명은 최소 2자 이상이어야 합니다",
+                      },
+                    })}
+                  />
+                  {errors.realname && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.realname.message}
+                    </p>
+                  )}
+                  <p className="text-gray-500 text-xs mt-1">
+                    실명은 PT수업 확인용으로 트레이너만 확인할 수 있습니다.
+                    <br />
+                    타 회원에게는 공개되지 않습니다.
+                  </p>
+                </div>
+
                 {/* Mobile */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -267,7 +304,8 @@ const MemberProfile = () => {
                     {...register("mobile", {
                       pattern: {
                         value: /^[0-9]{10,11}$/,
-                        message: "휴대폰 번호는 10-11자리 숫자만 입력 가능합니다",
+                        message:
+                          "휴대폰 번호는 10-11자리 숫자만 입력 가능합니다",
                       },
                     })}
                   />
@@ -292,6 +330,22 @@ const MemberProfile = () => {
                       변경 횟수: {profile.usernameChangeCount}/2
                     </p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    실명
+                  </label>
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    {profile.realname || (
+                      <span className="text-gray-500">등록되지 않음</span>
+                    )}
+                  </div>
+                  <p className="text-gray-500 text-xs mt-1">
+                    실명은 PT수업 확인용으로 트레이너만 확인할 수 있습니다.
+                    <br />
+                    타 회원에게는 공개되지 않습니다.
+                  </p>
                 </div>
 
                 <div>
@@ -369,14 +423,17 @@ const MemberProfile = () => {
 
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <User className="w-4 h-4" />
-                      {pt.trainer?.user.username || "존재하지 않는 트레이너 입니다."}
+                      {pt.trainer?.user.username ||
+                        "존재하지 않는 트레이너 입니다."}
                     </div>
 
                     {pt.recentLesson && (
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Clock className="w-4 h-4" />
                         최근 수업:{" "}
-                        {new Date(pt.recentLesson.scheduledAt).toLocaleDateString("ko-KR")}
+                        {new Date(
+                          pt.recentLesson.scheduledAt
+                        ).toLocaleDateString("ko-KR")}
                       </div>
                     )}
 
@@ -392,7 +449,9 @@ const MemberProfile = () => {
                       <div
                         className="bg-blue-600 h-2 rounded-full"
                         style={{
-                          width: `${(pt.completedLessons / pt.totalLessons) * 100}%`,
+                          width: `${
+                            (pt.completedLessons / pt.totalLessons) * 100
+                          }%`,
                         }}
                       ></div>
                     </div>

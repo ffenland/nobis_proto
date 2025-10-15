@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import useSWRMutation from "swr/mutation";
 import { ArrowLeft, Trash2, X, Plus } from "lucide-react";
-import { getEquipmentTitle } from "@/app/lib/utils/equipment.utils";
 import Image from "next/image";
 import { getOptimizedImageUrl } from "@/app/lib/utils/media.utils";
 import { GetEquipmentByIdResult } from "@/app/services/fitness-center/equipment.service";
@@ -248,17 +247,10 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
     );
   }
 
-  const equipmentTitle = getEquipmentTitle({
-    group: equipment.group,
-    brand: equipment.brand,
-    primaryValue: equipment.primaryValue,
-    primaryUnit: equipment.primaryUnit,
-    secondaryValue: equipment.secondaryValue,
-    secondaryUnit: equipment.secondaryUnit,
-  });
+  const equipmentTitle = equipment.title;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="h-full container mx-auto px-4 py-8 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -292,62 +284,42 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
               <h2 className="card-title">장비 정보</h2>
               <div className="space-y-3">
                 <div>
-                  <span className="font-medium text-gray-600">그룹:</span>
-                  <span className="ml-2">{equipment.group.name}</span>
-                  {equipment.group.description && (
-                    <span className="ml-1 text-gray-500">
-                      ({equipment.group.description})
-                    </span>
-                  )}
+                  <span className="font-medium text-gray-600">장비명:</span>
+                  <span className="ml-2">{equipment.title}</span>
                 </div>
 
-                {equipment.brand && (
-                  <div>
-                    <span className="font-medium text-gray-600">브랜드:</span>
-                    <span className="ml-2">{equipment.brand.name}</span>
-                  </div>
-                )}
-
                 <div>
-                  <span className="font-medium text-gray-600">주요 정보:</span>
+                  <span className="font-medium text-gray-600">단위:</span>
                   <span className="ml-2">
-                    {equipment.primaryValue} {equipment.primaryUnit}
+                    {equipment.unit === "none" ? "단위 없음" : equipment.unit}
                   </span>
                 </div>
 
-                {equipment.secondaryValue && equipment.secondaryUnit && (
-                  <div>
-                    <span className="font-medium text-gray-600">
-                      부가 정보:
-                    </span>
-                    <span className="ml-2">
-                      {equipment.secondaryValue} {equipment.secondaryUnit}
-                    </span>
-                  </div>
-                )}
+                <div>
+                  <span className="font-medium text-gray-600">센터:</span>
+                  <span className="ml-2">{equipment.fitnessCenter?.title || "센터 정보 없음"}</span>
+                </div>
 
-                {equipment.model && (
-                  <div>
-                    <span className="font-medium text-gray-600">모델:</span>
-                    <span className="ml-2">{equipment.model}</span>
-                  </div>
-                )}
+                <div>
+                  <span className="font-medium text-gray-600">등록일:</span>
+                  <span className="ml-2">
+                    {new Date(equipment.createdAt).toLocaleDateString("ko-KR")}
+                  </span>
+                </div>
 
-                {equipment.description && (
-                  <div>
-                    <span className="font-medium text-gray-600">설명:</span>
-                    <p className="ml-2 mt-1 text-gray-700">
-                      {equipment.description}
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <span className="font-medium text-gray-600">수정일:</span>
+                  <span className="ml-2">
+                    {new Date(equipment.updatedAt).toLocaleDateString("ko-KR")}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Images - 임시 주석 처리 */}
-        {/* <div className="space-y-6">
+        {/* Images */}
+        <div className="space-y-6">
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
               <div className="flex items-center justify-between">
@@ -384,7 +356,7 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Existing saved images */}
-                {/* {equipment.images?.map((image) => (
+                {equipment.images?.map((image) => (
                   <div key={image.id} className="relative">
                     <Image
                       src={getOptimizedImageUrl(
@@ -404,10 +376,10 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
                       <X className="w-3 h-3" />
                     </button>
                   </div>
-                ))} */}
+                ))}
 
                 {/* Pending images (preview only) */}
-                {/* {pendingImages.map((_, index) => (
+                {pendingImages.map((_, index) => (
                   <div key={`pending-${index}`} className="relative">
                     <Image
                       src={pendingImagePreviews[index]}
@@ -429,10 +401,10 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
                       </div>
                     </div>
                   </div>
-                ))} */}
+                ))}
 
                 {/* Add new image button */}
-                {/* {(equipment.images?.length || 0) + pendingImages.length < 3 && (
+                {(equipment.images?.length || 0) + pendingImages.length < 3 && (
                   <div className="border-2 border-dashed border-gray-300 rounded-lg h-32">
                     <label className="cursor-pointer w-full h-full flex items-center justify-center">
                       <input
@@ -456,11 +428,11 @@ export default function EquipmentDetailPage({ params }: { params: Params }) {
                       </div>
                     </label>
                   </div>
-                )} */}
-              {/* </div>
+                )}
+              </div>
             </div>
           </div>
-        </div> */}
+        </div>
       </div>
 
       {/* Delete Confirmation Modal */}
