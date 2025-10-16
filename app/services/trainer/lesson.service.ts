@@ -132,6 +132,7 @@ export const getLessonDetailRecords = async ({
                 id: true,
                 set: true,
                 reps: true,
+                weight: true,
                 settingValues: {
                   select: {
                     id: true,
@@ -156,6 +157,7 @@ export const getLessonDetailRecords = async ({
                 id: true,
                 set: true,
                 reps: true,
+                weight: true,
                 freeExercise: {
                   select: {
                     id: true,
@@ -560,6 +562,7 @@ export type CreateMachineRecordInput = RecordInputBase & {
   machineSetRecords: Array<{
     set: number;
     reps: number;
+    weight?: number; // 중량 (kg 단위, nullable)
     settingValueIds: string[];
   }>;
 };
@@ -574,6 +577,7 @@ export type CreateFreeRecordInput = RecordInputBase & {
   freeSetRecords: Array<{
     set: number;
     reps: number;
+    weight?: number; // 중량 (kg 단위, nullable)
     equipments: EquipmentInfo[];
   }>;
 };
@@ -641,6 +645,7 @@ export async function addLessonRecordItem(
               record.machineSetRecords?.map((set) => ({
                 set: set.set,
                 reps: set.reps,
+                weight: set.weight || null,
                 settingValues: {
                   connect: set.settingValueIds.map((id) => ({ id })),
                 },
@@ -702,6 +707,7 @@ export async function addLessonRecordItem(
               record.freeSetRecords?.map((set) => ({
                 set: set.set,
                 reps: set.reps,
+                weight: set.weight || null,
                 freeExerciseId: freeExerciseId!,
                 freeSetEquipments: {
                   create:
@@ -851,7 +857,7 @@ export async function updateLessonRecordSets(
   recordId: string,
   lessonId: string,
   trainerId: string,
-  sets: Array<{ reps: number; [key: string]: any }>
+  sets: Array<{ reps: number; weight?: number | null; [key: string]: any }>
 ) {
   try {
     // 권한 체크
@@ -885,7 +891,7 @@ export async function updateLessonRecordSets(
 
     // 타입에 따라 세트 업데이트
     if (record.type === "MACHINE") {
-      // 기존 머신 세트 기록 업데이트 (reps만)
+      // 기존 머신 세트 기록 업데이트 (reps, weight)
       for (
         let i = 0;
         i < sets.length && i < record.machineSetRecords.length;
@@ -893,11 +899,14 @@ export async function updateLessonRecordSets(
       ) {
         await prisma.machineSetRecord.update({
           where: { id: record.machineSetRecords[i].id },
-          data: { reps: sets[i].reps },
+          data: {
+            reps: sets[i].reps,
+            weight: sets[i].weight ?? null,
+          },
         });
       }
     } else if (record.type === "FREE") {
-      // 기존 프리 세트 기록 업데이트 (reps만)
+      // 기존 프리 세트 기록 업데이트 (reps, weight)
       for (
         let i = 0;
         i < sets.length && i < record.freeSetRecords.length;
@@ -905,7 +914,10 @@ export async function updateLessonRecordSets(
       ) {
         await prisma.freeSetRecord.update({
           where: { id: record.freeSetRecords[i].id },
-          data: { reps: sets[i].reps },
+          data: {
+            reps: sets[i].reps,
+            weight: sets[i].weight ?? null,
+          },
         });
       }
     }
@@ -922,6 +934,7 @@ export async function updateLessonRecordSets(
             id: true,
             set: true,
             reps: true,
+            weight: true,
             settingValues: {
               select: {
                 id: true,
@@ -942,6 +955,7 @@ export async function updateLessonRecordSets(
             id: true,
             set: true,
             reps: true,
+            weight: true,
           },
           orderBy: { set: "asc" },
         },

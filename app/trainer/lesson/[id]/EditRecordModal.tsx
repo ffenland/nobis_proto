@@ -83,17 +83,19 @@ export default function EditRecordModal({
 
     try {
       // API에서 기대하는 sets 형태로 데이터 구성
-      let sets: Array<{ reps: number }> = [];
+      let sets: Array<{ reps: number; weight?: number | null }> = [];
 
       if (record.type === "MACHINE") {
-        // 머신 운동의 경우 reps만 업데이트
+        // 머신 운동의 경우 reps와 weight 업데이트
         sets = formData.machineSetRecords.map((set) => ({
           reps: set.reps,
+          weight: set.weight || null,
         }));
       } else if (record.type === "FREE") {
-        // 프리 운동의 경우 reps만 업데이트
+        // 프리 운동의 경우 reps와 weight 업데이트
         sets = formData.freeSetRecords.map((set) => ({
           reps: set.reps,
+          weight: set.weight || null,
         }));
       }
       // 스트레칭의 경우는 수정 가능한 필드가 없으므로 패스
@@ -157,26 +159,50 @@ export default function EditRecordModal({
                 <div key={set.id} className="border rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm">세트 {set.set}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">횟수:</span>
-                      <input
-                        type="number"
-                        value={formData?.machineSetRecords?.[index]?.reps ?? set.reps}
-                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
-                        onChange={(e) => {
-                          if (formData) {
-                            const newRecords = [...(formData.machineSetRecords || [])];
-                            if (newRecords[index]) {
-                              newRecords[index] = { ...newRecords[index], reps: parseInt(e.target.value) || 0 };
-                              setFormData({
-                                ...formData,
-                                machineSetRecords: newRecords
-                              });
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">횟수:</span>
+                        <input
+                          type="number"
+                          value={formData?.machineSetRecords?.[index]?.reps ?? set.reps}
+                          className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
+                          onChange={(e) => {
+                            if (formData) {
+                              const newRecords = [...(formData.machineSetRecords || [])];
+                              if (newRecords[index]) {
+                                newRecords[index] = { ...newRecords[index], reps: parseInt(e.target.value) || 0 };
+                                setFormData({
+                                  ...formData,
+                                  machineSetRecords: newRecords
+                                });
+                              }
                             }
-                          }
-                        }}
-                      />
-                      <span className="text-sm text-gray-600">회</span>
+                          }}
+                        />
+                        <span className="text-sm text-gray-600">회</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">중량:</span>
+                        <input
+                          type="number"
+                          value={formData?.machineSetRecords?.[index]?.weight ?? set.weight ?? ""}
+                          className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
+                          placeholder="kg"
+                          onChange={(e) => {
+                            if (formData) {
+                              const newRecords = [...(formData.machineSetRecords || [])];
+                              if (newRecords[index]) {
+                                newRecords[index] = { ...newRecords[index], weight: parseInt(e.target.value) || 0 };
+                                setFormData({
+                                  ...formData,
+                                  machineSetRecords: newRecords
+                                });
+                              }
+                            }
+                          }}
+                        />
+                        <span className="text-sm text-gray-600">kg</span>
+                      </div>
                     </div>
                   </div>
                   {/* 설정값 표시 (읽기전용) */}
@@ -223,26 +249,50 @@ export default function EditRecordModal({
                 <div key={set.id} className="border rounded-lg p-3">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm">세트 {set.set}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">횟수:</span>
-                      <input
-                        type="number"
-                        value={formData?.freeSetRecords?.[index]?.reps ?? set.reps}
-                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
-                        onChange={(e) => {
-                          if (formData) {
-                            const newRecords = [...(formData.freeSetRecords || [])];
-                            if (newRecords[index]) {
-                              newRecords[index] = { ...newRecords[index], reps: parseInt(e.target.value) || 0 };
-                              setFormData({
-                                ...formData,
-                                freeSetRecords: newRecords
-                              });
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">횟수:</span>
+                        <input
+                          type="number"
+                          value={formData?.freeSetRecords?.[index]?.reps ?? set.reps}
+                          className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
+                          onChange={(e) => {
+                            if (formData) {
+                              const newRecords = [...(formData.freeSetRecords || [])];
+                              if (newRecords[index]) {
+                                newRecords[index] = { ...newRecords[index], reps: parseInt(e.target.value) || 0 };
+                                setFormData({
+                                  ...formData,
+                                  freeSetRecords: newRecords
+                                });
+                              }
                             }
-                          }
-                        }}
-                      />
-                      <span className="text-sm text-gray-600">회</span>
+                          }}
+                        />
+                        <span className="text-sm text-gray-600">회</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">중량:</span>
+                        <input
+                          type="number"
+                          value={formData?.freeSetRecords?.[index]?.weight ?? set.weight ?? ""}
+                          className="w-16 px-2 py-1 text-sm border border-gray-300 rounded text-center"
+                          placeholder="kg"
+                          onChange={(e) => {
+                            if (formData) {
+                              const newRecords = [...(formData.freeSetRecords || [])];
+                              if (newRecords[index]) {
+                                newRecords[index] = { ...newRecords[index], weight: parseInt(e.target.value) || 0 };
+                                setFormData({
+                                  ...formData,
+                                  freeSetRecords: newRecords
+                                });
+                              }
+                            }
+                          }}
+                        />
+                        <span className="text-sm text-gray-600">kg</span>
+                      </div>
                     </div>
                   </div>
                 </div>

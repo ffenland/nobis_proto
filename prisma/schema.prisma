@@ -461,6 +461,7 @@ model MachineSetRecord {
   createdAt      DateTime              @default(now())
   settingValues  MachineSettingValue[]
   reps           Int
+  weight         Int? // 중량 (kg 단위, nullable)
   set            Int // 몇번째 세트인지
   lessonRecord   LessonRecord          @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
   lessonRecordId String                @db.Uuid
@@ -511,6 +512,7 @@ model FreeSetRecord {
   freeSetEquipments FreeSetEquipment[]
 
   reps           Int // 횟수
+  weight         Int? // 중량 (kg 단위, nullable)
   set            Int // 몇번째 세트인지
   lessonRecord   LessonRecord @relation(fields: [lessonRecordId], references: [id], onDelete: Cascade)
   lessonRecordId String       @db.Uuid

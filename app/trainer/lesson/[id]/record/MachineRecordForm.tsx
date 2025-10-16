@@ -12,6 +12,7 @@ import type { CreateMachineRecordInput } from "@/app/services/trainer/lesson.ser
 interface SetRecord {
   id: string; // 고유 ID for React keys
   reps: string;
+  weight: string; // 중량 (kg 단위)
   settingValues: {
     [settingId: string]: {
       settingId: string;
@@ -43,6 +44,7 @@ export default function MachineRecordForm({
     {
       id: `set-${Date.now()}-0`,
       reps: "",
+      weight: "",
       settingValues: {},
     },
   ]);
@@ -97,6 +99,7 @@ export default function MachineRecordForm({
       {
         id: `set-${Date.now()}-${prevSets.length}`,
         reps: "",
+        weight: lastSet.weight, // 이전 세트 중량 복사
         settingValues: { ...lastSet.settingValues }, // 이전 세트 설정값 복사
       },
     ]);
@@ -174,6 +177,7 @@ export default function MachineRecordForm({
       machineSetRecords: sets.map((set, index) => ({
         set: index + 1,
         reps: parseInt(set.reps),
+        weight: set.weight ? parseInt(set.weight) : undefined,
         settingValueIds: Object.values(set.settingValues).map(
           ({ valueId }) => valueId
         ),
@@ -227,6 +231,7 @@ export default function MachineRecordForm({
               {
                 id: `set-${Date.now()}-0`,
                 reps: "",
+                weight: "",
                 settingValues: {},
               },
             ]);
@@ -289,7 +294,7 @@ export default function MachineRecordForm({
                   )}
                 </div>
 
-                {/* 반복 횟수와 설정값 */}
+                {/* 반복 횟수, 중량, 설정값 */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div>
                     <label className="text-xs text-gray-600 font-medium">
@@ -307,6 +312,24 @@ export default function MachineRecordForm({
                       onWheel={(e) => e.currentTarget.blur()}
                       className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
                       placeholder="횟수"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 font-medium">
+                      중량 (kg)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={set.weight}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, "");
+                        updateSet(set.id, "weight", value);
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                      placeholder="중량"
                     />
                   </div>
                   {selectedMachine.settings.map((setting) => (

@@ -15,6 +15,7 @@ import type {
 interface SetRecord {
   id: string; // 고유 ID for React keys
   reps: string;
+  weight: string; // 중량 (kg 단위)
   equipments: EquipmentInfo[]; // 장비 상세 정보 배열
 }
 
@@ -44,7 +45,7 @@ export default function FreeRecordForm({
   const [customExerciseDescription, setCustomExerciseDescription] =
     useState<string>("");
   const [sets, setSets] = useState<SetRecord[]>([
-    { id: `set-${Date.now()}-0`, reps: "", equipments: [] },
+    { id: `set-${Date.now()}-0`, reps: "", weight: "", equipments: [] },
   ]);
   const [description, setDescription] = useState<string>("");
   const [useCustomExercise, setUseCustomExercise] = useState(false);
@@ -63,15 +64,17 @@ export default function FreeRecordForm({
       return;
     }
 
-    // 이전 세트의 장비를 기본값으로 복사
+    // 이전 세트의 장비와 중량을 기본값으로 복사
     const lastSetEquipments =
       sets.length > 0 ? sets[sets.length - 1].equipments : [];
+    const lastSetWeight = sets.length > 0 ? sets[sets.length - 1].weight : "";
 
     setSets((prevSets) => [
       ...prevSets,
       {
         id: `set-${Date.now()}-${prevSets.length}`,
         reps: "",
+        weight: lastSetWeight, // 이전 세트 중량 복사
         equipments: [...lastSetEquipments], // 이전 세트 장비 복사
       },
     ]);
@@ -88,6 +91,13 @@ export default function FreeRecordForm({
   const updateSetReps = (setId: string, reps: string) => {
     setSets((prevSets) =>
       prevSets.map((set) => (set.id === setId ? { ...set, reps } : set))
+    );
+  };
+
+  // 세트 중량 변경
+  const updateSetWeight = (setId: string, weight: string) => {
+    setSets((prevSets) =>
+      prevSets.map((set) => (set.id === setId ? { ...set, weight } : set))
     );
   };
 
@@ -234,6 +244,7 @@ export default function FreeRecordForm({
       freeSetRecords: sets.map((set, index) => ({
         set: index + 1,
         reps: parseInt(set.reps),
+        weight: set.weight ? parseInt(set.weight) : undefined,
         equipments: set.equipments,
       })),
     };
@@ -317,7 +328,7 @@ export default function FreeRecordForm({
               );
               setSelectedExercise(exercise || null);
               setSets([
-                { id: `set-${Date.now()}-0`, reps: "", equipments: [] },
+                { id: `set-${Date.now()}-0`, reps: "", weight: "", equipments: [] },
               ]);
             }}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -381,20 +392,44 @@ export default function FreeRecordForm({
                   )}
                 </div>
 
-                {/* 반복 횟수 */}
-                <div className="mb-3">
-                  <label className="text-xs text-gray-600 font-medium">
-                    반복 횟수
-                  </label>
-                  <input
-                    type="text"
-                    value={set.reps}
-                    onChange={(e) => updateSetReps(set.id, e.target.value)}
-                    onBlur={(e) => updateSetReps(set.id, e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
-                    min="1"
-                    placeholder="횟수"
-                  />
+                {/* 반복 횟수와 중량 */}
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-600 font-medium">
+                      반복 횟수
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={set.reps}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, "");
+                        updateSetReps(set.id, value);
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
+                      placeholder="횟수"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 font-medium">
+                      중량 (kg)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={set.weight}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, "");
+                        updateSetWeight(set.id, value);
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
+                      placeholder="중량"
+                    />
+                  </div>
                 </div>
 
                 {/* 세트별 장비 선택 */}
