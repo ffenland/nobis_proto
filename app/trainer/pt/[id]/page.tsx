@@ -11,6 +11,7 @@ import { Badge } from "@/app/components/ui/Loading";
 import {
   formatDateWithoutWeekday,
   formatTime,
+  getTimeFromDateTime,
 } from "@/app/lib/utils/time.utils";
 import { toCurrencyString } from "@/app/lib/utils/format.utils";
 import type { GetTrainerPtDetailResult } from "@/app/services/trainer/pt.service";
@@ -387,10 +388,10 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <p className="text-2xl font-bold text-blue-900">
-                          {pt.nextLesson.date}
+                          {formatDateWithoutWeekday(pt.nextLesson.scheduledAt)}
                         </p>
                         <p className="text-lg text-blue-700">
-                          {formatTime(pt.nextLesson.time)}
+                          {formatTime(getTimeFromDateTime(pt.nextLesson.scheduledAt))}
                         </p>
                       </div>
                       <Link href={`/trainer/lesson/${pt.nextLesson.id}/record`}>
@@ -404,15 +405,11 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                         .filter(
                           (s) =>
                             s.status === "scheduled" &&
-                            s.date !== pt.nextLesson?.date
+                            s.scheduledAt !== pt.nextLesson?.scheduledAt
                         )
                         .sort((a, b) => {
-                          // 날짜 오름차순 정렬
-                          const dateA = new Date(a.date).getTime();
-                          const dateB = new Date(b.date).getTime();
-                          if (dateA !== dateB) return dateA - dateB;
-                          // 같은 날짜면 시간 오름차순
-                          return a.startTime - b.startTime;
+                          // scheduledAt으로 오름차순 정렬
+                          return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
                         });
 
                       return futureLessons.length > 0 ? (
@@ -431,11 +428,11 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                                   <div className="flex justify-between items-center">
                                     <div className="flex items-center gap-3">
                                       <span className="text-blue-700 font-medium">
-                                        {lesson.date}
+                                        {formatDateWithoutWeekday(lesson.scheduledAt)}
                                       </span>
                                       <span className="text-blue-600">
-                                        {formatTime(lesson.startTime)} -{" "}
-                                        {formatTime(lesson.endTime)}
+                                        {formatTime(getTimeFromDateTime(lesson.scheduledAt))} -{" "}
+                                        {formatTime(getTimeFromDateTime(lesson.endAt))}
                                       </span>
                                     </div>
                                     <span className="text-gray-400">→</span>
@@ -532,10 +529,10 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                                   </Badge>
                                 </div>
                                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                                  <span>{lesson.date}</span>
+                                  <span>{formatDateWithoutWeekday(lesson.scheduledAt)}</span>
                                   <span>
-                                    {formatTime(lesson.startTime)} -{" "}
-                                    {formatTime(lesson.endTime)}
+                                    {formatTime(getTimeFromDateTime(lesson.scheduledAt))} -{" "}
+                                    {formatTime(getTimeFromDateTime(lesson.endAt))}
                                   </span>
                                 </div>
                                 {lesson.memo && (
@@ -604,10 +601,10 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                                 )}
                               </div>
                               <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                                <span>{lesson.date}</span>
+                                <span>{formatDateWithoutWeekday(lesson.scheduledAt)}</span>
                                 <span>
-                                  {formatTime(lesson.startTime)} -{" "}
-                                  {formatTime(lesson.endTime)}
+                                  {formatTime(getTimeFromDateTime(lesson.scheduledAt))} -{" "}
+                                  {formatTime(getTimeFromDateTime(lesson.endAt))}
                                 </span>
                               </div>
                               {lesson.memo && (

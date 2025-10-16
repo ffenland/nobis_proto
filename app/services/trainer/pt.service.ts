@@ -414,16 +414,10 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
   const nextLessonData = scheduledLessonsWithIndex[0]?.lesson;
 
   const nextLesson = nextLessonData
-    ? (() => {
-        const nextLessonDate = new Date(nextLessonData.scheduledAt);
-        const hours = nextLessonDate.getHours();
-        const minutes = nextLessonDate.getMinutes();
-        return {
-          id: nextLessonData.id,
-          date: nextLessonDate.toISOString().split("T")[0],
-          time: hours * 100 + minutes, // HHMM 형식의 number로 변경
-        };
-      })()
+    ? {
+        id: nextLessonData.id,
+        scheduledAt: nextLessonData.scheduledAt,
+      }
     : null;
 
   // 레슨 데이터 변환
@@ -439,22 +433,12 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
         );
 
     // 시간 계산
-    const lessonDate = new Date(lesson.scheduledAt);
-    const startHours = lessonDate.getHours();
-    const startMinutes = lessonDate.getMinutes();
-    const startTime = startHours * 100 + startMinutes; // HHMM 형식의 number
-
-    const endDate = new Date(lesson.endAt);
-    const endHours = endDate.getHours();
-    const endMinutes = endDate.getMinutes();
-    const endTime = endHours * 100 + endMinutes; // HHMM 형식의 number
 
     return {
       id: lesson.id,
       lessonNumber: index + 1, // 순번 표시
-      date: lessonDate.toISOString().split("T")[0],
-      startTime,
-      endTime,
+      scheduledAt: lesson.scheduledAt,
+      endAt: lesson.endAt,
       status: lessonStatus,
       memo: lesson.memo || null,
       recordCount: lesson.records.length,

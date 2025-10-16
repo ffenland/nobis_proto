@@ -607,12 +607,15 @@ export const formatDateWithWeekday = (date: Date): string => {
 
 /**
  * 날짜를 한글 형식으로 포맷 (요일 미포함)
- * @param date 포맷할 날짜
+ * @param dateInput 포맷할 날짜 (Date 객체 또는 날짜 문자열)
  * @returns 한글 형식 날짜 문자열
- * @throws Error 유효하지 않은 Date 객체인 경우
- * @example formatDateWithWeekday(new Date('2025-01-15')) // "2025년 1월 15일 수요일"
+ * @throws Error 유효하지 않은 날짜인 경우
+ * @example formatDateWithoutWeekday(new Date('2025-01-15')) // "2025년 1월 15일"
+ * @example formatDateWithoutWeekday('2025-01-15T14:30:00Z') // "2025년 1월 15일"
  */
-export const formatDateWithoutWeekday = (date: Date): string => {
+export const formatDateWithoutWeekday = (dateInput: Date | string): string => {
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+
   if (!(date instanceof Date)) {
     throw new Error("Parameter must be a valid Date object");
   }
@@ -770,6 +773,28 @@ export const formatDateTimeKR = (date: Date): string => {
   const timeStr = date.toTimeString().slice(0, 5);
 
   return `${dateStr} ${timeStr}`;
+};
+
+/**
+ * DateTime 객체에서 HHMM 형식의 시간 추출 (클라이언트 타임존 기준)
+ * @param dateTime Date 객체 또는 ISO 문자열
+ * @returns HHMM 형식의 시간 (예: 1430)
+ * @throws Error 유효하지 않은 날짜인 경우
+ * @example getTimeFromDateTime(new Date('2025-01-15T14:30:00')) // 1430
+ * @example getTimeFromDateTime('2025-01-15T14:30:00Z') // 2330 (KST = UTC+9)
+ */
+export const getTimeFromDateTime = (dateTime: Date | string): TimeInt => {
+  const date = typeof dateTime === "string" ? new Date(dateTime) : dateTime;
+
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    throw new Error("Invalid date input");
+  }
+
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const timeInt = hours * 100 + minutes;
+
+  return toTimeInt(timeInt);
 };
 
 // UTC => KST
