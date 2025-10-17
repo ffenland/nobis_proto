@@ -1,17 +1,17 @@
 // app/api/trainer/lesson/schedule-check/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
-import { checkTrainerScheduleConflict } from "@/app/services/trainer/lesson.service";
+import {
+  checkTrainerLessonConflict,
+  CheckTrainerLessonConflictResult,
+} from "@/app/services/trainer/lesson.service";
 
 export async function GET(request: NextRequest) {
   try {
     // 세션 확인
     const session = await getSession();
     if (!session || session.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "권한이 없습니다." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
     // URL에서 쿼리 파라미터 추출
@@ -48,19 +48,14 @@ export async function GET(request: NextRequest) {
     }
 
     // 스케줄 충돌 체크
-    const conflicts = await checkTrainerScheduleConflict(
-      session.roleId, // trainerId
-      scheduledDate,
-      endDate
-    );
+    const conflicts: CheckTrainerLessonConflictResult =
+      await checkTrainerLessonConflict(
+        session.roleId, // trainerId
+        scheduledDate,
+        endDate
+      );
 
-    return NextResponse.json({
-      conflicts,
-      isAvailable: conflicts.length === 0,
-      message: conflicts.length === 0 
-        ? "선택하신 시간에 스케줄이 가능합니다."
-        : `${conflicts.length}개의 충돌하는 일정이 있습니다.`
-    });
+    return NextResponse.json(conflicts);
   } catch (error) {
     console.error("스케줄 체크 실패:", error);
     return NextResponse.json(

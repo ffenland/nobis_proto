@@ -8,6 +8,11 @@ import { Card, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
 import type { GetTrainerPtListResult } from "@/app/services/trainer/pt.service";
+import {
+  formatDateWithoutWeekday,
+  formatTime,
+  getTimeFromDateTime,
+} from "@/app/lib/utils/time.utils";
 
 const TrainerPtPage = () => {
   // SWR로 데이터 페칭 - 타입 명시
@@ -307,11 +312,17 @@ const PtCard = ({ pt }: PtCardProps) => {
           {/* 일정 정보 */}
           <div className="flex justify-between text-sm">
             <div className="text-gray-600">
-              <span>마지막 수업: {pt.lastSessionDate}</span>
+              <span>
+                마지막 수업:{" "}
+                {pt.lastCompletedLesson
+                  ? formatDateWithoutWeekday(pt.lastCompletedLesson.scheduledAt)
+                  : "-"}
+              </span>
             </div>
-            {"nextSessionDate" in pt && pt.nextSessionDate && (
+            {"nextLesson" in pt && pt.nextLesson && (
               <div className="text-blue-600 font-medium">
-                다음: {pt.nextSessionDate}
+                다음: {formatDateWithoutWeekday(pt.nextLesson.scheduledAt)}{" "}
+                {formatTime(getTimeFromDateTime(pt.nextLesson.scheduledAt))}
               </div>
             )}
           </div>

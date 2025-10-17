@@ -11,20 +11,10 @@ import {
   formatTime,
   generateTimeSlots,
   filterFutureTimeSlots,
+  getTimeFromDateTime,
   type TimeInt,
 } from "@/app/lib/utils/time.utils";
-
-// 스케줄 체크 결과 타입
-interface ScheduleCheckResult {
-  conflicts: {
-    id: string;
-    startTime: string;
-    endTime: string;
-    memberName: string;
-  }[];
-  isAvailable: boolean;
-  message: string;
-}
+import { CheckTrainerLessonConflictResult } from "@/app/services/trainer/lesson.service";
 
 interface DateSelectionStepProps {
   selectedProduct: {
@@ -61,7 +51,7 @@ const DateSelectionStep = ({
   const [error, setError] = useState<string | null>(null);
   const [scheduleCheckLoading, setScheduleCheckLoading] = useState(false);
   const [scheduleCheckResult, setScheduleCheckResult] =
-    useState<ScheduleCheckResult | null>(null);
+    useState<CheckTrainerLessonConflictResult | null>(null);
 
   // 시간 슬롯 생성 (9:00 ~ 22:00, 30분 단위)
   const allTimeSlots = generateTimeSlots(900, 2200);
@@ -109,14 +99,19 @@ const DateSelectionStep = ({
           throw new Error("스케줄 체크 요청이 실패했습니다.");
         }
 
-        const result = await response.json();
+        const result: CheckTrainerLessonConflictResult = await response.json();
         setScheduleCheckResult(result);
 
-        // 충돌이 있는 경우 에러 메시지 설정
-        if (!result.isAvailable && result.conflicts.length > 0) {
-          const conflict = result.conflicts[0];
+        // 충돌이 있는 경우 에러 메시지 설정 (배열이 비어있지 않으면 충돌)
+        if (result.length > 0) {
+          const conflict = result[0];
+          // 클라이언트 측 timezone 변환
+          const startTime = formatTime(
+            getTimeFromDateTime(conflict.scheduledAt)
+          );
+          const endTime = formatTime(getTimeFromDateTime(conflict.endAt));
           setError(
-            `선택하신 날짜에 ${conflict.startTime}부터 ${conflict.endTime}까지 ${conflict.memberName}님과의 수업이 있습니다.`
+            `선택하신 날짜에 ${startTime}부터 ${endTime}까지 ${conflict.memberName}님과의 수업이 있습니다.`
           );
         }
       } catch (error) {
@@ -165,8 +160,8 @@ const DateSelectionStep = ({
       return;
     }
 
-    // 스케줄 충돌이 있으면 제출 차단
-    if (scheduleCheckResult && !scheduleCheckResult.isAvailable) {
+    // 스케줄 충돌이 있으면 제출 차단 (배열에 요소가 있으면 충돌)
+    if (scheduleCheckResult && scheduleCheckResult.length > 0) {
       alert("선택하신 시간에 다른 수업이 있습니다. 다른 시간을 선택해주세요.");
       return;
     }
@@ -313,7 +308,7 @@ const DateSelectionStep = ({
                       스케줄 확인 중...
                     </p>
                   )}
-                  {scheduleCheckResult && scheduleCheckResult.isAvailable && (
+                  {scheduleCheckResult && scheduleCheckResult.length === 0 && (
                     <p className="text-sm text-green-600">
                       ✓ 선택하신 시간에 수업 가능합니다
                     </p>
@@ -407,7 +402,7 @@ const DateSelectionStep = ({
             !startTime ||
             isLoading ||
             scheduleCheckLoading ||
-            scheduleCheckResult?.isAvailable === false
+            (scheduleCheckResult !== null && scheduleCheckResult.length > 0)
           }
           className="min-w-[120px]"
         >
@@ -418,7 +413,7 @@ const DateSelectionStep = ({
             </span>
           ) : scheduleCheckLoading ? (
             "스케줄 확인 중..."
-          ) : scheduleCheckResult && !scheduleCheckResult.isAvailable ? (
+          ) : scheduleCheckResult && scheduleCheckResult.length > 0 ? (
             "시간 충돌"
           ) : (
             "Pt 승인 완료"

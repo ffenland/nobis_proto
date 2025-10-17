@@ -15,7 +15,11 @@ import ContractUploadStep from "./components/ContractUploadStep";
 import Payment from "./components/Payment";
 import DateSelectionStep from "./components/DateSelectionStep";
 import type { GetPendingPtDetailResult } from "@/app/services/trainer/pt.service";
-import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
+import {
+  formatMinutesToKorean,
+  formatTime,
+  getTimeFromDateTime,
+} from "@/app/lib/utils/time.utils";
 
 interface PendingPtDetailPageProps {
   params: Promise<{ id: string }>;
@@ -72,7 +76,19 @@ async function confirmPtMutator(
     throw new Error(errorData.error || "PT 확정에 실패했습니다.");
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // 충돌 응답 확인 (success: false인 경우)
+  if (!data.success && data.conflict) {
+    // 클라이언트 측 timezone 변환
+    const startTime = formatTime(getTimeFromDateTime(data.conflict.scheduledAt));
+    const endTime = formatTime(getTimeFromDateTime(data.conflict.endAt));
+    throw new Error(
+      `선택하신 시간대에 ${startTime}부터 ${endTime}까지 ${data.conflict.memberName}님과의 수업이 예정되어 있습니다.`
+    );
+  }
+
+  return data;
 }
 
 // PT 거절 요청
@@ -209,10 +225,14 @@ const PendingPtDetailPage = ({ params }: PendingPtDetailPageProps) => {
     confirmPtMutator,
     {
       revalidate: false, // 자동 revalidation 비활성화
-      onSuccess: (data) => {
+      onSuccess: () => {
         // 성공 시 리다이렉트 상태 설정 후 PT 상세 페이지로 이동
         setIsRedirecting(true);
         router.push(`/trainer/pt/${ptId}`);
+      },
+      onError: (error) => {
+        // 충돌 또는 기타 오류 발생 시 알림 표시
+        alert(error.message || "PT 확정 중 오류가 발생했습니다.");
       },
     }
   );

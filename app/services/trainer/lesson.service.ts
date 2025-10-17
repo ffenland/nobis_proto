@@ -1,6 +1,6 @@
 import prisma from "@/app/lib/prisma";
 import { PtState } from "@prisma/client";
-import { formatMinutesToKorean, formatTime } from "@/app/lib/utils/time.utils";
+import { formatMinutesToKorean } from "@/app/lib/utils/time.utils";
 
 // ===== 입력 타입 정의 (서비스파일에서 한다) =====
 
@@ -11,17 +11,6 @@ export type CreateLessonInput = {
   memo?: string;
 };
 
-// 트레이너 수업 충돌 검사 결과 타입 (충돌하는 수업 정보 배열)
-export type ConflictingLesson = {
-  id: string;
-  scheduledAt: Date;
-  endAt: Date;
-  startTime: string; // "14:30"
-  endTime: string; // "15:30"
-  durationText: string; // "1시간 30분"
-  memberName: string; // "김회원"
-};
-
 // ===== 서비스 함수들 (타입 추론 활용) =====
 
 // 트레이너 수업 충돌 검사 함수 (활성 PT의 Lesson만 대상)
@@ -29,7 +18,7 @@ export async function checkTrainerLessonConflict(
   trainerId: string,
   scheduledAt: Date,
   endAt: Date
-): Promise<ConflictingLesson[]> {
+) {
   try {
     // 트레이너의 활성 PT(CONFIRMED)의 Lesson 중 시간 겹치는 것들 조회
     // 시간 겹침 조건: (새 수업 시작 < 기존 수업 종료) AND (새 수업 종료 > 기존 수업 시작)
@@ -67,14 +56,7 @@ export async function checkTrainerLessonConflict(
 
     // 충돌하는 수업들을 ConflictingLesson 타입으로 변환하여 반환
     return conflictingLessons.map((lesson) => {
-      const startTime = formatTime(
-        lesson.scheduledAt.getHours() * 100 + lesson.scheduledAt.getMinutes()
-      );
-      const endTime = formatTime(
-        lesson.endAt.getHours() * 100 + lesson.endAt.getMinutes()
-      );
-
-      // 수업 시간 계산 (분 단위)
+      // 수업 시간 계산 (분 단위) - timezone과 무관
       const durationMinutes = Math.floor(
         (lesson.endAt.getTime() - lesson.scheduledAt.getTime()) / (1000 * 60)
       );
@@ -84,8 +66,6 @@ export async function checkTrainerLessonConflict(
         id: lesson.id,
         scheduledAt: lesson.scheduledAt,
         endAt: lesson.endAt,
-        startTime,
-        endTime,
         durationText,
         memberName: lesson.pt.member?.user.username || "알 수 없음",
       };
@@ -327,16 +307,6 @@ export async function getLessonDetail({
       },
     });
 
-    // 시간 계산
-    const startHours = lesson.scheduledAt.getHours();
-    const startMinutes = lesson.scheduledAt.getMinutes();
-    const startTime = startHours * 100 + startMinutes; // HHMM 형식
-
-    // 종료 시간 계산
-    const endHours = lesson.endAt.getHours();
-    const endMinutes = lesson.endAt.getMinutes();
-    const endTime = endHours * 100 + endMinutes; // HHMM 형식
-
     // 데이터 가공하여 반환 (플랫 구조)
     return {
       // 기본 정보
@@ -356,10 +326,9 @@ export async function getLessonDetail({
       memberMobile: lesson.pt.member?.user?.mobile || "",
       memberAvatarId: lesson.pt.member?.user?.avatarImage?.cloudflareId || null,
 
-      // 스케줄 정보 (플랫하게)
-      scheduleDate: lesson.scheduledAt,
-      startTime: startTime,
-      endTime: endTime,
+      // 스케줄 정보 (플랫하게) - 클라이언트에서 timezone 변환 처리
+      scheduledAt: lesson.scheduledAt,
+      endAt: lesson.endAt,
 
       // 센터 정보 (플랫하게)
       centerId: lesson.fitnessCenter?.id || "",
@@ -445,11 +414,12 @@ export async function createLesson(
     );
 
     if (conflictingLessons.length > 0) {
-      const firstConflict = conflictingLessons[0];
-      const message = `선택하신 날짜에 ${firstConflict.startTime}부터 ${firstConflict.endTime}까지 ${firstConflict.memberName}님과의 수업이 있습니다.`;
-
-      // 에러를 던져서 API 에러 처리에서 409 상태로 반환
-      throw new Error(message);
+      // 충돌하는 레슨이 있으면 첫 번째 충돌 정보를 반환
+      return {
+        success: false,
+        conflictType: "lesson" as const,
+        conflict: conflictingLessons[0],
+      };
     }
 
     // TrainerOff와 충돌 검사
@@ -468,27 +438,12 @@ export async function createLesson(
     });
 
     if (conflictingOffs.length > 0) {
-      const firstOff = conflictingOffs[0];
-      const startHour = firstOff.startAt.getHours();
-      const endHour = firstOff.endAt.getHours();
-      const endMinute = firstOff.endAt.getMinutes();
-
-      let offType = "";
-      if (startHour === 0 && endHour === 23 && endMinute === 59) {
-        offType = "종일 휴무";
-      } else if (startHour === 0 && endHour === 12 && endMinute === 59) {
-        offType = "오전 휴무";
-      } else if (startHour === 13 && endHour === 23 && endMinute === 59) {
-        offType = "오후 휴무";
-      } else {
-        offType = "휴무";
-      }
-
-      const stateText = firstOff.state === "PENDING" ? " (승인 대기중)" : "";
-      const message = `선택하신 시간에 ${offType} 일정이 있습니다${stateText}.`;
-
-      // 에러를 던져서 API 에러 처리에서 409 상태로 반환
-      throw new Error(message);
+      // 충돌하는 휴무가 있으면 첫 번째 충돌 정보를 반환
+      return {
+        success: false,
+        conflictType: "trainerOff" as const,
+        conflict: conflictingOffs[0],
+      };
     }
 
     // 새 레슨 생성
@@ -529,6 +484,21 @@ export type CreateLessonServiceResult =
       success: true;
       lessonId: string;
       message: string;
+    }
+  | {
+      success: false;
+      conflictType: "lesson";
+      conflict: CheckTrainerLessonConflictResult[0];
+    }
+  | {
+      success: false;
+      conflictType: "trainerOff";
+      conflict: {
+        id: string;
+        startAt: Date;
+        endAt: Date;
+        state: string;
+      };
     }
   | {
       success: false;
@@ -1084,14 +1054,10 @@ export async function updateLessonMemo(
   }
 }
 
-// 스케줄 체크 전용 함수 (API 호출용)
-export async function checkTrainerScheduleConflict(
-  trainerId: string,
-  scheduledAt: Date,
-  endAt: Date
-) {
-  return await checkTrainerLessonConflict(trainerId, scheduledAt, endAt);
-}
+// 타입 추론
+export type CheckTrainerLessonConflictResult = Awaited<
+  ReturnType<typeof checkTrainerLessonConflict>
+>;
 
 // ===== 컨디션 기록 관련 서비스 =====
 

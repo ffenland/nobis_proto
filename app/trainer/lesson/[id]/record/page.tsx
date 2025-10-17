@@ -18,7 +18,7 @@ import {
   Play,
 } from "lucide-react";
 import Image from "next/image";
-import { formatTime } from "@/app/lib/utils/time.utils";
+import { formatTime, getTimeFromDateTime } from "@/app/lib/utils/time.utils";
 import MachineRecordForm from "./MachineRecordForm";
 import FreeRecordForm from "./FreeRecordForm";
 import StretchingRecordForm from "./StretchingRecordForm";
@@ -340,8 +340,8 @@ export default function NewRecordPage({ params }: PageProps) {
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
                     <span>
-                      {formatTime(lesson.startTime)} -{" "}
-                      {formatTime(lesson.endTime)}
+                      {formatTime(getTimeFromDateTime(lesson.scheduledAt))} -{" "}
+                      {formatTime(getTimeFromDateTime(lesson.endAt))}
                     </span>
                   </div>
                 </div>

@@ -8,7 +8,7 @@ import Image from "next/image";
 import { Card, CardHeader, CardContent } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Loading";
-import { formatTime } from "@/app/lib/utils/time.utils";
+import { formatTime, getTimeFromDateTime } from "@/app/lib/utils/time.utils";
 import { getEquipmentTitle } from "@/app/lib/utils/equipment.utils";
 import {
   Clock,
@@ -113,7 +113,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
     } else {
       // 현재 시간과 수업 시작 시간 비교
       const now = new Date();
-      const lessonStartTime = new Date(lesson.scheduleDate);
+      const lessonStartTime = lesson.scheduledAt;
 
       if (lessonStartTime < now) {
         // 수업 시작 시간이 과거이고 기록이 없으면 불참
@@ -268,7 +268,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                 </div>
                 <p className="text-gray-600 text-sm">
                   {lesson.memberName}님의{" "}
-                  {formatDateString(new Date(lesson.scheduleDate))} 수업
+                  {formatDateString(lesson.scheduledAt)} 수업
                 </p>
               </CardHeader>
               <CardContent>
@@ -283,15 +283,15 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                       <Calendar className="w-4 h-4 text-gray-500" />
                       <span className="text-sm text-gray-600">날짜</span>
                       <span className="font-medium">
-                        {formatDateString(new Date(lesson.scheduleDate))}
+                        {formatDateString(lesson.scheduledAt)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-gray-500" />
                       <span className="text-sm text-gray-600">시간</span>
                       <span className="font-medium">
-                        {formatTime(lesson.startTime)} -{" "}
-                        {formatTime(lesson.endTime)}
+                        {formatTime(getTimeFromDateTime(lesson.scheduledAt))} -{" "}
+                        {formatTime(getTimeFromDateTime(lesson.endAt))}
                       </span>
                     </div>
                   </div>

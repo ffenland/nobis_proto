@@ -6,9 +6,15 @@ import { calculateLessonState } from "@/app/lib/utils/pt.utils";
 
 // 서비스 함수 - 데이터 가공 후 반환
 export async function getTrainerPtList(trainerId: string) {
-  // 현재 날짜와 3개월 전 날짜 계산
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 현재 날짜와 3개월 전 날짜 계산 (KST 기준)
+  const now = new Date();
+  const kstOffset = 9 * 60 * 60 * 1000; // 9시간을 밀리초로
+  const kstDate = new Date(now.getTime() + kstOffset);
+  const today = new Date(
+    Date.UTC(kstDate.getFullYear(), kstDate.getMonth(), kstDate.getDate(), 0, 0, 0, 0)
+  );
+  today.setHours(today.getHours() - 9); // KST 00:00:00 = UTC 전날 15:00:00
+
   const threeMonthsAgo = new Date(today);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
@@ -124,9 +130,6 @@ export async function getTrainerPtList(trainerId: string) {
     const lastCompletedLesson = pt.lessons.find(
       (lesson) => lesson.records.length > 0
     );
-    const lastSessionDate = lastCompletedLesson
-      ? new Date(lastCompletedLesson.scheduledAt).toISOString().split("T")[0]
-      : null;
 
     // 다음 예정된 레슨 찾기 (오늘 이후)
     const nextLesson = pt.lessons
@@ -138,21 +141,6 @@ export async function getTrainerPtList(trainerId: string) {
           new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
       )[0];
 
-    const nextSessionDate = nextLesson
-      ? new Date(nextLesson.scheduledAt).toISOString().split("T")[0]
-      : null;
-
-    // scheduledAt에서 시간 추출 (HH:mm 형식)
-    const nextSessionTime = nextLesson
-      ? `${new Date(nextLesson.scheduledAt)
-          .getHours()
-          .toString()
-          .padStart(2, "0")}:${new Date(nextLesson.scheduledAt)
-          .getMinutes()
-          .toString()
-          .padStart(2, "0")}`
-      : null;
-
     return {
       id: pt.id,
       state: pt.state,
@@ -163,9 +151,16 @@ export async function getTrainerPtList(trainerId: string) {
       remainingSessions,
       progress,
       status,
-      lastSessionDate,
-      nextSessionDate,
-      nextSessionTime,
+      lastCompletedLesson: lastCompletedLesson
+        ? {
+            scheduledAt: lastCompletedLesson.scheduledAt,
+          }
+        : null,
+      nextLesson: nextLesson
+        ? {
+            scheduledAt: nextLesson.scheduledAt,
+          }
+        : null,
       lessons: pt.lessons.map((lesson) => ({
         id: lesson.id,
         scheduledAt: lesson.scheduledAt,
@@ -178,15 +173,16 @@ export async function getTrainerPtList(trainerId: string) {
   // FINISHED PT 데이터 변환
   const finishedPtsData = finishedPts.map((pt) => {
     const lastLesson = pt.lessons[0]; // orderBy desc + take 1로 이미 가장 최근 레슨
-    const lastSessionDate = lastLesson
-      ? new Date(lastLesson.scheduledAt).toISOString().split("T")[0]
-      : null;
 
     return {
       id: pt.id,
       state: pt.state,
       memberName: pt.member?.user.username || "탈퇴한 회원",
-      lastSessionDate,
+      lastCompletedLesson: lastLesson
+        ? {
+            scheduledAt: lastLesson.scheduledAt,
+          }
+        : null,
       status: "completed" as const,
     };
   });
@@ -701,7 +697,7 @@ async function checkTrainerLessonConflict(
     },
   });
 
-  // 시간 겹침 체크
+  // 시간 겹침 체크 - raw Date 객체 반환 (클라이언트에서 타임존 변환)
   return conflicts
     .filter((lesson) => {
       const lessonStart = lesson.scheduledAt;
@@ -716,14 +712,8 @@ async function checkTrainerLessonConflict(
     })
     .map((lesson) => ({
       id: lesson.id,
-      startTime: lesson.scheduledAt.toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      endTime: lesson.endAt.toLocaleTimeString("ko-KR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      scheduledAt: lesson.scheduledAt, // raw Date 객체
+      endAt: lesson.endAt, // raw Date 객체
       memberName: lesson.pt?.member?.user.username || "탈퇴한 회원",
     }));
 }
@@ -771,12 +761,10 @@ export async function createLessonWithPtApproval(
     );
 
     if (conflictingLessons.length > 0) {
-      const firstConflict = conflictingLessons[0];
-      const message = `선택하신 날짜에 ${firstConflict.startTime}부터 ${firstConflict.endTime}까지 ${firstConflict.memberName}님과의 수업이 있습니다.`;
-
+      // 충돌이 있으면 실패 응답 반환 (raw Date 객체 포함)
       return {
         success: false,
-        message: message,
+        conflict: conflictingLessons[0],
       };
     }
 
@@ -1199,10 +1187,11 @@ export async function createDirectPt(
     );
 
     if (conflictingLessons.length > 0) {
-      const firstConflict = conflictingLessons[0];
-      throw new Error(
-        `선택하신 날짜에 ${firstConflict.startTime}부터 ${firstConflict.endTime}까지 ${firstConflict.memberName}님과의 수업이 있습니다.`
-      );
+      // 충돌이 있으면 에러를 던지지 않고 실패 응답 반환
+      return {
+        success: false,
+        conflict: conflictingLessons[0],
+      };
     }
 
     // 트랜잭션으로 PT와 첫 레슨 생성
@@ -1377,162 +1366,6 @@ export async function createPendingPt(
   }
 }
 
-// PT 확정 처리 (PENDING → CONFIRMED + 첫 레슨 생성)
-export interface ConfirmPtInput {
-  ptId: string;
-  startDate: Date;
-  firstLessonScheduledAt: string; // ISO DateTime string
-  firstLessonEndAt: string; // ISO DateTime string
-  firstLessonMemo?: string;
-  contractImageId?: string; // 계약서 이미지 ID (선택사항)
-}
-
-export async function confirmPt(trainerId: string, data: ConfirmPtInput) {
-  try {
-    // 사전 검증
-    const trainer = await prisma.trainer.findUnique({
-      where: { id: trainerId },
-      select: {
-        fitnessCenterId: true,
-      },
-    });
-
-    if (!trainer?.fitnessCenterId) {
-      throw new Error("트레이너의 센터 정보가 없습니다.");
-    }
-
-    // PT 확인
-    const pt = await prisma.pt.findUnique({
-      where: {
-        id: data.ptId,
-        trainerId: trainerId,
-        state: PtState.PENDING,
-      },
-      select: {
-        id: true,
-        ptProduct: {
-          select: {
-            expiration_period: true,
-            title: true,
-          },
-        },
-        member: {
-          select: {
-            user: {
-              select: {
-                username: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!pt) {
-      throw new Error("해당 PT를 찾을 수 없거나 이미 처리되었습니다.");
-    }
-
-    // 시간 파싱
-    const scheduledAt = new Date(data.firstLessonScheduledAt);
-    const endAt = new Date(data.firstLessonEndAt);
-
-    // 스케줄 충돌 체크
-    const conflictingLessons = await checkTrainerLessonConflict(
-      trainerId,
-      scheduledAt,
-      endAt
-    );
-
-    if (conflictingLessons.length > 0) {
-      const firstConflict = conflictingLessons[0];
-      throw new Error(
-        `선택하신 날짜에 ${firstConflict.startTime}부터 ${firstConflict.endTime}까지 ${firstConflict.memberName}님과의 수업이 있습니다.`
-      );
-    }
-
-    // 트랜잭션으로 PT 확정과 첫 레슨 생성
-    const result = await prisma.$transaction(async (tx) => {
-      // 만료일 계산
-      const expirationDate = new Date(data.startDate);
-      expirationDate.setDate(
-        expirationDate.getDate() + pt.ptProduct.expiration_period
-      );
-
-      // PT 확정 (PENDING → CONFIRMED)
-      const updatedPt = await tx.pt.update({
-        where: { id: data.ptId },
-        data: {
-          state: PtState.CONFIRMED,
-          startDate: data.startDate,
-          expirationDate,
-          stateUpdatedAt: new Date(),
-          ...(data.contractImageId && {
-            contractImageId: data.contractImageId,
-          }),
-        },
-        select: {
-          id: true,
-          state: true,
-          member: {
-            select: {
-              user: {
-                select: {
-                  username: true,
-                },
-              },
-            },
-          },
-          ptProduct: {
-            select: {
-              title: true,
-            },
-          },
-        },
-      });
-
-      // 첫 레슨 생성
-      const lesson = await tx.lesson.create({
-        data: {
-          ptId: data.ptId,
-          scheduledAt,
-          endAt,
-          fitnessCenterId: trainer.fitnessCenterId!,
-          memo: data.firstLessonMemo || "",
-        },
-        select: {
-          id: true,
-          scheduledAt: true,
-          endAt: true,
-          memo: true,
-        },
-      });
-
-      return { pt: updatedPt, lesson };
-    });
-
-    return {
-      success: true,
-      ptId: result.pt.id,
-      lessonId: result.lesson.id,
-      message: `${result.pt.member?.user.username}님의 ${result.pt.ptProduct.title} PT가 확정되고 첫 수업이 등록되었습니다.`,
-      data: {
-        pt: result.pt,
-        lesson: result.lesson,
-      },
-    };
-  } catch (error) {
-    console.error("Confirm PT error:", error);
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "PT 확정 중 오류가 발생했습니다.";
-    return {
-      success: false,
-      message: errorMessage,
-    };
-  }
-}
-
 // 직접 PT 생성 관련 타입 추론
 export type GetSurveyQuestionsResult = Awaited<
   ReturnType<typeof getSurveyQuestions>
@@ -1548,7 +1381,6 @@ export type SubmitSurveyResponseResult = Awaited<
 >;
 export type CreateDirectPtResult = Awaited<ReturnType<typeof createDirectPt>>;
 export type CreatePendingPtResult = Awaited<ReturnType<typeof createPendingPt>>;
-export type ConfirmPtResult = Awaited<ReturnType<typeof confirmPt>>;
 
 // ===== 새로운 트레이너 PT 생성 시스템 =====
 
@@ -1894,10 +1726,11 @@ export async function confirmPtWithFirstLesson(
     );
 
     if (conflictingLessons.length > 0) {
-      const firstConflict = conflictingLessons[0];
-      throw new Error(
-        `선택하신 시간대에 ${firstConflict.startTime}부터 ${firstConflict.endTime}까지 ${firstConflict.memberName}님과의 수업이 예정되어 있습니다.`
-      );
+      // 충돌이 있으면 에러를 던지지 않고 실패 응답 반환
+      return {
+        success: false,
+        conflict: conflictingLessons[0],
+      };
     }
 
     // 트랜잭션으로 PT 상태 변경 + 레슨 생성
