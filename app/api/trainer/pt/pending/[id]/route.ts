@@ -8,6 +8,7 @@ import {
   CreateFirstLessonInput,
 } from "@/app/services/trainer/pt.service";
 import { updateMemberProfile } from "@/app/services/member/profile.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -36,7 +37,15 @@ export async function GET(
 
     return NextResponse.json(ptDetail);
   } catch (error) {
-    console.error("Pending PT 세부 정보 조회 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PENDING_DETAIL_GET_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getPendingPtDetail",
+      },
+      tags: ["api", "trainer", "pt", "pending"],
+    });
+
     return NextResponse.json(
       { error: "PT 정보를 불러올 수 없습니다." },
       { status: 500 }
@@ -83,7 +92,15 @@ export async function PUT(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Pending PT 업데이트 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PENDING_DETAIL_PUT_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "updatePendingPt",
+      },
+      tags: ["api", "trainer", "pt", "pending"],
+    });
+
     return NextResponse.json(
       { error: "PT 정보 업데이트에 실패했습니다." },
       { status: 500 }
@@ -136,7 +153,15 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("PT 확정 및 첫 레슨 생성 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PENDING_DETAIL_POST_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "confirmPtWithFirstLesson",
+      },
+      tags: ["api", "trainer", "pt", "pending", "confirm"],
+    });
+
     return NextResponse.json(
       { error: "PT 확정에 실패했습니다." },
       { status: 500 }

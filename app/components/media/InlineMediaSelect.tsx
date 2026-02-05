@@ -38,6 +38,22 @@ export const MediaSelector = ({
       return;
     }
 
+    // 파일 확장자 검증 (AVIF 차단)
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+    if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+      alert(`지원하지 않는 이미지 형식입니다.\n허용된 형식: ${allowedExtensions.join(', ').toUpperCase()}`);
+      return;
+    }
+
+    // MIME 타입 추가 검증
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.type)) {
+      alert(`지원하지 않는 이미지 형식입니다.\n허용된 형식: JPG, PNG, GIF, WEBP`);
+      return;
+    }
+
     // Create preview URL
     const previewUrl = URL.createObjectURL(file);
 
@@ -177,7 +193,7 @@ export const MediaSelector = ({
               <label className="cursor-pointer w-full h-full flex items-center justify-center">
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
                   multiple
                   className="hidden"
                   onChange={(e) => {

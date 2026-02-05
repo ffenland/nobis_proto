@@ -4,6 +4,7 @@ import {
   updateFreeExerciseDescription,
 } from "@/app/services/exercise/exercise.service";
 import { getSessionOrReturn401 } from "@/app/lib/session";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -11,6 +12,12 @@ export async function GET(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
     const params = await segmentData.params;
     const { id } = params;
@@ -26,7 +33,15 @@ export async function GET(
 
     return NextResponse.json(exercise);
   } catch (error) {
-    console.error("Failed to fetch free exercise detail:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_FREE_EXERCISE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getFreeExerciseDetail",
+      },
+      tags: ["api", "exercise", "free"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
@@ -38,15 +53,13 @@ export async function PATCH(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
-  // 세션 확인
   const sessionOrResponse = await getSessionOrReturn401();
 
   if (sessionOrResponse instanceof NextResponse) {
     return sessionOrResponse;
   }
 
-  // 매니저 권한 확인
-  if (sessionOrResponse.role !== "MANAGER") {
+  if (sessionOrResponse.role !== "MASTER") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -67,7 +80,15 @@ export async function PATCH(
 
     return NextResponse.json(exercise);
   } catch (error) {
-    console.error("Failed to update free exercise:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_FREE_EXERCISE_002",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "updateFreeExerciseDescription",
+      },
+      tags: ["api", "exercise", "free", "update"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

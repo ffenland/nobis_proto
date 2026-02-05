@@ -18,6 +18,7 @@ enum UserRole {
   MEMBER
   TRAINER
   MANAGER
+  MASTER
 }
 
 enum WeekDay {
@@ -48,6 +49,7 @@ model User {
   role                     UserRole                @default(MEMBER)
   trainerProfile           Trainer?
   managerProfile           Manager?
+  masterProfile            Master?
   memberProfile            Member?
   userData                 UserData?
   deletedAt                DateTime?
@@ -128,10 +130,10 @@ model TrainerLevel {
 model PtProductTrainerLevel {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  ptProductId String @db.Uuid
+  ptProductId String    @db.Uuid
   ptProduct   PtProduct @relation(fields: [ptProductId], references: [id], onDelete: Cascade)
 
-  trainerLevelId String @db.Uuid
+  trainerLevelId String       @db.Uuid
   trainerLevel   TrainerLevel @relation(fields: [trainerLevelId], references: [id], onDelete: Cascade)
 
   // 추가 필드 (선택사항)
@@ -149,6 +151,8 @@ model Trainer {
   id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  workingAt         DateTime?
+  isManager         Boolean            @default(false)
   user              User               @relation(fields: [userId], references: [id])
   userId            String             @unique @db.Uuid
   introduce         String             @default("안녕하세요")
@@ -167,15 +171,26 @@ model Trainer {
 }
 
 model Manager {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  user           User            @relation(fields: [userId], references: [id])
-  userId         String          @unique @db.Uuid
-  group          Group[]
-  fitnessCenter  FitnessCenter[]
-  trainerOff     TrainerOff[]
-  checkedLessons Lesson[]        @relation("checkedManager")
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  workingAt     DateTime?
+  user          User            @relation(fields: [userId], references: [id])
+  userId        String          @unique @db.Uuid
+  group         Group[]
+  fitnessCenter FitnessCenter[]
+}
+
+model Master {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  user                  User            @relation(fields: [userId], references: [id])
+  userId                String          @unique @db.Uuid
+  fitnessCenter         FitnessCenter[]
+  trainerOff            TrainerOff[]
+  approvedPtPauses      PtPause[]       @relation("PtPauseApprover")
+  approvedLessonCancels LessonCancel[]  @relation("LessonCancelApprover")
 }
 
 model Group {
@@ -254,7 +269,6 @@ model Pt {
   description    String        @default("")
   goals          String        @default("") // PT 목표 (쉼표로 구분된 문자열)
   expirationDate DateTime?
-  extraDays      Int           @default(0) // 일(date) 단위이다. 최종 종료일을 계산할때 expirationDate에 추가해서 계산된다.
   lessons        Lesson[]
   payment        PtPayment?
   startDate      DateTime
@@ -265,19 +279,29 @@ model Pt {
 }
 
 model PtPause {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  pt         Pt        @relation(fields: [ptId], references: [id])
-  ptId       String    @db.Uuid
-  startDate  DateTime // 일시정지 시작일
-  endDate    DateTime // 일시정지 종료일
-  reason     String // 사유
-  days       Int // 계산된 일수 (캐싱용)
-  isActive   Boolean   @default(true) // 활성 상태 (취소하면 false)
-  canceledAt DateTime? // 취소 시각
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([ptId, isActive]) // 조회 최적화
+  // PT 관계
+  pt   Pt     @relation(fields: [ptId], references: [id], onDelete: Cascade)
+  ptId String @db.Uuid
+
+  // 일시정지 정보
+  startDate DateTime // 일시정지 시작일 (로컬타임 기준 날짜, 시간은 00:00:00)
+  endDate   DateTime // 일시정지 종료일 (로컬타임 기준 날짜, 시간은 00:00:00)
+  reason    String // 사유
+  days      Int // 계산된 일수 (캐싱용)
+
+  // Master 확인 정보
+  isApproved         Boolean   @default(false) // 확인 여부
+  approvedBy         Master?   @relation("PtPauseApprover", fields: [approvedByMasterId], references: [id], onDelete: SetNull)
+  approvedByMasterId String?   @db.Uuid // 확인한 Master ID
+  approvedAt         DateTime? // 확인 시간
+
+  @@index([ptId])
+  @@index([isApproved])
+  @@index([approvedByMasterId])
 }
 
 model PtPayment {
@@ -317,9 +341,7 @@ model Lesson {
   records               LessonRecord[]
   memo                  String                  @default("")
   isCanceled            Boolean                 @default(false)
-  managerCheckedAt      DateTime?
-  manager               Manager?                @relation("checkedManager", fields: [managerId], references: [id])
-  managerId             String?                 @db.Uuid
+  cancelInfo            LessonCancel?
   scheduleChangeRequest ScheduleChangeRequest[] // 현재 미사용
   auditLogs             LessonAuditLog[] // 감사 로그 관계
 
@@ -333,6 +355,34 @@ model Lesson {
 
   @@index([scheduledAt])
   @@index([ptId, scheduledAt])
+}
+
+model LessonCancel {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 1:1 관계 - Lesson
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId String @unique @db.Uuid
+
+  // 취소 정보
+  canceledBy     String // 취소한 사용자 역할: "TRAINER", "MEMBER", "MANAGER"
+  canceledById   String   @db.Uuid // 취소한 사용자 ID (userId)
+  canceledByName String // 취소한 사용자 이름
+  reason         String // 취소 사유
+  canceledAt     DateTime @default(now()) // 취소 시간
+
+  // Master 승인 정보
+  isApproved   Boolean   @default(false) // 승인 여부
+  approvedBy   Master?   @relation("LessonCancelApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedById String?   @db.Uuid // 승인한 Master ID
+  approvedAt   DateTime? // 승인 시간
+
+  @@index([lessonId])
+  @@index([canceledAt])
+  @@index([isApproved])
+  @@index([approvedById])
 }
 
 model LessonRecord {
@@ -625,6 +675,7 @@ model OffDay {
   date            DateTime
   fitnessCenter   FitnessCenter? @relation(fields: [fitnessCenterId], references: [id])
   fitnessCenterId String?        @db.Uuid
+  description     String?
 }
 
 model TrainerOff {
@@ -635,8 +686,8 @@ model TrainerOff {
   endAt          DateTime
   trainer        Trainer   @relation(fields: [trainerId], references: [id])
   trainerId      String    @db.Uuid
-  manager        Manager?  @relation(fields: [managerId], references: [id])
-  managerId      String?   @db.Uuid
+  master         Master?   @relation(fields: [masterId], references: [id])
+  masterId       String?   @db.Uuid
   stateUpdatedAt DateTime?
   state          String    @default("PENDING")
   description    String?
@@ -655,6 +706,7 @@ model FitnessCenter {
   trainers            Trainer[]
   members             Member[]
   managers            Manager[]
+  masters             Master[]
   machines            Machine[]
   offDays             OffDay[]
   createdAt           DateTime      @default(now())

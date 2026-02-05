@@ -36,11 +36,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 #### User Roles & Access Control
 
-The application has three distinct user roles with different interfaces:
+The application has four distinct user roles with different interfaces:
 
 - **MEMBER**: `/member/*` - Members can book PT sessions, manage memberships, chat with trainers
 - **TRAINER**: `/trainer/*` - Trainers manage PT sessions, record workouts, approve applications
-- **MANAGER**: `/manager/*` - Managers oversee centers, products, trainers, and analytics
+- **MANAGER**: `/manager/*` - Center managers (trainers with extra viewing permissions for their assigned center)
+- **MASTER**: `/master/*` - System administrators with full access to all centers and operations
 
 ### Service Architecture
 
@@ -51,11 +52,12 @@ The application has three distinct user roles with different interfaces:
 ```typescript
 interface Session {
   id: string; // User 모델의 id (사용자 고유 ID)
-  role: "MANAGER" | "MEMBER" | "TRAINER"; // 로그인한 유저의 역할
+  role: "MANAGER" | "MEMBER" | "TRAINER" | "MASTER"; // 로그인한 유저의 역할
   roleId: string; // 해당 역할 모델의 id
   // - role이 "TRAINER"면 Trainer 모델의 id
   // - role이 "MEMBER"면 Member 모델의 id
   // - role이 "MANAGER"면 Manager 모델의 id
+  // - role이 "MASTER"면 Master 모델의 id
 }
 ```
 
@@ -63,6 +65,101 @@ interface Session {
 - `/api/trainer/*` routes: use `session.roleId` as trainerId
 - `/api/member/*` routes: use `session.roleId` as memberId
 - `/api/manager/*` routes: use `session.roleId` as managerId
+- `/api/master/*` routes: use `session.roleId` as masterId
+
+### Role Switching & Dual Role System
+
+#### Overview
+
+MANAGER and MASTER roles are designed as "dual roles" - users with these roles also have a TRAINER profile and can switch between roles without re-authentication.
+
+**Role Structure:**
+- **MEMBER**: `/member/*` - General members, PT booking and membership management
+- **TRAINER**: `/trainer/*` - Trainers, PT session management and member management
+- **MANAGER**: `/manager/*` - Center managers (trainers with extra viewing permissions for assigned center)
+- **MASTER**: `/master/*` - System administrators with full access to all centers
+
+#### Database Relationships
+
+**Manager Model:**
+```prisma
+model Manager {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @unique @db.Uuid
+  user      User     @relation(fields: [userId], references: [id])
+  trainerId String   @unique @db.Uuid  // 1:1 relationship with Trainer
+  trainer   Trainer  @relation(fields: [trainerId], references: [id])
+  // ... other fields
+}
+```
+
+**Master Model:**
+```prisma
+model Master {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String          @unique @db.Uuid
+  user          User            @relation(fields: [userId], references: [id])
+  trainerId     String          @unique @db.Uuid  // 1:1 relationship with Trainer
+  trainer       Trainer         @relation(fields: [trainerId], references: [id])
+  fitnessCenter FitnessCenter[]
+  // ... other fields
+}
+```
+
+#### Role Switching Mechanism
+
+Users with MANAGER or MASTER profiles can switch between TRAINER ↔ MANAGER or TRAINER ↔ MASTER using the role-switch feature in the UserDropdownMenu component.
+
+**How it works:**
+1. User clicks role-switch button in header dropdown
+2. API calls `switchUserRole()` service function
+3. Session is updated with new role and roleId
+4. User is redirected to the appropriate dashboard
+5. SWR cache is invalidated to update UI immediately
+
+**Session behavior during role-switch:**
+- TRAINER → MANAGER: `session.role` changes to "MANAGER", `session.roleId` becomes Manager's id
+- MANAGER → TRAINER: `session.role` changes to "TRAINER", `session.roleId` becomes Trainer's id
+- TRAINER → MASTER: `session.role` changes to "MASTER", `session.roleId` becomes Master's id
+- MASTER → TRAINER: `session.role` changes to "TRAINER", `session.roleId` becomes Trainer's id
+
+**Frontend Implementation:**
+```typescript
+// GlobalHeader.tsx automatically shows role-switch option when:
+// - User has Manager profile (data.user.hasManagerProfile)
+// - User has Master profile (data.user.hasMasterProfile)
+
+<UserDropdownMenu
+  showRoleSwitch={data.role === "TRAINER" && data.user.hasManagerProfile}
+  targetRole="MANAGER"
+/>
+```
+
+#### API Route Permissions
+
+**Master-only API routes:**
+```typescript
+// Only MASTER can access
+if (sessionOrResponse.role !== "MASTER") {
+  return NextResponse.json({ error: "Master 권한이 필요합니다." }, { status: 403 });
+}
+```
+
+**Manager-only API routes:**
+```typescript
+// Only MANAGER can access (not MASTER)
+if (sessionOrResponse.role !== "MANAGER") {
+  return NextResponse.json({ error: "Manager 권한이 필요합니다." }, { status: 403 });
+}
+```
+
+**Trainer-only API routes:**
+```typescript
+// Only TRAINER can access
+if (sessionOrResponse.role !== "TRAINER") {
+  return NextResponse.json({ error: "Trainer 권한이 필요합니다." }, { status: 403 });
+}
+```
 
 ## Development Guidelines
 
@@ -212,6 +309,118 @@ export async function GET(request: NextRequest) {
   - `parseTime(timeStr: string): TimeInt` - "14:30"을 1430으로 변환
   - `addThirtyMinutes(time: number): TimeInt` - 30분 추가
   - `isValidTimeSlot(time: number): boolean` - 30분 단위 검증
+
+#### Date 타입 처리 규칙
+
+**CRITICAL: 서버에서 Date 객체는 항상 toISOString()으로 변환 후 반환**
+
+**서버-클라이언트 간 Date 객체 전달 방식:**
+
+- **서버 (필수)**: Prisma에서 조회한 Date 객체는 **반드시 `.toISOString()`으로 변환 후 반환**
+- **타입 추론**: 서비스 함수의 반환 타입은 추론 사용 (`.toISOString()` 적용 시 자동으로 string 타입으로 추론됨)
+- **클라이언트**: 서버에서 받은 ISO 문자열을 `new Date(serverDate)` 또는 유틸리티 함수로 변환하여 사용
+
+**이유:**
+- Timezone 문제를 방지
+- 타입 추론이 정확하게 string으로 인식됨
+- 클라이언트에서 타입 안전성 확보
+
+**예시:**
+```typescript
+// ✅ 서버 (Service Layer)
+export async function getData() {
+  const data = await prisma.model.findMany({
+    select: {
+      createdAt: true, // Date 타입
+      scheduledAt: true, // Date 타입
+    }
+  });
+
+  // 필수: Date 객체를 ISO 문자열로 변환
+  return data.map(item => ({
+    ...item,
+    createdAt: item.createdAt.toISOString(),
+    scheduledAt: item.scheduledAt.toISOString(),
+  }));
+}
+
+// 타입 추론 결과
+export type GetDataResult = Awaited<ReturnType<typeof getData>>;
+// => { createdAt: string, scheduledAt: string, ... }
+
+// ✅ 클라이언트 (Component)
+const { data } = useSWR<GetDataResult>('/api/data');
+const date = new Date(data.createdAt); // string을 Date로 변환
+formatDateWithoutWeekday(data.scheduledAt); // 유틸리티 함수 사용
+```
+
+**❌ 잘못된 예시:**
+```typescript
+// ❌ Date 객체를 그대로 반환하면 안됨
+return {
+  createdAt: prismaData.createdAt, // Date 타입으로 추론되지만 실제로는 string
+};
+```
+
+#### **CRITICAL: 서버 환경 UTC 원칙**
+
+**모든 서버 코드는 UTC 타임존을 가정하고 작성해야 합니다.**
+
+배포 환경의 서버는 UTC 타임존으로 설정되어 있으므로, 개발 환경과 무관하게 항상 UTC 기준으로 코드를 작성해야 합니다.
+
+**서버 코드 (API Routes & Services):**
+
+- ✅ **필수**: 항상 UTC 기준으로 Date 객체 처리
+- ✅ **필수**: UTC 메서드 사용: `getUTCDay()`, `getUTCHours()`, `getUTCDate()`, `getUTCMonth()` 등
+- ✅ **허용**: KST가 필요한 경우 `getKSTToday()` 같은 유틸리티 함수로 명시적 변환
+- ✅ **필수**: 응답은 `.toISOString()`으로 반환 (타임존 정보 포함)
+- ❌ **금지**: `getDay()`, `getHours()` 등 로컬 타임존 메서드 사용 (서버 환경에 따라 다른 결과)
+
+**클라이언트 코드 (Components):**
+
+- ✅ 서버에서 받은 ISO 문자열을 `new Date()`로 변환
+- ✅ 사용자의 로컬 타임존에 맞게 표시
+- ✅ `getDay()`, `getHours()` 등 로컬 메서드 사용 가능 (브라우저 타임존 기준)
+
+**데이터베이스:**
+
+- ✅ Prisma의 `DateTime` 필드는 UTC로 저장
+- ✅ 조회/비교 시 UTC 기준 Date 객체 사용
+
+**예시:**
+
+```typescript
+// ✅ 서버 코드 - UTC 메서드 사용
+export async function getWeeklyData() {
+  const today = getKSTToday(); // KST 0시 0분 = UTC 전날 15시
+  const currentDate = new Date(today);
+
+  // UTC 기준으로 요일 판단
+  if (currentDate.getUTCDay() !== 6) { // KST 일요일 = UTC 토요일
+    // ...
+  }
+
+  return {
+    date: currentDate.toISOString(), // ISO 문자열로 반환
+  };
+}
+
+// ✅ 클라이언트 코드 - 로컬 메서드 사용
+const { data } = useSWR('/api/weekly-data');
+const date = new Date(data.date);
+const dayName = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()]; // 로컬 타임존
+```
+
+**❌ 잘못된 예시:**
+```typescript
+// ❌ 서버에서 로컬 타임존 메서드 사용
+export async function getData() {
+  const date = new Date();
+  if (date.getDay() === 0) { // 서버 타임존에 따라 다른 결과!
+    // ...
+  }
+}
+```
 
 ### Next.js 15 Dynamic Route Parameters
 

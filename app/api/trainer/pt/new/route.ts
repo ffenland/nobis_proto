@@ -1,26 +1,26 @@
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   createDirectPt,
   CreateDirectPtInput,
   createTrainerPt,
   CreateTrainerPtInput,
 } from "@/app/services/trainer/pt.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 // 트레이너 PT 생성 (간소화된 버전 - ACCEPTING 상태로 생성)
-export const POST = async (request: Request) => {
+export const POST = async (request: NextRequest) => {
   const sessionOrResponse = await getSessionOrReturn401();
 
   if (sessionOrResponse instanceof NextResponse) {
     return sessionOrResponse;
   }
 
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
-    const session = sessionOrResponse;
-    // TRAINER만 가능
-    if (session.role !== "TRAINER") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
     const body = await request.json();
 
     // 새로운 간소화된 PT 생성 (ACCEPTING 상태)
@@ -38,7 +38,7 @@ export const POST = async (request: Request) => {
       const ptData: CreateTrainerPtInput = {
         memberId,
         ptProductId,
-        trainerId: session.roleId,
+        trainerId: sessionOrResponse.roleId,
       };
 
       const result = await createTrainerPt(ptData);
@@ -84,7 +84,7 @@ export const POST = async (request: Request) => {
       firstLessonMemo,
     };
 
-    const result = await createDirectPt(session.roleId, ptData);
+    const result = await createDirectPt(sessionOrResponse.roleId, ptData);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -92,7 +92,14 @@ export const POST = async (request: Request) => {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error creating PT:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_NEW_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "createPt",
+      },
+      tags: ["api", "trainer", "pt", "new"],
+    });
 
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

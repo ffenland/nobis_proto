@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { getManagerCenters } from "@/app/services/manager/dashboard.service";
+import { getManagerCenters } from "@/app/services/master/dashboard.service";
 import { logApiError } from "@/app/services/error/error-logging.service";
 import { getCenterEquipmentsSimple } from "@/app/services/fitness-center/equipment.service";
 

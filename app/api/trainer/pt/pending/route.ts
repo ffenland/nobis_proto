@@ -8,30 +8,35 @@ import {
   CreatePendingPtInput,
   getTrainerAcceptingPendingPts,
 } from "@/app/services/trainer/pt.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
-export async function GET() {
-  // 세션 처리를 먼저 수행
+export async function GET(request: NextRequest) {
   const sessionOrResponse = await getSessionOrReturn401();
 
-  // 401 응답인 경우 바로 반환
   if (sessionOrResponse instanceof NextResponse) {
     return sessionOrResponse;
   }
 
-  // 권한 확인 - TRAINER만 접근 가능
   if (sessionOrResponse.role !== "TRAINER") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {
-    // ACCEPTING, PENDING 상태 PT 목록 조회 (새로운 정렬 방식)
     const pendingPts = await getTrainerAcceptingPendingPts(
       sessionOrResponse.roleId
     );
 
     return NextResponse.json(pendingPts);
   } catch (error) {
-    console.error("Pending PT 목록 조회 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PENDING_GET_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getTrainerAcceptingPendingPts",
+      },
+      tags: ["api", "trainer", "pt", "pending"],
+    });
+
     return NextResponse.json(
       { error: "Pending PT 목록을 불러올 수 없습니다." },
       { status: 500 }
@@ -41,15 +46,12 @@ export async function GET() {
 
 // POST: PENDING PT 생성 (Description 단계에서)
 export async function POST(request: NextRequest) {
-  // 세션 처리를 먼저 수행
   const sessionOrResponse = await getSessionOrReturn401();
 
-  // 401 응답인 경우 바로 반환
   if (sessionOrResponse instanceof NextResponse) {
     return sessionOrResponse;
   }
 
-  // 권한 확인 - TRAINER만 접근 가능
   if (sessionOrResponse.role !== "TRAINER") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -58,7 +60,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { memberId, ptProductId, description, goals } = body;
 
-    // 필수 필드 검증
     if (!memberId || !ptProductId || !description || !goals) {
       return NextResponse.json(
         { error: "필수 데이터가 누락되었습니다." },
@@ -81,7 +82,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error creating pending PT:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PENDING_POST_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "createPendingPt",
+      },
+      tags: ["api", "trainer", "pt", "pending"],
+    });
 
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -174,7 +182,14 @@ export async function PATCH(request: NextRequest) {
       result,
     });
   } catch (error: any) {
-    console.error("PT 승인/거절 처리 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PENDING_PATCH_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "approvePt",
+      },
+      tags: ["api", "trainer", "pt", "pending", "approval"],
+    });
 
     // Prisma 에러 처리
     if (error.code === "P2025") {

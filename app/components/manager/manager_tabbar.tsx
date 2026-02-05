@@ -1,75 +1,47 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  FaNewspaper,
-  FaPeoplePulling,
-  FaPeopleRobbery,
-  FaRegNewspaper,
-} from "react-icons/fa6";
-import {
-  RiChatSmile3Fill,
-  RiChatSmile3Line,
-  RiHome4Fill,
-  RiHome4Line,
-  RiSettings4Fill,
-  RiSettings4Line,
-} from "react-icons/ri";
+import { Home } from "lucide-react";
+import { cn } from "@/app/lib/utils";
 
-const ManagerTabbar = () => {
+const tabs = [
+  {
+    name: "홈",
+    href: "/manager",
+    icon: Home,
+  },
+];
+
+export default function ManagerTabbar() {
   const pathname = usePathname();
-  return (
-    <div className="mx-auto grid w-full grid-cols-5 border-t border-neutral-500 bg-base-100 py-3">
-      <Link href={"/manager"} className="flex flex-col items-center gap-px">
-        {pathname === "/manager" ? <RiHome4Fill /> : <RiHome4Line />}
-        <span>홈</span>
-      </Link>
-      <Link
-        href={"/manager/product"}
-        className="flex flex-col items-center gap-px"
-      >
-        {pathname === "/manager/product" ? (
-          <RiChatSmile3Fill />
-        ) : (
-          <RiChatSmile3Line />
-        )}
-        <span>상품관리</span>
-      </Link>
-      <Link
-        href={"/manager/trainers"}
-        className="flex flex-col items-center gap-px"
-      >
-        {pathname === "/manager/trainers" ? (
-          <FaPeopleRobbery />
-        ) : (
-          <FaPeoplePulling />
-        )}
-        <span>트레이너</span>
-      </Link>
-      <Link
-        href={"/manager/operations"}
-        className="flex flex-col items-center gap-px"
-      >
-        {pathname === "/manager/operations" ? (
-          <FaNewspaper />
-        ) : (
-          <FaRegNewspaper />
-        )}
-        <span>운영관리</span>
-      </Link>
-      <Link
-        href={"/manager/centers"}
-        className="flex flex-col items-center gap-px"
-      >
-        {pathname === "/manager/centers" ? (
-          <RiSettings4Fill />
-        ) : (
-          <RiSettings4Line />
-        )}
-        <span>매장관리</span>
-      </Link>
-    </div>
-  );
-};
 
-export default ManagerTabbar;
+  return (
+    <nav className="bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-50">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-around">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = pathname === tab.href;
+
+            return (
+              <Link
+                key={tab.name}
+                href={tab.href}
+                className={cn(
+                  "flex flex-col items-center justify-center py-2 px-3 min-w-[80px] transition-colors",
+                  isActive
+                    ? "text-blue-600"
+                    : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                <Icon className="w-6 h-6" />
+                <span className="text-xs mt-1">{tab.name}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
+  );
+}

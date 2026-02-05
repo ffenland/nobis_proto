@@ -56,11 +56,35 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
     );
   }
 
-  // 날짜 겹침 검증 함수
+  // 모든 일시정지 기간의 날짜들을 배열로 생성 (승인된 + 대기중인)
+  const getDisabledDates = () => {
+    const allPauses = [
+      ...pauseInfo.approvedPauses,
+      ...pauseInfo.pendingPauses,
+    ];
+
+    const disabledDates: Date[] = [];
+
+    allPauses.forEach((pause) => {
+      const start = new Date(pause.startDate);
+      const end = new Date(pause.endDate);
+
+      // 시작일부터 종료일까지의 모든 날짜를 추가
+      const currentDate = new Date(start);
+      while (currentDate <= end) {
+        disabledDates.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    });
+
+    return disabledDates;
+  };
+
+  // 날짜 겹침 검증 함수 (모든 일시정지 기간 체크)
   const checkDateOverlap = (
     newStart: Date,
     newEnd: Date,
-    existingPauses: Array<{ startDate: Date; endDate: Date }>
+    existingPauses: Array<{ startDate: string; endDate: string }>
   ): boolean => {
     return existingPauses.some((pause) => {
       const existingStart = new Date(pause.startDate);
@@ -86,13 +110,20 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
       return;
     }
 
-    // 날짜 겹침 검증
-    if (checkDateOverlap(dateRange.from, dateRange.to, pauseInfo.activePauses)) {
-      alert("선택한 날짜가 기존 일시정지 기간과 겹칩니다. 다른 날짜를 선택해주세요.");
+    // 날짜 겹침 검증 (모든 일시정지 기간 체크)
+    const allPauses = [
+      ...pauseInfo.approvedPauses,
+      ...pauseInfo.pendingPauses,
+    ];
+
+    if (checkDateOverlap(dateRange.from, dateRange.to, allPauses)) {
+      alert(
+        "선택한 날짜가 기존 일시정지 기간과 겹칩니다. 다른 날짜를 선택해주세요."
+      );
       return;
     }
 
-    if (!confirm("일시정지를 등록하시겠습니까?")) {
+    if (!confirm("일시정지 요청을 등록하시겠습니까? (매니저 승인 필요)")) {
       return;
     }
 
@@ -113,7 +144,7 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
         throw new Error(errorData.error || "Failed to create pause");
       }
 
-      alert("일시정지가 등록되었습니다");
+      alert("일시정지 요청이 등록되었습니다. 매니저 승인 후 적용됩니다.");
       await mutate();
       setIsAdding(false);
       setDateRange(undefined);
@@ -139,7 +170,7 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
 
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">만료일</span>
+              <span className="text-sm text-gray-600">원래 만료일</span>
               <span className="font-medium">
                 {pauseInfo.expirationDate
                   ? new Date(pauseInfo.expirationDate).toLocaleDateString()
@@ -147,27 +178,45 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">추가 연장일</span>
-              <span className="font-medium">{pauseInfo.extraDays}일</span>
+              <span className="text-sm text-gray-600">승인된 일시정지</span>
+              <span className="font-medium text-blue-600">
+                {pauseInfo.totalApprovedDays}일
+              </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">일시정지 횟수</span>
+              <span className="text-sm text-gray-600 font-semibold">
+                최종 만료일
+              </span>
+              <span className="font-bold text-lg">
+                {pauseInfo.finalExpirationDate
+                  ? new Date(
+                      pauseInfo.finalExpirationDate
+                    ).toLocaleDateString()
+                  : "미정"}
+              </span>
+            </div>
+            <div className="divider my-2"></div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">일시정지 요청 횟수</span>
               <span className="font-medium">{pauseInfo.pauseCount}회</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 활성 일시정지 목록 */}
-      {pauseInfo.activePauses.length > 0 && (
+      {/* 승인 대기중인 일시정지 목록 */}
+      {pauseInfo.pendingPauses.length > 0 && (
         <div className="space-y-4">
-          <h4 className="font-semibold text-lg">활성 일시정지</h4>
-          {pauseInfo.activePauses.map((pause) => (
+          <h4 className="font-semibold text-lg">승인 대기중</h4>
+          {pauseInfo.pendingPauses.map((pause) => (
             <div
               key={pause.id}
-              className="card bg-yellow-50 border border-yellow-200 shadow-sm"
+              className="card bg-yellow-50 border border-yellow-300 shadow-sm"
             >
               <div className="card-body">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="badge badge-warning">승인 대기</span>
+                </div>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">시작일</span>
@@ -187,6 +236,65 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
                       {pause.days}일
                     </span>
                   </div>
+                  <div className="divider my-2"></div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">사유</p>
+                    <p className="text-sm bg-white p-2 rounded">
+                      {pause.reason}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 승인된 일시정지 목록 */}
+      {pauseInfo.approvedPauses.length > 0 && (
+        <div className="space-y-4">
+          <h4 className="font-semibold text-lg">승인된 일시정지</h4>
+          {pauseInfo.approvedPauses.map((pause) => (
+            <div
+              key={pause.id}
+              className="card bg-green-50 border border-green-200 shadow-sm"
+            >
+              <div className="card-body">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="badge badge-success">승인 완료</span>
+                  {pause.approvedByManager && (
+                    <span className="text-xs text-gray-600">
+                      by {pause.approvedByManager.username}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">시작일</span>
+                    <span className="font-medium">
+                      {new Date(pause.startDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">종료일</span>
+                    <span className="font-medium">
+                      {new Date(pause.endDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">기간</span>
+                    <span className="font-medium text-green-700">
+                      {pause.days}일
+                    </span>
+                  </div>
+                  {pause.approvedAt && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">승인일</span>
+                      <span className="text-sm text-gray-500">
+                        {new Date(pause.approvedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
                   <div className="divider my-2"></div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1">사유</p>
@@ -238,12 +346,18 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
                     일시정지 기간
                   </span>
                 </label>
+                <div className="text-xs text-gray-500 mb-2">
+                  * 이미 신청된 일시정지 기간은 선택할 수 없습니다
+                </div>
                 <div className="bg-white p-3 rounded border">
                   <DayPicker
                     mode="range"
                     selected={dateRange}
                     onSelect={setDateRange}
-                    disabled={{ before: new Date() }}
+                    disabled={[
+                      { before: new Date() },
+                      ...getDisabledDates(),
+                    ]}
                   />
                 </div>
                 {dateRange?.from && dateRange?.to && (
@@ -278,7 +392,7 @@ export default function PtPauseManager({ ptId }: PtPauseManagerProps) {
                 onClick={handleSubmit}
                 disabled={isSubmitting || !dateRange?.from || !dateRange?.to}
               >
-                {isSubmitting ? "처리 중..." : "일시정지 승인"}
+                {isSubmitting ? "처리 중..." : "일시정지 요청하기"}
               </button>
             </div>
           )}

@@ -73,6 +73,50 @@ const TrainerSchedulePage = () => {
     return dateScheduleMap.get(dateKey) || { lessons: [], offs: [] };
   }, [selectedDate, dateScheduleMap]);
 
+  // 월별 통계 계산
+  const monthlyStats = useMemo(() => {
+    if (!data) return { totalLessons: 0, fullDayOffs: 0, halfDayOffs: 0 };
+
+    const totalLessons = data.lessons.length;
+
+    let fullDayOffs = 0;
+    let halfDayOffs = 0;
+    data.offDays.forEach((off) => {
+      const startDate = new Date(off.startAt);
+      const endDate = new Date(off.endAt);
+
+      const startHour = startDate.getHours();
+      const startMinute = startDate.getMinutes();
+      const endHour = endDate.getHours();
+      const endMinute = endDate.getMinutes();
+
+      // 종일 휴무
+      if (
+        startHour === 0 &&
+        startMinute === 0 &&
+        endHour === 23 &&
+        endMinute === 59
+      ) {
+        fullDayOffs++;
+      }
+      // 오전 또는 오후 반차
+      else if (
+        (startHour === 0 &&
+          startMinute === 0 &&
+          endHour === 12 &&
+          endMinute === 59) ||
+        (startHour === 13 &&
+          startMinute === 0 &&
+          endHour === 23 &&
+          endMinute === 59)
+      ) {
+        halfDayOffs++;
+      }
+    });
+
+    return { totalLessons, fullDayOffs, halfDayOffs };
+  }, [data]);
+
   // 날짜별 스타일 modifier
   const modifiers = {
     hasLesson: (date: Date) => {
@@ -80,12 +124,43 @@ const TrainerSchedulePage = () => {
       const schedule = dateScheduleMap.get(dateKey);
       return schedule ? schedule.lessons.length > 0 : false;
     },
-    hasOff: (date: Date) => {
+    hasFullDayOff: (date: Date) => {
       const dateKey = format(date, "yyyy-MM-dd");
       const schedule = dateScheduleMap.get(dateKey);
-      return schedule
-        ? schedule.offs.length > 0 && schedule.lessons.length === 0
-        : false;
+      if (!schedule || schedule.lessons.length > 0) return false;
+
+      // 종일 휴무 체크 (00:00 ~ 23:59)
+      return schedule.offs.some((off) => {
+        const startDate = new Date(off.startAt);
+        const endDate = new Date(off.endAt);
+        return (
+          startDate.getHours() === 0 &&
+          startDate.getMinutes() === 0 &&
+          endDate.getHours() === 23 &&
+          endDate.getMinutes() === 59
+        );
+      });
+    },
+    hasHalfDayOff: (date: Date) => {
+      const dateKey = format(date, "yyyy-MM-dd");
+      const schedule = dateScheduleMap.get(dateKey);
+      if (!schedule || schedule.lessons.length > 0) return false;
+
+      // 반차 체크 (오전 또는 오후)
+      return schedule.offs.some((off) => {
+        const startDate = new Date(off.startAt);
+        const endDate = new Date(off.endAt);
+        const isHalfDay =
+          (startDate.getHours() === 0 &&
+            startDate.getMinutes() === 0 &&
+            endDate.getHours() === 12 &&
+            endDate.getMinutes() === 59) ||
+          (startDate.getHours() === 13 &&
+            startDate.getMinutes() === 0 &&
+            endDate.getHours() === 23 &&
+            endDate.getMinutes() === 59);
+        return isHalfDay;
+      });
     },
   };
 
@@ -95,8 +170,13 @@ const TrainerSchedulePage = () => {
       color: "white",
       fontWeight: "bold" as const,
     },
-    hasOff: {
+    hasFullDayOff: {
       backgroundColor: "#EF4444",
+      color: "white",
+      fontWeight: "bold" as const,
+    },
+    hasHalfDayOff: {
+      backgroundColor: "#F59E0B",
       color: "white",
       fontWeight: "bold" as const,
     },
@@ -282,10 +362,10 @@ const TrainerSchedulePage = () => {
           />
         </div>
 
-        <div className="md:flex md:gap-6">
+        <div className="md:flex md:items-stretch md:gap-2 mb-2">
           {/* 달력 영역 */}
-          <div className="md:flex-1">
-            <Card className="mb-6 md:mb-0">
+          <div className="min-w-[500px]">
+            <Card className="">
               <CardContent className="p-4">
                 <div className="flex justify-center">
                   <DayPicker
@@ -348,7 +428,11 @@ const TrainerSchedulePage = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 bg-red-500 rounded"></div>
-                      <span className="text-sm text-gray-600">휴무</span>
+                      <span className="text-sm text-gray-600">종일휴무</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-amber-500 rounded"></div>
+                      <span className="text-sm text-gray-600">반차</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 bg-gray-200 rounded"></div>
@@ -360,116 +444,229 @@ const TrainerSchedulePage = () => {
             </Card>
           </div>
 
-          {/* 스케줄 상세 영역 */}
-          <div className="md:w-96">
-            <Card>
-              <CardHeader className="pb-3 flex justify-between items-center">
-                <h3 className="text-lg font-semibold">
-                  {selectedDate
-                    ? format(selectedDate, "M월 d일 (EEEE)", { locale: ko })
-                    : "날짜를 선택하세요"}
-                </h3>
-                <Button
-                  variant="danger"
-                  disabled={isLoading}
-                  onClick={handleOffRequest}
-                >
-                  <span>휴무 신청</span>
-                </Button>
+          {/* 스케줄 종합정보 */}
+          <div className="flex-1 md:self-stretch">
+            <Card className="md:h-full md:flex md:flex-col">
+              <CardHeader>
+                <h3>월별 통계</h3>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {selectedDate && selectedDateSchedule ? (
-                  <>
-                    {/* 레슨 목록 */}
-                    {selectedDateSchedule.lessons.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-700">
-                          레슨
-                        </h4>
-                        {selectedDateSchedule.lessons.map(
-                          (lesson: LessonType) => (
-                            <div
-                              key={lesson.id}
-                              className="p-3 bg-blue-50 rounded-lg border border-blue-200"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium text-blue-900">
-                                    {lesson.member.username} 회원님
-                                  </p>
-                                  <p className="text-sm text-blue-700">
-                                    {format(
-                                      new Date(lesson.scheduledAt),
-                                      "HH:mm"
-                                    )}{" "}
-                                    ~ {format(new Date(lesson.endAt), "HH:mm")}
-                                  </p>
-                                  <p className="text-xs text-blue-600 mt-1">
-                                    {lesson.fitnessCenter.title}
-                                  </p>
-                                </div>
-                                <Badge variant="info" className="text-xs">
-                                  레슨
-                                </Badge>
-                              </div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    )}
-
-                    {/* OFF 목록 */}
-                    {selectedDateSchedule.offs.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-700">
-                          휴무
-                        </h4>
-                        {selectedDateSchedule.offs.map((off: OffType) => (
-                          <div
-                            key={off.id}
-                            className="p-3 bg-red-50 rounded-lg border border-red-200"
+              <CardContent className="md:flex-1 md:overflow-y-auto">
+                <div className="flex flex-col md:flex-col gap-3">
+                  {/* 총 레슨 수 */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                          <svg
+                            className="w-6 h-6 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
                           >
-                            <div className="flex items-center justify-between">
-                              <p
-                                className={`font-medium ${
-                                  off.state === "CONFIRMED"
-                                    ? "text-red-900"
-                                    : off.state === "PENDING"
-                                    ? "text-purple-800"
-                                    : "text-slate-700"
-                                }`}
-                              >
-                                {formatOffTime(off.startAt, off.endAt)}
-                              </p>
-                              <Badge variant="error" className="text-xs">
-                                {off.state === "PENDING"
-                                  ? "승인 대기중"
-                                  : off.state === "CONFIRMED"
-                                  ? "승인 완료"
-                                  : "오류"}
-                              </Badge>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* 일정 없음 */}
-                    {selectedDateSchedule.lessons.length === 0 &&
-                      selectedDateSchedule.offs.length === 0 && (
-                        <div className="p-4 text-center text-gray-500">
-                          <p>일정 없음</p>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                            />
+                          </svg>
                         </div>
-                      )}
-                  </>
-                ) : (
-                  <div className="p-4 text-center text-gray-500">
-                    <p>날짜를 선택하여 일정을 확인하세요</p>
+                        <div>
+                          <p className="text-sm text-blue-700 font-medium">
+                            총 레슨
+                          </p>
+                          <p className="text-xs text-blue-600">
+                            {format(currentMonth, "M월")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-3xl font-bold text-blue-900">
+                        {monthlyStats.totalLessons}
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  {/* 총 연차 */}
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                          <svg
+                            className="w-6 h-6 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm text-red-700 font-medium">
+                            연차
+                          </p>
+                          <p className="text-xs text-red-600">
+                            {format(currentMonth, "M월")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-3xl font-bold text-red-900">
+                        {monthlyStats.fullDayOffs}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 총 반차 */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center">
+                          <svg
+                            className="w-6 h-6 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm text-amber-700 font-medium">
+                            반차
+                          </p>
+                          <p className="text-xs text-amber-600">
+                            {format(currentMonth, "M월")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-3xl font-bold text-amber-900">
+                        {monthlyStats.halfDayOffs}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
+        </div>
+        {/* 스케줄 상세 영역 */}
+        <div className="w-full">
+          <Card>
+            <CardHeader className="pb-3 flex justify-between items-center">
+              <h3 className="text-lg font-semibold">
+                {selectedDate
+                  ? format(selectedDate, "M월 d일 (EEEE)", { locale: ko })
+                  : "날짜를 선택하세요"}
+              </h3>
+              <Button
+                variant="danger"
+                disabled={isLoading}
+                onClick={handleOffRequest}
+              >
+                <span>휴무 신청</span>
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {selectedDate && selectedDateSchedule ? (
+                <>
+                  {/* 레슨 목록 */}
+                  {selectedDateSchedule.lessons.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700">
+                        레슨
+                      </h4>
+                      {selectedDateSchedule.lessons.map(
+                        (lesson: LessonType) => (
+                          <div
+                            key={lesson.id}
+                            className="p-3 bg-blue-50 rounded-lg border border-blue-200"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-blue-900">
+                                  {lesson.member.username} 회원님
+                                </p>
+                                <p className="text-sm text-blue-700">
+                                  {format(
+                                    new Date(lesson.scheduledAt),
+                                    "HH:mm"
+                                  )}{" "}
+                                  ~ {format(new Date(lesson.endAt), "HH:mm")}
+                                </p>
+                                <p className="text-xs text-blue-600 mt-1">
+                                  {lesson.fitnessCenter.title}
+                                </p>
+                              </div>
+                              <Badge variant="info" className="text-xs">
+                                레슨
+                              </Badge>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  {/* OFF 목록 */}
+                  {selectedDateSchedule.offs.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700">
+                        휴무
+                      </h4>
+                      {selectedDateSchedule.offs.map((off: OffType) => (
+                        <div
+                          key={off.id}
+                          className="p-3 bg-red-50 rounded-lg border border-red-200"
+                        >
+                          <div className="flex items-center justify-between">
+                            <p
+                              className={`font-medium ${
+                                off.state === "CONFIRMED"
+                                  ? "text-red-900"
+                                  : off.state === "PENDING"
+                                  ? "text-purple-800"
+                                  : "text-slate-700"
+                              }`}
+                            >
+                              {formatOffTime(off.startAt, off.endAt)}
+                            </p>
+                            <Badge variant="error" className="text-xs">
+                              {off.state === "PENDING"
+                                ? "승인 대기중"
+                                : off.state === "CONFIRMED"
+                                ? "승인 완료"
+                                : "오류"}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 일정 없음 */}
+                  {selectedDateSchedule.lessons.length === 0 &&
+                    selectedDateSchedule.offs.length === 0 && (
+                      <div className="p-4 text-center text-gray-500">
+                        <p>일정 없음</p>
+                      </div>
+                    )}
+                </>
+              ) : (
+                <div className="p-4 text-center text-gray-500">
+                  <p>날짜를 선택하여 일정을 확인하세요</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 

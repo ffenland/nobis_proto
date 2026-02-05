@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
 import { getFreeExercises } from "@/app/services/exercise/exercise.service";
 import { logApiError } from "@/app/services/error/error-logging.service";
-import { createFreeExercise } from "@/app/services/manager/manager-exercise.service";
+import { createFreeExercise } from "@/app/services/master/master-exercise.service";
 
 export async function GET(request: NextRequest) {
   // 1. 세션 확인
@@ -42,16 +42,21 @@ export async function POST(request: NextRequest) {
     return sessionOrResponse;
   }
   // 2. 매니저 권한 확인
-  if (sessionOrResponse.role !== "MANAGER") {
+  if (sessionOrResponse.role !== "MASTER") {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
 
   // 3. 비즈니스 로직
   try {
     const { title, description } = await request.json();
-    const exercise = await createFreeExercise({ title, description });
+    const exercise = await createFreeExercise({
+      title,
+      description,
+      masterId: sessionOrResponse.roleId,
+    });
     return NextResponse.json(exercise);
   } catch (error) {
+    console.log(error);
     // 4. 에러 로깅
     await logApiError(request, error as Error, {
       errorCode: "EXERCISE_002",

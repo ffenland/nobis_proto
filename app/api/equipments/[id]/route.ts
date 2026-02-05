@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
 import {
   getEquipmentById,
-  deleteEquipment
+  deleteEquipment,
 } from "@/app/services/fitness-center/equipment.service";
 import { logApiError } from "@/app/services/error/error-logging.service";
 
@@ -64,11 +64,8 @@ export async function DELETE(
   }
 
   // 2. 역할별 권한 확인
-  if (sessionOrResponse.role !== "MANAGER") {
-    return NextResponse.json(
-      { error: "Forbidden" },
-      { status: 403 }
-    );
+  if (sessionOrResponse.role !== "MASTER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // 3. 비즈니스 로직

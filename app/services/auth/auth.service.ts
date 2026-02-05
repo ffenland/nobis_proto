@@ -19,6 +19,7 @@ export async function getSessionUserInfo(sessionId: string) {
     where: { id: sessionId },
     select: {
       id: true,
+      realname: true,
       username: true,
       avatarImageId: true,
       role: true,
@@ -33,6 +34,9 @@ export async function getSessionUserInfo(sessionId: string) {
       managerProfile: {
         select: { id: true },
       },
+      masterProfile: {
+        select: { id: true },
+      },
       memberProfile: {
         select: { id: true },
       },
@@ -45,10 +49,11 @@ export async function getSessionUserInfo(sessionId: string) {
 
   return {
     id: user.id,
-    username: user.username,
+    realname: user.realname || user.username,
     avatarImageId: user.avatarImageId,
     hasMobile: Boolean(user.mobile),
     hasManagerProfile: !!user.managerProfile,
+    hasMasterProfile: !!user.masterProfile,
     hasTrainerProfile: !!user.trainerProfile,
     hasMemberProfile: !!user.memberProfile,
   };
@@ -318,14 +323,28 @@ async function getManagerProfile(userId: string) {
   return manager;
 }
 
+// Master 프로필 조회 (Trainer용)
+async function getMasterProfile(userId: string) {
+  const master = await prisma.master.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+
+  return master;
+}
+
 // Role Switch 서비스
 export async function switchUserRole(
   sessionId: string,
   currentRole: UserRole
 ): Promise<RoleSwitchResult> {
   try {
-    // 권한 확인 - TRAINER 또는 MANAGER만 가능
-    if (currentRole !== "TRAINER" && currentRole !== "MANAGER") {
+    // 권한 확인 - TRAINER, MANAGER, MASTER만 가능
+    if (
+      currentRole !== "TRAINER" &&
+      currentRole !== "MANAGER" &&
+      currentRole !== "MASTER"
+    ) {
       return {
         success: false,
         error: "역할 전환 권한이 없습니다",
@@ -340,6 +359,7 @@ export async function switchUserRole(
         role: true,
         trainerProfile: { select: { id: true } },
         managerProfile: { select: { id: true } },
+        masterProfile: { select: { id: true } },
       },
     });
 
@@ -361,8 +381,19 @@ export async function switchUserRole(
       };
     }
 
+    // Master → Trainer 전환
+    if (currentRole === "MASTER") {
+      const trainer = await getOrCreateTrainerProfile(user.id);
+
+      return {
+        success: true,
+        newRole: "TRAINER" as UserRole,
+        newRoleId: trainer.id,
+      };
+    }
+
     // Trainer → Manager 전환
-    if (currentRole === "TRAINER") {
+    if (currentRole === "TRAINER" && user.managerProfile) {
       const manager = await getManagerProfile(user.id);
 
       if (!manager) {
@@ -379,9 +410,27 @@ export async function switchUserRole(
       };
     }
 
+    // Trainer → Master 전환
+    if (currentRole === "TRAINER" && user.masterProfile) {
+      const master = await getMasterProfile(user.id);
+
+      if (!master) {
+        return {
+          success: false,
+          error: "Master 권한이 없습니다",
+        };
+      }
+
+      return {
+        success: true,
+        newRole: "MASTER" as UserRole,
+        newRoleId: master.id,
+      };
+    }
+
     return {
       success: false,
-      error: "잘못된 요청입니다",
+      error: "전환 가능한 역할이 없습니다",
     };
   } catch (error) {
     console.error("Role switch error:", error);

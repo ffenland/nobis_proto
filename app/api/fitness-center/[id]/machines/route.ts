@@ -2,20 +2,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMachinesByFitnessCenter } from "@/app/services/fitness-center/machine.service";
 import { getSessionOrReturn401 } from "@/app/lib/session";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 // GET /api/fitness-center/[id]/machines - 센터의 머신 목록 조회 (레슨 기록용)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
     const { id: centerId } = await params;
-    const sessionOrResponse = await getSessionOrReturn401();
 
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
     if (!centerId) {
       return NextResponse.json(
         {
@@ -26,14 +28,19 @@ export async function GET(
       );
     }
 
-    // 센터 머신 정보 조회 (서비스 함수 호출)
     const data = await getMachinesByFitnessCenter(centerId);
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Failed to fetch center machines:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_CENTER_MACHINE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getMachinesByFitnessCenter",
+      },
+      tags: ["api", "machine", "fitness-center"],
+    });
 
-    // 센터를 찾을 수 없는 경우
     if (
       error instanceof Error &&
       error.message === "센터를 찾을 수 없습니다."

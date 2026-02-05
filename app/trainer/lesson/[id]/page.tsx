@@ -133,8 +133,9 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
   };
 
   // 날짜 포맷팅
-  const formatDateString = (date: Date): string => {
-    return date.toLocaleDateString("ko-KR");
+  const formatDateString = (date: Date | string): string => {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    return dateObj.toLocaleDateString("ko-KR");
   };
 
   // 둘 중 하나라도 로딩 중이면 로딩 표시
@@ -268,7 +269,7 @@ const TrainerLessonDetailPage = ({ params }: PageProps) => {
                 </div>
                 <p className="text-gray-600 text-sm">
                   {lesson.memberName}님의{" "}
-                  {formatDateString(lesson.scheduledAt)} 수업
+                  {formatDateString(new Date(lesson.scheduledAt))} 수업
                 </p>
               </CardHeader>
               <CardContent>

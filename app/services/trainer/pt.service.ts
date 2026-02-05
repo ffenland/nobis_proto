@@ -11,7 +11,15 @@ export async function getTrainerPtList(trainerId: string) {
   const kstOffset = 9 * 60 * 60 * 1000; // 9시간을 밀리초로
   const kstDate = new Date(now.getTime() + kstOffset);
   const today = new Date(
-    Date.UTC(kstDate.getFullYear(), kstDate.getMonth(), kstDate.getDate(), 0, 0, 0, 0)
+    Date.UTC(
+      kstDate.getFullYear(),
+      kstDate.getMonth(),
+      kstDate.getDate(),
+      0,
+      0,
+      0,
+      0
+    )
   );
   today.setHours(today.getHours() - 9); // KST 00:00:00 = UTC 전날 15:00:00
 
@@ -108,15 +116,40 @@ export async function getTrainerPtList(trainerId: string) {
 
   // CONFIRMED PT 데이터 변환
   const confirmedPtsData = confirmedPts.map((pt) => {
-    // 완료된 레슨 수 계산 (레코드가 있는 레슨)
-    const completedSessions = pt.lessons.filter(
-      (lesson) => lesson.records.length > 0
-    ).length;
     const totalSessions = pt.ptProduct.totalCount;
-    const remainingSessions = totalSessions - completedSessions;
+    const now = new Date();
 
-    // 진행도 계산
-    const progress = Math.round((completedSessions / totalSessions) * 100);
+    // 각 레슨의 상태를 계산
+    const lessonsWithState = pt.lessons.map((lesson) => {
+      const lessonState = calculateLessonState(
+        lesson.scheduledAt,
+        lesson.endAt,
+        lesson.records.length,
+        now
+      );
+      return {
+        id: lesson.id,
+        scheduledAt: lesson.scheduledAt,
+        endAt: lesson.endAt,
+        hasRecord: lesson.records.length > 0,
+        state: lessonState,
+      };
+    });
+
+    // 상태별 레슨 수 계산
+    const completedSessions = lessonsWithState.filter(
+      (lesson) => lesson.state === "completed"
+    ).length;
+    const absentSessions = lessonsWithState.filter(
+      (lesson) => lesson.state === "absence"
+    ).length;
+
+    // 진행된 레슨 수 = 완료된 레슨 + 결석한 레슨
+    const progressedSessions = completedSessions + absentSessions;
+    const remainingSessions = totalSessions - progressedSessions;
+
+    // 진행도 계산 (완료 + 결석 기준)
+    const progress = Math.round((progressedSessions / totalSessions) * 100);
 
     // 상태 결정
     let status: "active" | "closing_soon";
@@ -127,15 +160,13 @@ export async function getTrainerPtList(trainerId: string) {
     }
 
     // 마지막 완료된 레슨 찾기
-    const lastCompletedLesson = pt.lessons.find(
-      (lesson) => lesson.records.length > 0
+    const lastCompletedLesson = lessonsWithState.find(
+      (lesson) => lesson.state === "completed"
     );
 
-    // 다음 예정된 레슨 찾기 (오늘 이후)
-    const nextLesson = pt.lessons
-      .filter(
-        (lesson) => lesson.scheduledAt >= today && lesson.records.length === 0
-      )
+    // 다음 예정된 레슨 찾기 (scheduled 상태 중 가장 빠른 것)
+    const nextLesson = lessonsWithState
+      .filter((lesson) => lesson.state === "scheduled")
       .sort(
         (a, b) =>
           new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
@@ -161,12 +192,7 @@ export async function getTrainerPtList(trainerId: string) {
             scheduledAt: nextLesson.scheduledAt,
           }
         : null,
-      lessons: pt.lessons.map((lesson) => ({
-        id: lesson.id,
-        scheduledAt: lesson.scheduledAt,
-        endAt: lesson.endAt,
-        hasRecord: lesson.records.length > 0,
-      })),
+      lessons: lessonsWithState,
     };
   });
 
@@ -319,7 +345,24 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
           scheduledAt: true,
           endAt: true,
           isCanceled: true,
-          managerCheckedAt: true,
+          cancelInfo: {
+            select: {
+              approvedBy: {
+                select: {
+                  user: {
+                    select: {
+                      realname: true,
+                    },
+                  },
+                },
+              },
+              approvedAt: true,
+              canceledBy: true,
+
+              reason: true,
+            },
+          },
+
           records: {
             where: {
               deletedAt: null,
@@ -438,7 +481,7 @@ export async function getTrainerPtDetail(trainerId: string, ptId: string) {
       status: lessonStatus,
       memo: lesson.memo || null,
       recordCount: lesson.records.length,
-      managerCheckedAt: lesson.managerCheckedAt,
+      cancelInfo: lesson.cancelInfo,
     };
   });
 
@@ -2126,7 +2169,6 @@ export async function pausePt(
       },
       select: {
         id: true,
-        extraDays: true,
         pauseCount: true,
       },
     });
@@ -2135,7 +2177,7 @@ export async function pausePt(
       throw new Error("진행 중인 PT를 찾을 수 없습니다");
     }
 
-    // 2. PtPause 레코드 생성 (PT state는 CONFIRMED 유지)
+    // 2. PtPause 레코드 생성 (매니저 승인 대기 상태)
     const ptPause = await tx.ptPause.create({
       data: {
         ptId,
@@ -2143,21 +2185,19 @@ export async function pausePt(
         endDate: end,
         reason,
         days,
-        isActive: true,
+        isApproved: false, // 기본값: 매니저 승인 대기
       },
     });
 
-    // 3. PT의 extraDays, pauseCount 업데이트 (state는 변경하지 않음)
+    // 3. PT의 pauseCount 업데이트 (state는 변경하지 않음)
     const updatedPt = await tx.pt.update({
       where: { id: ptId },
       data: {
-        extraDays: pt.extraDays + days,
         pauseCount: pt.pauseCount + 1,
       },
       select: {
         id: true,
         state: true,
-        extraDays: true,
         pauseCount: true,
       },
     });
@@ -2174,18 +2214,26 @@ export async function pausePt(
           endDate: end.toISOString(),
           reason,
           days,
+          isApproved: false,
         },
         changedBy: sessionId,
         changedByRole: "TRAINER",
         changedByName: trainerUsername,
-        reason: "Pt 일시정지가 처리되었습니다",
-        tags: ["pt", "ptPause"],
+        reason: "Pt 일시정지 요청이 생성되었습니다",
+        tags: ["pt", "ptPause", "pending"],
       },
     });
 
     return {
       pt: updatedPt,
-      pause: ptPause,
+      pause: {
+        id: ptPause.id,
+        startDate: ptPause.startDate.toISOString(),
+        endDate: ptPause.endDate.toISOString(),
+        reason: ptPause.reason,
+        days: ptPause.days,
+        isApproved: ptPause.isApproved,
+      },
       pauseDays: days,
     };
   });
@@ -2199,7 +2247,6 @@ export type PausePtResult = Awaited<ReturnType<typeof pausePt>>;
 export async function getPtPauseInfo(ptId: string, trainerId: string) {
   // 오늘 날짜 (시간 0으로 설정)
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const pt = await prisma.pt.findFirst({
     where: {
@@ -2209,14 +2256,12 @@ export async function getPtPauseInfo(ptId: string, trainerId: string) {
     select: {
       id: true,
       expirationDate: true,
-      extraDays: true,
       pauseCount: true,
       pause: {
         where: {
           endDate: {
             gte: today,
           },
-          isActive: true,
         },
         select: {
           id: true,
@@ -2224,6 +2269,19 @@ export async function getPtPauseInfo(ptId: string, trainerId: string) {
           endDate: true,
           reason: true,
           days: true,
+          isApproved: true,
+          approvedAt: true,
+          approvedBy: {
+            select: {
+              id: true,
+              user: {
+                select: {
+                  realname: true,
+                  username: true,
+                },
+              },
+            },
+          },
         },
         orderBy: {
           startDate: "asc",
@@ -2236,11 +2294,50 @@ export async function getPtPauseInfo(ptId: string, trainerId: string) {
     throw new Error("PT 정보를 찾을 수 없습니다");
   }
 
+  // 승인된 일시정지와 대기중인 일시정지 분리
+  const approvedPauses = pt.pause.filter((p) => p.isApproved);
+  const pendingPauses = pt.pause.filter((p) => !p.isApproved);
+
+  // 승인된 일시정지의 총 일수 계산
+  const totalApprovedDays = approvedPauses.reduce(
+    (sum, pause) => sum + pause.days,
+    0
+  );
+
+  // 최종 만료일 계산 (expirationDate + 승인된 일시정지 일수)
+  const finalExpirationDate = pt.expirationDate
+    ? new Date(
+        pt.expirationDate.getTime() + totalApprovedDays * 24 * 60 * 60 * 1000
+      ).toISOString()
+    : null;
+
   return {
-    expirationDate: pt.expirationDate,
-    extraDays: pt.extraDays,
+    expirationDate: pt.expirationDate?.toISOString() ?? null,
+    finalExpirationDate,
+    totalApprovedDays,
     pauseCount: pt.pauseCount,
-    activePauses: pt.pause,
+    approvedPauses: approvedPauses.map((pause) => ({
+      id: pause.id,
+      startDate: pause.startDate.toISOString(),
+      endDate: pause.endDate.toISOString(),
+      reason: pause.reason,
+      days: pause.days,
+      approvedAt: pause.approvedAt?.toISOString() ?? null,
+      approvedByManager: pause.approvedBy
+        ? {
+            id: pause.approvedBy.id,
+            username:
+              pause.approvedBy.user.realname || pause.approvedBy.user.username,
+          }
+        : null,
+    })),
+    pendingPauses: pendingPauses.map((pause) => ({
+      id: pause.id,
+      startDate: pause.startDate.toISOString(),
+      endDate: pause.endDate.toISOString(),
+      reason: pause.reason,
+      days: pause.days,
+    })),
   };
 }
 

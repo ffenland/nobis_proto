@@ -8,11 +8,6 @@ const publicOnlyUrls: Routes = {
   "/login": true,
   "/ffen": true,
 };
-// array보다 object가 요소를 검색하는데 더 빠르다.
-
-const memberOnlyUrls: Routes = {};
-const trainerOnlyUrls: Routes = {};
-const managerOnlyUrls: Routes = {};
 
 const ipRequestCounts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_SIZE = 10 * 1000; // 10초
@@ -35,23 +30,10 @@ const middleware = async (request: NextRequest) => {
     ipRequestCounts.set(ip, record);
   }
   const session = await getCurrentIronSession();
-  // member, trainer, manager 각각의 페이지에 접근할 수 있는 url을 정의한다.
 
   const onPublicUrls = Boolean(
     publicOnlyUrls[request.nextUrl.pathname] ||
       request.nextUrl.pathname.startsWith("/login")
-  );
-  const onMemberOnlyUrls = Boolean(
-    memberOnlyUrls[request.nextUrl.pathname] ||
-      request.nextUrl.pathname.startsWith("/member")
-  );
-  const onTrainerOnlyUrls = Boolean(
-    trainerOnlyUrls[request.nextUrl.pathname] ||
-      request.nextUrl.pathname.startsWith("/trainer")
-  );
-  const onManagerOnlyUrls = Boolean(
-    managerOnlyUrls[request.nextUrl.pathname] ||
-      request.nextUrl.pathname.startsWith("/manager")
   );
   // /login 페이지 처리
   if (request.nextUrl.pathname === "/login") {
@@ -63,6 +45,8 @@ const middleware = async (request: NextRequest) => {
         return NextResponse.redirect(new URL("/trainer", request.url));
       } else if (session.role === "MANAGER") {
         return NextResponse.redirect(new URL("/manager", request.url));
+      } else if (session.role === "MASTER") {
+        return NextResponse.redirect(new URL("/master", request.url));
       }
     }
     return NextResponse.next();
@@ -75,8 +59,6 @@ const middleware = async (request: NextRequest) => {
     }
   } else {
     // login 한 상태
-
-
     if (
       session.role === "MEMBER" &&
       !request.nextUrl.pathname.startsWith("/member")
@@ -94,6 +76,15 @@ const middleware = async (request: NextRequest) => {
       !request.nextUrl.pathname.startsWith("/manager")
     ) {
       return NextResponse.redirect(new URL("/manager", request.url));
+    }
+    if (session.role === "MASTER") {
+      // MASTER는 /master와 /manager 모두 접근 가능
+      const isOnMasterOrManagerRoute =
+        request.nextUrl.pathname.startsWith("/master") ||
+        request.nextUrl.pathname.startsWith("/manager");
+      if (!isOnMasterOrManagerRoute) {
+        return NextResponse.redirect(new URL("/master", request.url));
+      }
     }
   }
 

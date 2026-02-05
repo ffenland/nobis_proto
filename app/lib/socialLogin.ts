@@ -1,6 +1,6 @@
 import { createRandomNumber } from "./utils";
 import prisma from "./prisma";
-import { getCurrentIronSession } from "./session";
+import { createSession, getCurrentIronSession } from "./session";
 import { redirect } from "next/navigation";
 
 interface NaverAccessTokenResponseSuccess {
@@ -21,15 +21,10 @@ interface KakaoAccessTokenResponseSuccess {
 
 export const loginToSession = async (
   id: string,
-  role: "MEMBER" | "TRAINER" | "MANAGER",
+  role: "MEMBER" | "TRAINER" | "MANAGER" | "MASTER",
   roleId: string
 ) => {
-  const session = await getCurrentIronSession();
-  session.id = id;
-  session.role = role;
-  session.roleId = roleId;
-  await session.save();
-
+  await createSession({ id, role, roleId });
 };
 
 export const createRandomUsername = async (

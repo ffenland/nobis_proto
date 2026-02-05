@@ -1,9 +1,10 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { getSessionOrReturn401 } from '@/app/lib/session';
-import { 
+import {
   getLessonDetail,
   updateLessonMemo
 } from '@/app/services/trainer/lesson.service';
+import { logApiError } from '@/app/services/error/error-logging.service';
 
 // Next.js 15 dynamic route params type
 type Params = Promise<{ id: string }>
@@ -13,17 +14,18 @@ export async function GET(
   _request: NextRequest,
   segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
+  const { id } = params;
+
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
-    const params = await segmentData.params;
-    const { id } = params;
-    
-    const sessionOrResponse = await getSessionOrReturn401();
-    
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-    
     // 정상 세션인 경우 서비스 함수 호출
     // roleId를 trainerId로 사용
     const lessonDetail = await getLessonDetail({
@@ -41,7 +43,15 @@ export async function GET(
     
     return NextResponse.json(lessonDetail);
   } catch (error) {
-    console.error('Lesson detail fetch error:', error);
+    await logApiError(_request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_DETAIL_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getLessonDetail",
+      },
+      tags: ["api", "trainer", "lesson"],
+    });
+
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -52,17 +62,18 @@ export async function PATCH(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
+  const { id } = params;
+
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
-    const params = await segmentData.params;
-    const { id } = params;
-    
-    const sessionOrResponse = await getSessionOrReturn401();
-    
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-    
     // 요청 본문 파싱
     const { memo } = await request.json();
     
@@ -75,7 +86,15 @@ export async function PATCH(
     
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Lesson memo update error:', error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_MEMO_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "updateLessonMemo",
+      },
+      tags: ["api", "trainer", "lesson", "memo"],
+    });
+
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

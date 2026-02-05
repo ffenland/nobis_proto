@@ -150,6 +150,33 @@ const TrainerPtPage = () => {
                 </div>
               </div>
             )}
+
+            {/* 프로그레스 바 범례 */}
+            {data.activePts.length > 0 && (
+              <Card className="bg-gray-50 border-gray-200">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-center gap-6 text-xs text-gray-600">
+                    <span className="font-semibold text-gray-700">프로그레스 바 범례:</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm bg-green-500" />
+                      <span>완료</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm bg-red-500" />
+                      <span>결석</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm bg-blue-500" />
+                      <span>진행중</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm bg-gray-400" />
+                      <span>예약</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 
@@ -243,8 +270,8 @@ interface PtCardProps {
 }
 
 const PtCard = ({ pt }: PtCardProps) => {
-  // FINISHED PT는 progress와 세부 정보가 없음
-  const progressPercentage = "progress" in pt ? pt.progress : 100;
+  // FINISHED PT는 lessons 배열이 없음
+  const hasLessons = "lessons" in pt && pt.lessons;
 
   return (
     <Link href={`/trainer/pt/${pt.id}`}>
@@ -287,45 +314,93 @@ const PtCard = ({ pt }: PtCardProps) => {
             </div>
           </div>
 
-          {/* 진행률 바 - CONFIRMED PT만 표시 */}
-          {"completedSessions" in pt && (
-            <div className="mb-3">
-              <div className="flex justify-between text-xs text-gray-600 mb-1">
-                <span>
-                  {pt.completedSessions}/{pt.totalSessions}회
-                </span>
-                <span>{Math.round(progressPercentage)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all ${
-                    pt.status === "closing_soon"
-                      ? "bg-amber-500"
-                      : "bg-blue-500"
-                  }`}
-                  style={{ width: `${progressPercentage}%` }}
-                />
-              </div>
-            </div>
-          )}
+          {/* 세그먼트 프로그레스 바 - CONFIRMED PT만 표시 */}
+          {hasLessons && "totalSessions" in pt && (() => {
+            // 상태별 레슨 수 계산
+            const absentCount = pt.lessons.filter((l) => l.state === "absence").length;
+            const progressedCount = pt.completedSessions + absentCount;
 
-          {/* 일정 정보 */}
-          <div className="flex justify-between text-sm">
-            <div className="text-gray-600">
-              <span>
-                마지막 수업:{" "}
-                {pt.lastCompletedLesson
-                  ? formatDateWithoutWeekday(pt.lastCompletedLesson.scheduledAt)
-                  : "-"}
-              </span>
-            </div>
-            {"nextLesson" in pt && pt.nextLesson && (
-              <div className="text-blue-600 font-medium">
-                다음: {formatDateWithoutWeekday(pt.nextLesson.scheduledAt)}{" "}
-                {formatTime(getTimeFromDateTime(pt.nextLesson.scheduledAt))}
+            // 레슨이 모두 진행되었는지 확인
+            const isAllLessonsProgressed = progressedCount >= pt.totalSessions;
+
+            return (
+              <div className="mb-3">
+                <div className="flex justify-between text-xs text-gray-600 mb-2">
+                  <span>
+                    진행: {progressedCount}/{pt.totalSessions}회 (완료 {pt.completedSessions}회)
+                  </span>
+                </div>
+
+                {/* 세그먼트 프로그레스 바 */}
+                <div className="w-full flex gap-0.5 h-4 rounded-full overflow-hidden bg-gray-100">
+                  {Array.from({ length: pt.totalSessions }).map((_, index) => {
+                    // lessons를 날짜순으로 정렬
+                    const sortedLessons = [...pt.lessons].sort(
+                      (a, b) =>
+                        new Date(a.scheduledAt).getTime() -
+                        new Date(b.scheduledAt).getTime()
+                    );
+
+                    const lesson = sortedLessons[index];
+
+                    // 레슨 상태에 따른 색상 결정
+                    let bgColor = "bg-transparent"; // 기본값 (아직 등록되지 않은 레슨)
+
+                    if (lesson) {
+                      switch (lesson.state) {
+                        case "completed":
+                          bgColor = "bg-green-500"; // 완료된 레슨
+                          break;
+                        case "absence":
+                          bgColor = "bg-red-500"; // 결석한 레슨
+                          break;
+                        case "in-progress":
+                          bgColor = "bg-blue-500"; // 진행중인 레슨
+                          break;
+                        case "scheduled":
+                          bgColor = "bg-gray-400"; // 예약된 레슨
+                          break;
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={index}
+                        className={`flex-1 ${bgColor} transition-colors`}
+                        title={
+                          lesson
+                            ? `레슨 ${index + 1}: ${
+                                lesson.state === "completed"
+                                  ? "완료"
+                                  : lesson.state === "absence"
+                                  ? "결석"
+                                  : lesson.state === "in-progress"
+                                  ? "진행중"
+                                  : "예약됨"
+                              }`
+                            : `레슨 ${index + 1}: 미등록`
+                        }
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* 다음 레슨 정보 또는 상태 메시지 */}
+                <div className="mt-2 text-sm">
+                  {isAllLessonsProgressed ? (
+                    <span className="text-gray-600">레슨 종료</span>
+                  ) : "nextLesson" in pt && pt.nextLesson ? (
+                    <span className="text-blue-600 font-medium">
+                      다음 레슨: {formatDateWithoutWeekday(pt.nextLesson.scheduledAt)}{" "}
+                      {formatTime(getTimeFromDateTime(pt.nextLesson.scheduledAt))}
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">예약된 다음 수업 없음</span>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </Link>

@@ -6,6 +6,7 @@ import {
   deleteLessonCondition,
   type CreateLessonConditionInput,
 } from "@/app/services/trainer/lesson.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -14,16 +15,17 @@ export async function GET(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
   try {
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-
     const condition = await getLessonCondition(lessonId, sessionOrResponse.roleId);
     
     if (!condition) {
@@ -35,7 +37,15 @@ export async function GET(
 
     return NextResponse.json(condition);
   } catch (error) {
-    console.error("Get lesson condition error:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_CONDITION_GET_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getLessonCondition",
+      },
+      tags: ["api", "trainer", "lesson", "condition"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
@@ -48,16 +58,17 @@ export async function POST(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
   try {
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-
     const body: CreateLessonConditionInput = await request.json();
 
     const result = await createLessonCondition(
@@ -75,7 +86,15 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Create lesson condition error:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_CONDITION_POST_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "createLessonCondition",
+      },
+      tags: ["api", "trainer", "lesson", "condition"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
@@ -88,16 +107,17 @@ export async function DELETE(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
   try {
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-
     const result = await deleteLessonCondition(
       lessonId,
       sessionOrResponse.roleId
@@ -112,7 +132,15 @@ export async function DELETE(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Delete lesson condition error:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_CONDITION_DELETE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "deleteLessonCondition",
+      },
+      tags: ["api", "trainer", "lesson", "condition"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
 import { createPtPayment, updatePtPayment } from "@/app/services/trainer/pt.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -59,7 +60,15 @@ export async function POST(
 
     return NextResponse.json(payment);
   } catch (error) {
-    console.error("PT 결제 정보 생성 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PAYMENT_CREATE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "createPtPayment",
+      },
+      tags: ["api", "trainer", "pt", "payment"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
@@ -118,7 +127,15 @@ export async function PUT(
 
     return NextResponse.json(payment);
   } catch (error) {
-    console.error("PT 결제 정보 수정 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PAYMENT_UPDATE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "updatePtPayment",
+      },
+      tags: ["api", "trainer", "pt", "payment"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

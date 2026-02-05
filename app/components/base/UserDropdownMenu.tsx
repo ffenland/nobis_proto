@@ -3,22 +3,29 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSWRConfig } from "swr";
-import { ChevronDown, LogOut, UserCog, Users, AlertTriangle, Phone } from "lucide-react";
+import {
+  ChevronDown,
+  LogOut,
+  UserCog,
+  Users,
+  AlertTriangle,
+  Phone,
+} from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { logoutUser } from "@/app/services/auth/auth.service";
 import { UserRole } from "@prisma/client";
 
 interface UserDropdownMenuProps {
-  username: string;
+  realname: string;
   role?: UserRole;
   showRoleSwitch?: boolean;
-  targetRole?: "TRAINER" | "MANAGER";
+  targetRole?: "TRAINER" | "MANAGER" | "MASTER";
   className?: string;
   hasMobile: boolean;
 }
 
 export default function UserDropdownMenu({
-  username,
+  realname,
   role,
   showRoleSwitch = false,
   targetRole,
@@ -99,7 +106,11 @@ export default function UserDropdownMenu({
   };
 
   const roleSwitchText =
-    targetRole === "TRAINER" ? "트레이너로 전환" : "매니저로 전환";
+    targetRole === "TRAINER"
+      ? "트레이너로 전환"
+      : targetRole === "MANAGER"
+      ? "매니저로 전환"
+      : "마스터로 전환";
 
   return (
     <div className={cn("relative", className)} ref={dropdownRef}>
@@ -107,17 +118,15 @@ export default function UserDropdownMenu({
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap relative",
-          !hasMobile 
-            ? "text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200" 
+          !hasMobile
+            ? "text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200"
             : "text-gray-900 hover:bg-gray-100"
         )}
         disabled={isLoading}
       >
         <span className="flex items-center gap-1">
-          {!hasMobile && (
-            <AlertTriangle className="w-4 h-4 text-orange-500" />
-          )}
-          {username}
+          {!hasMobile && <AlertTriangle className="w-4 h-4 text-orange-500" />}
+          {realname}
         </span>
         <ChevronDown
           className={cn("w-4 h-4 transition-transform", isOpen && "rotate-180")}

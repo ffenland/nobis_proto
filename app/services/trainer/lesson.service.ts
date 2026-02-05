@@ -1397,10 +1397,11 @@ export type DeleteLessonConditionResult = Awaited<
 export async function cancelLesson(
   trainerId: string,
   lessonId: string,
-  reason?: string
+  canceledBy: "TRAINER" | "MEMBER",
+  reason: string
 ) {
   try {
-    // 권한 체크 및 레슨 존재 확인
+    // 권한 체크 및 레슨 존재 확인 - PT의 trainer와 member user 정보 포함
     const lesson = await prisma.lesson.findFirst({
       where: {
         id: lessonId,
@@ -1414,10 +1415,23 @@ export async function cancelLesson(
         scheduledAt: true,
         pt: {
           select: {
-            member: {
+            trainer: {
               select: {
+                userId: true,
                 user: {
                   select: {
+                    realname: true,
+                    username: true,
+                  },
+                },
+              },
+            },
+            member: {
+              select: {
+                userId: true,
+                user: {
+                  select: {
+                    realname: true,
                     username: true,
                   },
                 },
@@ -1432,24 +1446,67 @@ export async function cancelLesson(
       throw new Error("레슨을 찾을 수 없거나 권한이 없습니다.");
     }
 
-    // 레슨 취소 처리
-    const updatedLesson = await prisma.lesson.update({
-      where: { id: lessonId },
-      data: {
-        isCanceled: true,
-        memo: reason ? `[취소사유] ${reason}` : "[취소됨]",
-      },
-      select: {
-        id: true,
-        scheduledAt: true,
-        isCanceled: true,
-        memo: true,
-      },
+    // canceledBy 역할에 따라 canceledById와 canceledByName 결정
+    let canceledById: string;
+    let canceledByName: string;
+
+    if (canceledBy === "TRAINER") {
+      if (!lesson.pt.trainer) {
+        throw new Error("트레이너 정보를 찾을 수 없습니다.");
+      }
+      canceledById = lesson.pt.trainer.userId;
+      canceledByName = lesson.pt.trainer.user.realname || lesson.pt.trainer.user.username;
+    } else {
+      // MEMBER
+      if (!lesson.pt.member) {
+        throw new Error("회원 정보를 찾을 수 없습니다.");
+      }
+      canceledById = lesson.pt.member.userId;
+      canceledByName = lesson.pt.member.user.realname || lesson.pt.member.user.username;
+    }
+
+    // 트랜잭션으로 Lesson 업데이트 및 LessonCancel 생성
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Lesson의 isCanceled를 true로 업데이트
+      const updatedLesson = await tx.lesson.update({
+        where: { id: lessonId },
+        data: {
+          isCanceled: true,
+        },
+        select: {
+          id: true,
+          scheduledAt: true,
+          isCanceled: true,
+        },
+      });
+
+      // 2. LessonCancel 레코드 생성
+      const lessonCancel = await tx.lessonCancel.create({
+        data: {
+          lessonId: lessonId,
+          canceledBy: canceledBy,
+          canceledById: canceledById,
+          canceledByName: canceledByName,
+          reason: reason,
+        },
+        select: {
+          id: true,
+          canceledBy: true,
+          canceledByName: true,
+          reason: true,
+          canceledAt: true,
+        },
+      });
+
+      return {
+        lesson: updatedLesson,
+        cancelInfo: lessonCancel,
+      };
     });
 
     return {
       success: true,
-      data: updatedLesson,
+      data: result,
       message: "레슨이 취소되었습니다.",
     };
   } catch (error) {

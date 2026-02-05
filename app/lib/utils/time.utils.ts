@@ -78,12 +78,12 @@ export function isValidTime(time: number): {
   error?: TimeValidationError;
 } {
   // 4자리 숫자 형식 확인 (0-2359)
-  if (!Number.isInteger(time) || time < 0 || time > 2359) {
+  if (!Number.isInteger(time) || time < 0 || time > 2401) {
     return {
       isValid: false,
       error: {
         type: "INVALID_FORMAT",
-        message: "시간은 0-2359 범위의 4자리 숫자여야 합니다.",
+        message: "시간은 0-2400 범위의 4자리 숫자여야 합니다.",
         value: time,
       },
     };
@@ -93,12 +93,12 @@ export function isValidTime(time: number): {
   const minute = time % 100;
 
   // 시간 범위 검증 (0-23)
-  if (hour < 0 || hour > 23) {
+  if (hour < 0 || hour > 24) {
     return {
       isValid: false,
       error: {
         type: "INVALID_HOUR",
-        message: "시간은 0-23 범위여야 합니다.",
+        message: "시간은 0-24 범위여야 합니다.",
         value: time,
       },
     };
@@ -825,9 +825,12 @@ export const getCurrentTimeInt = (): TimeInt => {
  * @returns 과거 시간이면 true
  * @example isTimeInPast("2025-01-15", 1430) // 현재보다 과거면 true
  */
-export const isTimeInPast = (selectedDate: string, timeInt: TimeInt): boolean => {
+export const isTimeInPast = (
+  selectedDate: string,
+  timeInt: TimeInt
+): boolean => {
   const now = new Date();
-  const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = now.toISOString().split("T")[0]; // YYYY-MM-DD
 
   // 선택한 날짜가 오늘 이전이면 과거
   if (selectedDate < today) {
@@ -852,19 +855,19 @@ export const isTimeInPast = (selectedDate: string, timeInt: TimeInt): boolean =>
  * @example filterFutureTimeSlots([900, 1000, 1100], "2025-01-15")
  */
 export const filterFutureTimeSlots = (
-  timeSlots: readonly TimeInt[], 
+  timeSlots: readonly TimeInt[],
   selectedDate: string
 ): TimeInt[] => {
-  const today = new Date().toISOString().split('T')[0];
-  
+  const today = new Date().toISOString().split("T")[0];
+
   // 오늘이 아닌 날짜면 모든 시간 허용
   if (selectedDate !== today) {
     return [...timeSlots];
   }
-  
+
   // 오늘 날짜인 경우 현재 시간 이후만 허용
   const currentTimeInt = getCurrentTimeInt();
-  return timeSlots.filter(slot => slot > currentTimeInt);
+  return timeSlots.filter((slot) => slot > currentTimeInt);
 };
 
 /**
@@ -873,5 +876,286 @@ export const filterFutureTimeSlots = (
  * @example getMinSelectableDate() // "2025-01-15"
  */
 export const getMinSelectableDate = (): string => {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toISOString().split("T")[0];
+};
+
+// ========================================
+// 레슨 취소 관련 유틸리티
+// ========================================
+
+/**
+ * 레슨 취소 요청 시점 분류 (레슨 시작 시간 기준)
+ * @param scheduledAt 레슨 시작 시간 (ISO 문자열)
+ * @param createdAt 취소 요청 시간 (ISO 문자열)
+ * @returns "레슨 시작 후" | "레슨 임박" | "레슨 시작 전"
+ * @throws Error 유효하지 않은 날짜인 경우
+ * @example getCancelRequestTiming("2025-01-15T14:00:00Z", "2025-01-15T13:30:00Z") // "레슨 임박"
+ * @example getCancelRequestTiming("2025-01-15T14:00:00Z", "2025-01-15T15:00:00Z") // "레슨 시작 후"
+ * @example getCancelRequestTiming("2025-01-15T14:00:00Z", "2025-01-15T10:00:00Z") // "레슨 시작 전"
+ */
+export const getCancelRequestTiming = (
+  scheduledAt: string | Date,
+  createdAt: string | Date
+): "레슨 시작 후" | "레슨 임박" | "레슨 시작 전" => {
+  const lessonStartTime = new Date(scheduledAt);
+  const cancelRequestTime = new Date(createdAt);
+
+  // 유효성 검증
+  if (isNaN(lessonStartTime.getTime())) {
+    throw new Error("Invalid scheduledAt date");
+  }
+  if (isNaN(cancelRequestTime.getTime())) {
+    throw new Error("Invalid createdAt date");
+  }
+
+  // 레슨 시작 후에 취소 요청한 경우
+  if (cancelRequestTime > lessonStartTime) {
+    return "레슨 시작 후";
+  }
+
+  // 레슨 시작 전 취소 요청
+  const timeDiffMs = lessonStartTime.getTime() - cancelRequestTime.getTime();
+  const oneHourMs = 60 * 60 * 1000; // 1시간 = 60분 * 60초 * 1000ms
+
+  if (timeDiffMs <= oneHourMs) {
+    return "레슨 임박"; // 1시간 이내
+  } else {
+    return "레슨 시작 전"; // 1시간 초과
+  }
+};
+
+// KST는 UTC+9 (9시간 = 9 * 60 * 60 * 1000 밀리초)
+const KST_OFFSET = 9 * 60 * 60 * 1000;
+
+/**
+ * KST 기준 오늘 날짜의 00:00:00 반환
+ * @returns KST 기준 오늘 자정을 나타내는 UTC Date 객체
+ * @example
+ * // UTC 서버에서 2025-10-22 03:00:00 UTC (KST로 10월 22일 12:00)인 경우
+ * getKSTToday() // 2025-10-21T15:00:00.000Z (= KST 10월 22일 00:00:00)
+ * @example
+ * // UTC 서버에서 2025-10-21 10:00:00 UTC (KST로 10월 21일 19:00)인 경우
+ * getKSTToday() // 2025-10-20T15:00:00.000Z (= KST 10월 21일 00:00:00)
+ */
+export const getKSTToday = (): Date => {
+  const now = new Date();
+
+  // UTC 시간을 KST로 변환
+  const kstTime = now.getTime() + KST_OFFSET;
+  const kstDate = new Date(kstTime);
+
+  // KST 기준으로 연도, 월, 일 추출
+  const year = kstDate.getUTCFullYear();
+  const month = kstDate.getUTCMonth();
+  const date = kstDate.getUTCDate();
+
+  // KST 기준 오늘 00:00:00을 만들고 UTC로 다시 변환
+  return new Date(Date.UTC(year, month, date) - KST_OFFSET);
+};
+
+/**
+ * KST 기준 현재 월의 첫째 날 00:00:00 반환
+ * @param date - UTC 기준 Date 객체 (기본값: 현재 시간)
+ * @returns KST 기준 월 첫째 날을 나타내는 UTC Date 객체
+ */
+export const getKSTMonthStart = (date: Date = new Date()): Date => {
+  // UTC 시간을 KST로 변환
+  const kstTime = date.getTime() + KST_OFFSET;
+  const kstDate = new Date(kstTime);
+
+  // KST 기준으로 연도와 월 추출
+  const year = kstDate.getUTCFullYear();
+  const month = kstDate.getUTCMonth();
+
+  // KST 기준 해당 월의 1일 00:00:00를 만들고 UTC로 다시 변환
+  return new Date(Date.UTC(year, month, 1) - KST_OFFSET);
+};
+
+/**
+ * KST 기준 현재 월의 마지막 날 23:59:59.999 반환
+ * @param date - UTC 기준 Date 객체 (기본값: 현재 시간)
+ * @returns KST 기준 월 마지막 날을 나타내는 UTC Date 객체
+ */
+export const getKSTMonthEnd = (date: Date = new Date()): Date => {
+  const kstTime = date.getTime() + KST_OFFSET;
+  const kstDate = new Date(kstTime);
+
+  const year = kstDate.getUTCFullYear();
+  const month = kstDate.getUTCMonth();
+
+  // KST 기준 다음 월의 1일 00:00:00에서 1밀리초를 빼서 이번 달 마지막 순간
+  return new Date(Date.UTC(year, month + 1, 1) - KST_OFFSET - 1);
+};
+
+/**
+ * KST 기준으로 N일 전/후의 날짜 반환
+ * @param date - UTC 기준 Date 객체
+ * @param days - 더할 일수 (양수: 미래, 음수: 과거)
+ * @returns N일 전/후의 UTC Date 객체
+ */
+export const addKSTDays = (date: Date, days: number): Date => {
+  // UTC를 KST로 변환
+  const kstTime = date.getTime() + KST_OFFSET;
+  const kstDate = new Date(kstTime);
+
+  // KST 기준으로 날짜 계산
+  kstDate.setUTCDate(kstDate.getUTCDate() + days);
+
+  // 다시 UTC로 변환하여 반환
+  return new Date(kstDate.getTime() - KST_OFFSET);
+};
+
+/**
+ * 날짜 문자열(YYYYMMDD)을 KST 기준 Date 객체로 변환
+ * @param dateString - YYYYMMDD 형식의 날짜 문자열 (예: "20251021")
+ * @returns KST 기준 해당 날짜 00:00:00을 나타내는 UTC Date 객체
+ * @throws 날짜 형식이 올바르지 않을 경우 에러 발생
+ */
+export const parseKSTDate = (dateString: string): Date => {
+  // 날짜 형식 검증 (YYYYMMDD)
+  if (!/^\d{8}$/.test(dateString)) {
+    throw new Error(
+      "날짜 형식이 올바르지 않습니다. YYYYMMDD 형식이어야 합니다."
+    );
+  }
+
+  const year = parseInt(dateString.substring(0, 4));
+  const month = parseInt(dateString.substring(4, 6)) - 1; // 0-based
+  const day = parseInt(dateString.substring(6, 8));
+
+  // 날짜 유효성 검증
+  const testDate = new Date(year, month, day);
+  if (
+    testDate.getFullYear() !== year ||
+    testDate.getMonth() !== month ||
+    testDate.getDate() !== day
+  ) {
+    throw new Error("유효하지 않은 날짜입니다.");
+  }
+
+  // KST 00:00:00을 UTC로 변환 (9시간 빼기)
+  return new Date(Date.UTC(year, month, day) - KST_OFFSET);
+};
+
+/**
+ * Date 객체를 YYYYMMDD 형식 문자열로 변환
+ * @param date - 변환할 Date 객체
+ * @returns YYYYMMDD 형식의 문자열 (예: "20251021")
+ * @throws 유효하지 않은 Date 객체인 경우
+ * @example formatDateToYYYYMMDD(new Date('2025-10-21')) // "20251021"
+ */
+export const formatDateToYYYYMMDD = (date: Date): string => {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    throw new Error("Invalid date input");
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
+};
+
+/**
+ * Date 객체를 한국어 날짜 형식으로 변환 (요일 미포함)
+ * @param date - 변환할 Date 객체
+ * @returns 한국어 형식의 날짜 문자열 (예: "2025년 10월 21일")
+ * @throws 유효하지 않은 Date 객체인 경우
+ * @example formatDateToKorean(new Date('2025-10-21')) // "2025년 10월 21일"
+ */
+export const formatDateToKorean = (date: Date): string => {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    throw new Error("Invalid date input");
+  }
+
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${year}년 ${month}월 ${day}일`;
+};
+
+/**
+ * YYYYMM 형식의 문자열을 파싱하여 년, 월 정보를 반환
+ * @param dateString - YYYYMM 형식의 날짜 문자열 (예: "202510")
+ * @returns { year, month } - 년(4자리), 월(1-12)
+ * @throws 잘못된 형식이거나 유효하지 않은 날짜인 경우
+ * @example parseYYYYMM("202510") // { year: 2025, month: 10 }
+ */
+export const parseYYYYMM = (
+  dateString: string
+): { year: number; month: number } => {
+  if (!/^\d{6}$/.test(dateString)) {
+    throw new Error("날짜 형식이 올바르지 않습니다. YYYYMM 형식이어야 합니다.");
+  }
+
+  const year = parseInt(dateString.substring(0, 4));
+  const month = parseInt(dateString.substring(4, 6));
+
+  // 월 유효성 검증
+  if (month < 1 || month > 12) {
+    throw new Error("유효하지 않은 월입니다. (1-12)");
+  }
+
+  // 연도 유효성 검증 (2000년 ~ 2100년)
+  if (year < 2000 || year > 2100) {
+    throw new Error("유효하지 않은 연도입니다.");
+  }
+
+  return { year, month };
+};
+
+/**
+ * Date 객체를 YYYYMM 형식의 문자열로 변환
+ * @param date - 변환할 Date 객체
+ * @returns YYYYMM 형식의 문자열 (예: "202510")
+ * @throws 유효하지 않은 Date 객체인 경우
+ * @example formatDateToYYYYMM(new Date('2025-10-21')) // "202510"
+ */
+export const formatDateToYYYYMM = (date: Date): string => {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    throw new Error("Invalid date input");
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}${month}`;
+};
+
+/**
+ * YYYYMM 형식의 문자열을 한국어 형식으로 변환
+ * @param dateString - YYYYMM 형식의 날짜 문자열 (예: "202510")
+ * @returns 한국어 형식 문자열 (예: "2025년 10월")
+ * @throws 잘못된 형식인 경우
+ * @example formatYYYYMMToKorean("202510") // "2025년 10월"
+ */
+export const formatYYYYMMToKorean = (dateString: string): string => {
+  const { year, month } = parseYYYYMM(dateString);
+  return `${year}년 ${month}월`;
+};
+
+/**
+ * 경과 시간을 계산하여 반환 (미결제 표시용)
+ * - 1일 미만: "N시간 경과" (시간 단위 내림)
+ * - 1일 이상: "N일 경과" (날짜 단위만)
+ * @param fromDate - 기준 시간 (ISO 문자열 또는 Date 객체)
+ * @returns 경과 시간 문자열 (예: "8시간 경과", "5일 경과")
+ * @example getElapsedTime("2025-10-21T10:00:00Z") // 현재 시간이 2025-10-21T18:30:00Z라면 "8시간 경과"
+ */
+export const getElapsedTime = (fromDate: string | Date): string => {
+  const from = typeof fromDate === "string" ? new Date(fromDate) : fromDate;
+  const now = new Date();
+
+  // 밀리초 차이 계산
+  const diffMs = now.getTime() - from.getTime();
+
+  // 시간 단위로 변환 (내림)
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  // 1일(24시간) 미만인 경우
+  if (diffHours < 24) {
+    return `${diffHours}시간 경과`;
+  }
+
+  // 1일 이상인 경우
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}일 경과`;
 };

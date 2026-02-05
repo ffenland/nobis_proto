@@ -4,6 +4,7 @@ import {
   updateLessonRecordSets,
   deleteLessonRecordItem,
 } from "@/app/services/trainer/lesson.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string; recordId: string }>;
 
@@ -11,16 +12,17 @@ export async function PUT(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  const params = await segmentData.params;
+  const { id: lessonId, recordId } = params;
+
   try {
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    const params = await segmentData.params;
-    const { id: lessonId, recordId } = params;
-
     const body = await request.json();
     const { sets } = body;
 
@@ -37,7 +39,15 @@ export async function PUT(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Failed to update lesson record:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_RECORD_UPDATE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "updateLessonRecordSets",
+      },
+      tags: ["api", "trainer", "lesson", "record"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
@@ -49,16 +59,17 @@ export async function DELETE(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  const params = await segmentData.params;
+  const { id: lessonId, recordId } = params;
+
   try {
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    const params = await segmentData.params;
-    const { id: lessonId, recordId } = params;
-
     const result = await deleteLessonRecordItem(
       recordId,
       lessonId,
@@ -67,7 +78,15 @@ export async function DELETE(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Failed to delete lesson record:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_RECORD_DELETE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "deleteLessonRecordItem",
+      },
+      tags: ["api", "trainer", "lesson", "record"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

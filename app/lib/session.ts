@@ -7,14 +7,14 @@ import { NextResponse } from "next/server";
 
 export interface SessionContent {
   id?: string;
-  role?: "MEMBER" | "TRAINER" | "MANAGER";
+  role?: "MEMBER" | "TRAINER" | "MANAGER" | "MASTER";
   roleId?: string;
 }
 
 // 검증된 세션 타입 (모든 필수 필드가 존재하는 세션)
 export interface ValidatedSession {
   id: string;
-  role: "MEMBER" | "TRAINER" | "MANAGER";
+  role: "MEMBER" | "TRAINER" | "MANAGER" | "MASTER";
   roleId: string;
 }
 
@@ -26,7 +26,8 @@ const isSessionWithIdAndRole = (
     typeof session.id === "string" &&
     (session.role === "MEMBER" ||
       session.role === "TRAINER" ||
-      session.role === "MANAGER") &&
+      session.role === "MANAGER" ||
+      session.role === "MASTER") &&
     typeof session.roleId === "string"
   );
 };
@@ -87,11 +88,7 @@ export const getSession = async (): Promise<ValidatedSession | null> => {
   }
 };
 
-export const createSession = async (sessionData: {
-  id: string;
-  role: "MEMBER" | "TRAINER" | "MANAGER";
-  roleId: string;
-}) => {
+export const createSession = async (sessionData: ValidatedSession) => {
   const session = await getCurrentIronSession();
   session.id = sessionData.id;
   session.role = sessionData.role;

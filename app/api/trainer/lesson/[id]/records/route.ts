@@ -8,6 +8,7 @@ import {
   type CreateRecordInput,
   type UpdateRecordInput
 } from '@/app/services/trainer/lesson.service';
+import { logApiError } from '@/app/services/error/error-logging.service';
 
 // Next.js 15 dynamic route params type
 type Params = Promise<{ id: string }>
@@ -17,17 +18,18 @@ export async function GET(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-    
-    const sessionOrResponse = await getSessionOrReturn401();
-    
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-    
     // 서비스 함수 호출
     const records = await getLessonDetailRecords({
       lessonId,
@@ -42,9 +44,17 @@ export async function GET(
     
     return NextResponse.json(records);
   } catch (error) {
-    console.error('Get lesson records error:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Internal Server Error' 
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_RECORDS_GET_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getLessonDetailRecords",
+      },
+      tags: ["api", "trainer", "lesson", "records"],
+    });
+
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Internal Server Error'
     }, { status: 500 });
   }
 }
@@ -54,17 +64,18 @@ export async function POST(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-    
-    const sessionOrResponse = await getSessionOrReturn401();
-    
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-    
     // 요청 본문 파싱
     const record: CreateRecordInput = await request.json();
     
@@ -77,9 +88,17 @@ export async function POST(
     
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error('Lesson record item creation error:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Internal Server Error' 
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_RECORDS_POST_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "addLessonRecordItem",
+      },
+      tags: ["api", "trainer", "lesson", "records"],
+    });
+
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Internal Server Error'
     }, { status: 500 });
   }
 }
@@ -89,17 +108,18 @@ export async function PUT(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-    
-    const sessionOrResponse = await getSessionOrReturn401();
-    
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-    
     // 요청 본문 파싱
     const { recordId, ...updateData }: UpdateRecordInput & { recordId: string } = await request.json();
     
@@ -112,9 +132,17 @@ export async function PUT(
     
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Lesson record item update error:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Internal Server Error' 
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_RECORDS_PUT_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "updateLessonRecordItem",
+      },
+      tags: ["api", "trainer", "lesson", "records"],
+    });
+
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Internal Server Error'
     }, { status: 500 });
   }
 }
@@ -124,17 +152,18 @@ export async function DELETE(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
   try {
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-    
-    const sessionOrResponse = await getSessionOrReturn401();
-    
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-    
     // 요청 본문 파싱
     const { recordId } = await request.json();
     
@@ -153,9 +182,17 @@ export async function DELETE(
     
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Lesson record item deletion error:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Internal Server Error' 
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_RECORDS_DELETE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "deleteLessonRecordItem",
+      },
+      tags: ["api", "trainer", "lesson", "records"],
+    });
+
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Internal Server Error'
     }, { status: 500 });
   }
 }

@@ -80,7 +80,7 @@ export const TestLogin = async () => {
         ))}
       </div>
       <div className="flex w-full flex-col gap-2">
-        <span>TEST 관리자 목록</span>
+        <span>TEST 매니저 목록</span>
         {userList.managerList.map((user) => (
           <form
             key={user.id}
@@ -104,6 +104,41 @@ export const TestLogin = async () => {
                 type="text"
                 name="role"
                 value={UserRole.MANAGER}
+                hidden
+                readOnly
+              />
+            </div>
+            <button className="btn" type="submit">
+              로그인
+            </button>
+          </form>
+        ))}
+      </div>
+      <div className="flex w-full flex-col gap-2">
+        <span>TEST 관리자 목록</span>
+        {userList.masterList.map((user) => (
+          <form
+            key={user.id}
+            className="flex items-center justify-between gap-2 rounded-lg border"
+            action={submitLogin}
+          >
+            <div className="flex flex-col">
+              <div className="flex gap-1">
+                <span>이름 :</span>
+                <span>{user.user.username}</span>
+              </div>
+              <input type="text" name="id" value={user.id} hidden readOnly />
+              <input
+                type="text"
+                name="userId"
+                value={user.user.id}
+                hidden
+                readOnly
+              />
+              <input
+                type="text"
+                name="role"
+                value={UserRole.MASTER}
                 hidden
                 readOnly
               />

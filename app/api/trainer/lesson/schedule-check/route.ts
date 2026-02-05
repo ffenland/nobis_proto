@@ -1,18 +1,24 @@
 // app/api/trainer/lesson/schedule-check/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/app/lib/session";
+import { getSessionOrReturn401 } from "@/app/lib/session";
 import {
   checkTrainerLessonConflict,
   CheckTrainerLessonConflictResult,
 } from "@/app/services/trainer/lesson.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 export async function GET(request: NextRequest) {
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+  }
+
   try {
-    // 세션 확인
-    const session = await getSession();
-    if (!session || session.role !== "TRAINER") {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
-    }
 
     // URL에서 쿼리 파라미터 추출
     const { searchParams } = new URL(request.url);
@@ -50,14 +56,22 @@ export async function GET(request: NextRequest) {
     // 스케줄 충돌 체크
     const conflicts: CheckTrainerLessonConflictResult =
       await checkTrainerLessonConflict(
-        session.roleId, // trainerId
+        sessionOrResponse.roleId,
         scheduledDate,
         endDate
       );
 
     return NextResponse.json(conflicts);
   } catch (error) {
-    console.error("스케줄 체크 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_SCHEDULE_CHECK_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "checkTrainerLessonConflict",
+      },
+      tags: ["api", "trainer", "lesson", "schedule"],
+    });
+
     return NextResponse.json(
       { error: "스케줄 체크 중 오류가 발생했습니다." },
       { status: 500 }

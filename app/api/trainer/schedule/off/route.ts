@@ -3,24 +3,26 @@ import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
 import { createTrainerOff } from "@/app/services/trainer/schedule.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 export async function POST(request: NextRequest) {
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  // 401 응답인 경우 바로 반환
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  // 트레이너 권한 확인
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json(
+      { error: "트레이너 권한이 필요합니다." },
+      { status: 403 }
+    );
+  }
+
   try {
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    // 401 응답인 경우 바로 반환
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    // 트레이너 권한 확인
-    if (sessionOrResponse.role !== "TRAINER") {
-      return NextResponse.json(
-        { error: "트레이너 권한이 필요합니다." },
-        { status: 403 }
-      );
-    }
-
     // 요청 본문 파싱
     const body = await request.json();
     const { date, offType } = body;
@@ -50,7 +52,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(trainerOff);
   } catch (error) {
-    console.error("TrainerOff creation error:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_SCHEDULE_OFF_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "createTrainerOff",
+      },
+      tags: ["api", "trainer", "schedule", "off"],
+    });
 
     // createTrainerOff에서 던진 충돌 에러는 409 상태로 반환
     if (error instanceof Error && error.message.includes("PT 수업")) {

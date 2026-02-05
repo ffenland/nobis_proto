@@ -21,6 +21,7 @@ export default function LessonCancelPage({ params }: LessonCancelPageProps) {
   const router = useRouter();
   const [lessonId, setLessonId] = useState<string>("");
   const [reason, setReason] = useState("");
+  const [canceledBy, setCanceledBy] = useState<"TRAINER" | "MEMBER">("TRAINER");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // params 처리
@@ -65,7 +66,10 @@ export default function LessonCancelPage({ params }: LessonCancelPageProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({
+          reason: reason.trim(),
+          canceledBy: canceledBy,
+        }),
       });
 
       const result = await response.json();
@@ -282,6 +286,47 @@ export default function LessonCancelPage({ params }: LessonCancelPageProps) {
                   locale: ko,
                 })}
               </p>
+            </div>
+          </div>
+
+          {/* 취소 역할 선택 */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              취소 주체 <span className="text-red-500">*</span>
+            </label>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="radio"
+                  name="canceledBy"
+                  value="TRAINER"
+                  checked={canceledBy === "TRAINER"}
+                  onChange={(e) => setCanceledBy(e.target.value as "TRAINER")}
+                  className="radio radio-primary"
+                />
+                <div>
+                  <div className="font-medium text-gray-900">트레이너</div>
+                  <div className="text-sm text-gray-500">
+                    트레이너의 사정으로 레슨을 취소합니다
+                  </div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="radio"
+                  name="canceledBy"
+                  value="MEMBER"
+                  checked={canceledBy === "MEMBER"}
+                  onChange={(e) => setCanceledBy(e.target.value as "MEMBER")}
+                  className="radio radio-primary"
+                />
+                <div>
+                  <div className="font-medium text-gray-900">회원</div>
+                  <div className="text-sm text-gray-500">
+                    회원의 사정으로 레슨을 취소합니다
+                  </div>
+                </div>
+              </label>
             </div>
           </div>
 

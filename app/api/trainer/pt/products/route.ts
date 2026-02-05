@@ -1,9 +1,10 @@
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getPtProductsForTrainer } from "@/app/services/trainer/pt.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 // 트레이너의 PT 상품 목록 조회
-export const GET = async () => {
+export const GET = async (request: NextRequest) => {
   const sessionOrResponse = await getSessionOrReturn401();
 
   if (sessionOrResponse instanceof NextResponse) {
@@ -11,12 +12,18 @@ export const GET = async () => {
   }
 
   try {
-    const session = sessionOrResponse;
-    const ptProducts = await getPtProductsForTrainer(session.roleId);
+    const ptProducts = await getPtProductsForTrainer(sessionOrResponse.roleId);
     return NextResponse.json(ptProducts);
   } catch (error) {
-    console.error("Error fetching PT products for trainer:", error);
-    
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_PRODUCTS_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getPtProductsForTrainer",
+      },
+      tags: ["api", "trainer", "pt", "products"],
+    });
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },

@@ -59,16 +59,22 @@ const GlobalHeader = () => {
         </Link>
         <div className="flex items-center">
           <UserDropdownMenu
-            username={data.user.username}
+            realname={data.user.realname}
             role={data.role}
             showRoleSwitch={
               (data.role === "TRAINER" && data.user.hasManagerProfile) ||
-              data.role === "MANAGER"
+              (data.role === "TRAINER" && data.user.hasMasterProfile) ||
+              data.role === "MANAGER" ||
+              data.role === "MASTER"
             }
             targetRole={
-              data.role === "TRAINER"
+              data.role === "TRAINER" && data.user.hasManagerProfile
                 ? "MANAGER"
+                : data.role === "TRAINER" && data.user.hasMasterProfile
+                ? "MASTER"
                 : data.role === "MANAGER"
+                ? "TRAINER"
+                : data.role === "MASTER"
                 ? "TRAINER"
                 : undefined
             }

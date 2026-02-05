@@ -1,27 +1,35 @@
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getMembersForPtCreation } from "@/app/services/trainer/pt.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 // PT 생성용 Member 목록 조회 및 검색
-export const GET = async (request: Request) => {
+export const GET = async (request: NextRequest) => {
   const sessionOrResponse = await getSessionOrReturn401();
 
   if (sessionOrResponse instanceof NextResponse) {
     return sessionOrResponse;
   }
 
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
-    // TRAINER만가능
-    if (sessionOrResponse.role !== "TRAINER") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || undefined;
 
     const members = await getMembersForPtCreation(search);
     return NextResponse.json(members);
   } catch (error) {
-    console.error("Error fetching members for PT creation:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_MEMBERS_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getMembersForPtCreation",
+      },
+      tags: ["api", "trainer", "pt", "members"],
+    });
 
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -1,15 +1,21 @@
 // app/api/trainer/chat/connect/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionOrRedirect } from "@/app/lib/session";
+import { getSessionOrReturn401 } from "@/app/lib/session";
 import { ChatService } from "@/app/lib/services/chat.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 export async function POST(request: NextRequest) {
-  try {
-    const session = await getSessionOrRedirect();
-    if (session.role !== "TRAINER") {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
-    }
+  const sessionOrResponse = await getSessionOrReturn401();
 
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  if (sessionOrResponse.role !== "TRAINER") {
+    return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
+  }
+
+  try {
     const body = await request.json();
     const { opponentId } = body;
 
@@ -21,14 +27,21 @@ export async function POST(request: NextRequest) {
     }
 
     const chatService = ChatService.getInstance();
-    const result = await chatService.connectToChatRoom(session.id, {
+    const result = await chatService.connectToChatRoom(sessionOrResponse.id, {
       opponentUserId: opponentId,
       opponentRole: "MEMBER",
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("채팅방 연결 실패:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_CHAT_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "connectToChatRoom",
+      },
+      tags: ["api", "trainer", "chat"],
+    });
 
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

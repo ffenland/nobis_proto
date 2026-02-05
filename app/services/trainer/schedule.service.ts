@@ -115,31 +115,30 @@ export type CreateTrainerOffInput = {
 export async function createTrainerOff(input: CreateTrainerOffInput) {
   const { trainerId, date, offType } = input;
 
-  // 날짜 파싱
-  const targetDate = new Date(date);
-  const year = targetDate.getFullYear();
-  const month = targetDate.getMonth();
-  const day = targetDate.getDate();
+  // KST 날짜를 UTC로 변환
+  // 입력된 date는 KST 기준이므로 UTC로 저장하기 위해 9시간을 뺌
+  const baseDate = new Date(date); // "YYYY-MM-DD" → UTC 00:00:00
+  const targetDate = new Date(baseDate.getTime() - 9 * 60 * 60 * 1000); // KST 자정을 UTC로 표현
 
   let startAt: Date;
   let endAt: Date;
 
-  // 휴무 유형에 따른 시간 설정
+  // 휴무 유형에 따른 시간 설정 (모두 KST 기준)
   switch (offType) {
     case "FULL_DAY":
-      // 종일: 00:00 ~ 23:59
-      startAt = new Date(year, month, day, 0, 0, 0);
-      endAt = new Date(year, month, day, 23, 59, 0);
+      // 종일: KST 00:00 ~ 23:59
+      startAt = targetDate;
+      endAt = new Date(targetDate.getTime() + (23 * 60 + 59) * 60 * 1000);
       break;
     case "MORNING":
-      // 오전: 00:00 ~ 12:59
-      startAt = new Date(year, month, day, 0, 0, 0);
-      endAt = new Date(year, month, day, 12, 59, 0);
+      // 오전: KST 00:00 ~ 12:59
+      startAt = targetDate;
+      endAt = new Date(targetDate.getTime() + (12 * 60 + 59) * 60 * 1000);
       break;
     case "AFTERNOON":
-      // 오후: 13:00 ~ 23:59
-      startAt = new Date(year, month, day, 13, 0, 0);
-      endAt = new Date(year, month, day, 23, 59, 0);
+      // 오후: KST 13:00 ~ 23:59
+      startAt = new Date(targetDate.getTime() + 13 * 60 * 60 * 1000);
+      endAt = new Date(targetDate.getTime() + (23 * 60 + 59) * 60 * 1000);
       break;
     default:
       throw new Error("Invalid off type");
@@ -182,6 +181,7 @@ export async function createTrainerOff(input: CreateTrainerOffInput) {
     const firstLesson = conflictingLessons[0];
     const memberName = firstLesson.pt.member?.user.username || "미정";
     const lessonTime = firstLesson.scheduledAt.toLocaleString("ko-KR", {
+      timeZone: "Asia/Seoul",
       month: "long",
       day: "numeric",
       hour: "2-digit",

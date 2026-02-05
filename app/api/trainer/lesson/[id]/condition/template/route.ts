@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionOrReturn401 } from "@/app/lib/session";
 import { deleteLessonConditionByTemplate } from "@/app/services/trainer/lesson.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 type Params = Promise<{ id: string }>;
 
@@ -9,16 +10,17 @@ export async function DELETE(
   request: NextRequest,
   segmentData: { params: Params }
 ) {
+  // 세션 처리를 먼저 수행
+  const sessionOrResponse = await getSessionOrReturn401();
+
+  if (sessionOrResponse instanceof NextResponse) {
+    return sessionOrResponse;
+  }
+
+  const params = await segmentData.params;
+  const { id: lessonId } = params;
+
   try {
-    const sessionOrResponse = await getSessionOrReturn401();
-
-    if (sessionOrResponse instanceof NextResponse) {
-      return sessionOrResponse;
-    }
-
-    const params = await segmentData.params;
-    const { id: lessonId } = params;
-
     const body = await request.json();
     const { templateName } = body;
 
@@ -44,7 +46,15 @@ export async function DELETE(
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Delete lesson condition by template error:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_LESSON_CONDITION_TEMPLATE_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "deleteLessonConditionByTemplate",
+      },
+      tags: ["api", "trainer", "lesson", "condition", "template"],
+    });
+
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

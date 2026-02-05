@@ -130,10 +130,8 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
   // };
   return (
     <>
-      {/* 반응형 컨테이너 */}
-      <div className="lg:flex lg:gap-6">
-        {/* 메인 콘텐츠 영역 */}
-        <div className="w-full lg:flex-1 lg:max-w-4xl">
+      {/* 메인 콘텐츠 영역 */}
+      <div className="w-full">
           <div className="flex justify-between mx-2">
             <Link href="/trainer/pt">
               <Button variant="outline" size="sm">
@@ -246,30 +244,93 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-gray-600">진행 상태</span>
                       <span className="text-sm font-bold text-gray-900">
-                        {pt.currentLesson}/{pt.ptProduct.totalCount}회
+                        진행: {pt.currentLesson}/{pt.ptProduct.totalCount}회 (완료 {pt.stats.totalCompleted}회)
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                      <div
-                        className={`h-3 rounded-full transition-all ${
-                          pt.status === "completed"
-                            ? "bg-gray-500"
-                            : pt.status === "closing_soon"
-                            ? "bg-amber-500"
-                            : "bg-blue-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(progressPercentage, 100)}%`,
-                        }}
-                      />
+
+                    {/* 세그먼트 프로그레스 바 */}
+                    <div className="w-full flex gap-0.5 h-4 rounded-full overflow-hidden bg-gray-200 mb-2">
+                      {Array.from({ length: pt.ptProduct.totalCount }).map((_, index) => {
+                        // lessons를 날짜순으로 정렬 (취소되지 않은 레슨만)
+                        const sortedLessons = pt.lessons
+                          .filter((l) => l.status !== "cancelled")
+                          .sort(
+                            (a, b) =>
+                              new Date(a.scheduledAt).getTime() -
+                              new Date(b.scheduledAt).getTime()
+                          );
+
+                        const lesson = sortedLessons[index];
+
+                        // 레슨 상태에 따른 색상 결정
+                        let bgColor = "bg-transparent"; // 기본값 (아직 등록되지 않은 레슨)
+
+                        if (lesson) {
+                          switch (lesson.status) {
+                            case "completed":
+                              bgColor = "bg-green-500"; // 완료된 레슨
+                              break;
+                            case "absence":
+                              bgColor = "bg-red-500"; // 결석한 레슨
+                              break;
+                            case "in-progress":
+                              bgColor = "bg-blue-500"; // 진행중인 레슨
+                              break;
+                            case "scheduled":
+                              bgColor = "bg-gray-400"; // 예약된 레슨
+                              break;
+                          }
+                        }
+
+                        return (
+                          <div
+                            key={index}
+                            className={`flex-1 ${bgColor} transition-colors`}
+                            title={
+                              lesson
+                                ? `레슨 ${index + 1}: ${
+                                    lesson.status === "completed"
+                                      ? "완료"
+                                      : lesson.status === "absence"
+                                      ? "결석"
+                                      : lesson.status === "in-progress"
+                                      ? "진행중"
+                                      : "예약됨"
+                                  }`
+                                : `레슨 ${index + 1}: 미등록`
+                            }
+                          />
+                        );
+                      })}
                     </div>
+
                     <div className="flex justify-between text-xs text-gray-600 mb-3">
                       <span>남은 횟수: {pt.remainingLessons}회</span>
                       <span>출석률: {pt.stats.attendanceRate}%</span>
                     </div>
 
+                    {/* 프로그레스 바 범례 */}
+                    <div className="flex items-center justify-center gap-4 text-xs text-gray-600 mb-3 pb-3 border-b">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm bg-green-500" />
+                        <span>완료</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm bg-red-500" />
+                        <span>결석</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm bg-blue-500" />
+                        <span>진행중</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm bg-gray-400" />
+                        <span>예약</span>
+                      </div>
+                    </div>
+
                     {/* 수업 현황 통계 */}
-                    <div className="border-t pt-3">
+                    <div className="pt-3">
                       <div className="grid grid-cols-4 gap-2">
                         <div className="text-center">
                           <div className="text-xs text-green-600">완료</div>
@@ -583,23 +644,66 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
                                 <Badge
                                   variant="default"
                                   className="text-xs bg-orange-100 text-orange-800"
                                 >
                                   취소
                                 </Badge>
-                                {lesson.managerCheckedAt ? (
-                                  <Badge variant="success" className="text-xs">
-                                    매니저 확인
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="warning" className="text-xs">
-                                    매니저 확인 대기중
+
+                                {/* 비정상 취소 상태 체크 (레거시 데이터) */}
+                                {!lesson.cancelInfo && (
+                                  <Badge
+                                    variant="default"
+                                    className="text-xs bg-red-100 text-red-800 font-bold"
+                                  >
+                                    ⚠️ 비정상 취소 상태
                                   </Badge>
                                 )}
+
+                                {/* 승인 상태 표시 */}
+                                {lesson.cancelInfo && (
+                                  <>
+                                    {lesson.cancelInfo.approvedAt ? (
+                                      <Badge variant="success" className="text-xs">
+                                        승인완료
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="warning" className="text-xs">
+                                        승인 대기중
+                                      </Badge>
+                                    )}
+
+                                    {/* 취소 요청자 표시 */}
+                                    {lesson.cancelInfo.canceledBy === "TRAINER" && (
+                                      <Badge
+                                        variant="default"
+                                        className="text-xs bg-blue-100 text-blue-800"
+                                      >
+                                        트레이너 요청
+                                      </Badge>
+                                    )}
+                                    {lesson.cancelInfo.canceledBy === "MEMBER" && (
+                                      <Badge
+                                        variant="default"
+                                        className="text-xs bg-green-100 text-green-800"
+                                      >
+                                        회원 요청
+                                      </Badge>
+                                    )}
+                                    {lesson.cancelInfo.canceledBy === "MANAGER" && (
+                                      <Badge
+                                        variant="default"
+                                        className="text-xs bg-purple-100 text-purple-800"
+                                      >
+                                        매니저 요청
+                                      </Badge>
+                                    )}
+                                  </>
+                                )}
                               </div>
+
                               <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
                                 <span>{formatDateWithoutWeekday(lesson.scheduledAt)}</span>
                                 <span>
@@ -607,8 +711,28 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
                                   {formatTime(getTimeFromDateTime(lesson.endAt))}
                                 </span>
                               </div>
-                              {lesson.memo && (
-                                <p className="text-sm text-gray-700">
+
+                              {/* 취소 상세 정보 */}
+                              {lesson.cancelInfo && (
+                                <div className="mt-2 space-y-1">
+                                  {/* 승인 매니저 표시 (승인완료 시에만) */}
+                                  {lesson.cancelInfo.approvedAt &&
+                                    lesson.cancelInfo.approvedBy?.user?.realname && (
+                                      <p className="text-xs text-gray-600">
+                                        승인: {lesson.cancelInfo.approvedBy.user.realname}
+                                      </p>
+                                    )}
+
+                                  {/* 취소 사유 */}
+                                  <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded border border-gray-200">
+                                    <span className="font-medium">사유:</span> {lesson.cancelInfo.reason}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 레거시 memo 표시 (cancelInfo가 없는 경우에만) */}
+                              {!lesson.cancelInfo && lesson.memo && (
+                                <p className="text-sm text-gray-700 mt-2">
                                   {lesson.memo}
                                 </p>
                               )}
@@ -623,73 +747,6 @@ const TrainerPtDetailPage = ({ params }: PageProps) => {
             })()}
           </div>
         </div>
-
-        {/* 사이드바 영역 - 태블릿 이상에서만 표시 */}
-        <div className="hidden lg:block lg:w-80">
-          <div className="sticky top-4 space-y-4">
-            {/* 빠른 통계 */}
-            <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-200">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-bold text-indigo-900 mb-4">
-                  운동 통계
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-indigo-700">완료 레슨</span>
-                    <span className="font-bold text-indigo-900">
-                      {pt.stats.totalCompleted}회
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-indigo-700">불참 레슨</span>
-                    <span className="font-bold text-indigo-900">
-                      {pt.stats.totalAbsent}회
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-indigo-700">평균 레코드 수</span>
-                    <span className="font-bold text-indigo-900">
-                      {pt.stats.averageRecords}개
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 빠른 액션 */}
-            <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-bold text-purple-900 mb-4">
-                  빠른 작업
-                </h3>
-                <div className="space-y-2">
-                  <Link href={`/trainer/pt/${pt.id}/record`} className="block">
-                    <Button variant="outline" className="w-full justify-start">
-                      📝 수업 기록 작성
-                    </Button>
-                  </Link>
-                  <Link
-                    href={`/trainer/pt/${pt.id}/schedule`}
-                    className="block"
-                  >
-                    <Button variant="outline" className="w-full justify-start">
-                      📅 일정 변경
-                    </Button>
-                  </Link>
-                  <Link href={`/trainer/pt/${pt.id}/extend`} className="block">
-                    <Button variant="outline" className="w-full justify-start">
-                      🔄 PT 연장/재등록
-                    </Button>
-                  </Link>
-                  <Button variant="outline" className="w-full justify-start">
-                    ⏸️ PT 일시정지
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
     </>
   );
 };

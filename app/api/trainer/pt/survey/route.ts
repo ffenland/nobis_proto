@@ -1,12 +1,13 @@
 import { getSessionOrReturn401 } from "@/app/lib/session";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   getSurveyQuestions,
   submitSurveyResponse,
 } from "@/app/services/trainer/pt.service";
+import { logApiError } from "@/app/services/error/error-logging.service";
 
 // 설문지 조회
-export const GET = async () => {
+export const GET = async (request: NextRequest) => {
   const sessionOrResponse = await getSessionOrReturn401();
 
   if (sessionOrResponse instanceof NextResponse) {
@@ -15,7 +16,7 @@ export const GET = async () => {
 
   try {
     const survey = await getSurveyQuestions();
-    
+
     if (!survey) {
       return NextResponse.json(
         { error: "활성 설문지가 없습니다." },
@@ -25,7 +26,15 @@ export const GET = async () => {
 
     return NextResponse.json(survey);
   } catch (error) {
-    console.error("Error fetching survey:", error);
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_SURVEY_GET_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "getSurveyQuestions",
+      },
+      tags: ["api", "trainer", "pt", "survey"],
+    });
+
     return NextResponse.json(
       { error: "설문지를 불러올 수 없습니다." },
       { status: 500 }
@@ -34,7 +43,7 @@ export const GET = async () => {
 };
 
 // 설문 응답 제출
-export const POST = async (request: Request) => {
+export const POST = async (request: NextRequest) => {
   const sessionOrResponse = await getSessionOrReturn401();
 
   if (sessionOrResponse instanceof NextResponse) {
@@ -42,9 +51,8 @@ export const POST = async (request: Request) => {
   }
 
   try {
-    const session = sessionOrResponse;
     const body = await request.json();
-    
+
     const { memberId, surveyId, responses, signatureImageId } = body;
 
     if (!memberId || !surveyId || !responses || !Array.isArray(responses)) {
@@ -55,7 +63,7 @@ export const POST = async (request: Request) => {
     }
 
     const result = await submitSurveyResponse(
-      session.roleId,
+      sessionOrResponse.roleId,
       memberId,
       surveyId,
       responses,
@@ -64,8 +72,15 @@ export const POST = async (request: Request) => {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error submitting survey response:", error);
-    
+    await logApiError(request, error as Error, {
+      errorCode: "API_TRAINER_PT_SURVEY_POST_001",
+      userId: sessionOrResponse.id,
+      metadata: {
+        action: "submitSurveyResponse",
+      },
+      tags: ["api", "trainer", "pt", "survey"],
+    });
+
     if (error instanceof Error) {
       return NextResponse.json(
         { error: error.message },

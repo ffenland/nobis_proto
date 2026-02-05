@@ -16,6 +16,8 @@ export const submitLogin = async (data: FormData) => {
       ? UserRole.MANAGER
       : rawUserRole === "TRAINER"
       ? UserRole.TRAINER
+      : rawUserRole === "MASTER"
+      ? UserRole.MASTER
       : UserRole.MEMBER;
 
   if (userId && roleId && userRole) {
@@ -24,6 +26,8 @@ export const submitLogin = async (data: FormData) => {
       redirect("/manager");
     } else if (userRole === UserRole.TRAINER) {
       redirect("/trainer");
+    } else if (userRole === UserRole.MASTER) {
+      redirect("/master");
     } else {
       redirect("/member");
     }
@@ -40,7 +44,10 @@ export const getUserList = async () => {
   const managerList = await prisma.manager.findMany({
     select: { id: true, user: { select: { username: true, id: true } } },
   });
-  return { memberList, trainerList, managerList };
+  const masterList = await prisma.master.findMany({
+    select: { id: true, user: { select: { username: true, id: true } } },
+  });
+  return { memberList, trainerList, managerList, masterList };
 };
 
 export const createRandomUser = async (data: FormData) => {

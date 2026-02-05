@@ -98,8 +98,8 @@ export async function DELETE(
     return sessionOrResponse;
   }
 
-  // 2. 역할별 권한 확인 (MANAGER만 삭제 가능)
-  if (sessionOrResponse.role !== "MANAGER") {
+  // 2. 역할별 권한 확인 (MASTER만 삭제 가능)
+  if (sessionOrResponse.role !== "MASTER") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

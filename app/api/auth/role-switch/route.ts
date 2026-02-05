@@ -16,8 +16,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 권한 확인 - TRAINER 또는 MANAGER만 가능
-    if (session.role !== "TRAINER" && session.role !== "MANAGER") {
+    // 권한 확인 - TRAINER, MANAGER, MASTER만 가능
+    if (
+      session.role !== "TRAINER" &&
+      session.role !== "MANAGER" &&
+      session.role !== "MASTER"
+    ) {
       return NextResponse.json(
         { error: "역할 전환 권한이 없습니다" },
         { status: 403 }
@@ -25,15 +29,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 서비스 로직 호출
-    const result = await switchUserRole(
-      session.id,
-      session.role as "TRAINER" | "MANAGER"
-    );
+    const result = await switchUserRole(session.id, session.role);
 
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || "역할 전환에 실패했습니다" },
-        { status: result.error === "매니저 권한이 없습니다" ? 403 : 400 }
+        {
+          status:
+            result.error === "매니저 권한이 없습니다" ||
+            result.error === "Master 권한이 없습니다"
+              ? 403
+              : 400,
+        }
       );
     }
 
@@ -44,14 +51,18 @@ export async function POST(request: NextRequest) {
     await ironSession.save();
 
     // 리다이렉트 URL 결정
-    const redirectUrl = result.newRole === "TRAINER" ? "/trainer" : "/manager";
+    let redirectUrl = "/trainer";
+    if (result.newRole === "MANAGER") {
+      redirectUrl = "/manager";
+    } else if (result.newRole === "MASTER") {
+      redirectUrl = "/master";
+    }
 
     return NextResponse.json({
       success: true,
       role: result.newRole,
-      redirectUrl
+      redirectUrl,
     });
-
   } catch (error) {
     await logApiError(request, error as Error, {
       errorCode: "AUTH_004",
